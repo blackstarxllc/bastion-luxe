@@ -86,6 +86,23 @@
   }
   .nav-btn.primary:hover{ background:#D4B27E; }
 
+  /* ---------- INFO BANNER ---------- */
+  .info-banner{
+    max-width:1180px;
+    margin:24px auto 0;
+    padding:14px 24px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    background:rgba(199,162,104,0.08);
+    border:1px solid var(--brass-dim);
+    color:var(--stone);
+    font-size:13px;
+    line-height:1.5;
+  }
+  .info-banner svg{ width:17px; height:17px; flex-shrink:0; color:var(--brass); }
+  @media(min-width:900px){ .info-banner{ margin:24px 56px 0; padding:14px 32px; max-width:none; } }
+
   /* ---------- HEADER ---------- */
   .page-head{
     max-width:1180px;
@@ -181,6 +198,84 @@
   .chip.active{
     border-color:var(--brass);
     color:var(--brass);
+  }
+
+  .filter-row2{
+    max-width:1180px;
+    margin:14px auto 0;
+    padding:0 24px;
+    display:flex;
+    gap:22px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
+  @media(min-width:900px){ .filter-row2{ padding:0 56px; } }
+
+  .price-range{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .price-range-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--stone-dim);
+  }
+  .price-range input{
+    width:96px;
+    background:var(--field);
+    border:1px solid var(--field-border);
+    border-radius:var(--radius);
+    color:var(--ivory);
+    font-family:'Inter', sans-serif;
+    font-size:13px;
+    padding:8px 10px;
+    outline:none;
+    transition:border-color 0.2s ease;
+  }
+  .price-range input:focus{ border-color:var(--brass); }
+  .price-range span{ color:var(--stone-dim); }
+
+  .sort-wrap{ display:flex; align-items:center; gap:8px; }
+  .sort-select{
+    background:var(--field);
+    border:1px solid var(--field-border);
+    border-radius:var(--radius);
+    color:var(--ivory);
+    font-family:'Inter', sans-serif;
+    font-size:13px;
+    padding:8px 10px;
+    outline:none;
+    cursor:pointer;
+    transition:border-color 0.2s ease;
+  }
+  .sort-select:focus{ border-color:var(--brass); }
+
+  .condition-bar{ display:flex; gap:8px; flex-wrap:wrap; }
+
+  .clear-filters{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:var(--stone-dim);
+    background:none;
+    border:none;
+    cursor:pointer;
+    text-decoration:underline;
+    text-underline-offset:3px;
+  }
+  .clear-filters:hover{ color:var(--brass); }
+
+  .card-condition{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9.5px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--stone-dim);
+    margin-top:2px;
   }
 
   /* ---------- GRID ---------- */
@@ -436,6 +531,53 @@
     text-transform:uppercase;
     cursor:pointer;
   }
+
+  /* ---------- NOTIFICATIONS ---------- */
+  .notif-wrap{ position:relative; display:inline-flex; }
+  .notif-bell{
+    position:relative;
+    background:none; border:1px solid var(--field-border, var(--hairline));
+    color:var(--ivory);
+    border-radius:var(--radius);
+    width:36px; height:36px;
+    display:inline-flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    transition:border-color 0.2s ease;
+  }
+  .notif-bell:hover{ border-color:var(--brass); }
+  .notif-bell svg{ width:17px; height:17px; }
+  .notif-count{
+    position:absolute; top:-5px; right:-5px;
+    background:var(--brass); color:var(--brass-ink);
+    font-family:'IBM Plex Mono', monospace; font-size:9.5px; font-weight:600;
+    min-width:16px; height:16px; border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    padding:0 4px;
+  }
+  .notif-dropdown{
+    position:absolute; top:calc(100% + 10px); right:0;
+    width:320px; max-height:420px; overflow-y:auto;
+    background:var(--ink-soft); border:1px solid var(--hairline);
+    border-radius:var(--radius);
+    box-shadow:0 12px 32px rgba(0,0,0,0.45);
+    z-index:100;
+  }
+  .notif-dropdown-title{
+    font-family:'IBM Plex Mono', monospace; font-size:10.5px;
+    letter-spacing:0.08em; text-transform:uppercase; color:var(--stone-dim);
+    padding:14px 16px; border-bottom:1px solid var(--hairline);
+  }
+  .notif-item{
+    padding:14px 16px; border-bottom:1px solid var(--hairline);
+    cursor:pointer; transition:background 0.2s ease;
+  }
+  .notif-item:last-child{ border-bottom:none; }
+  .notif-item:hover{ background:rgba(255,255,255,0.03); }
+  .notif-item.unread{ background:rgba(199,162,104,0.06); }
+  .notif-item-title{ font-family:'Fraunces', serif; font-size:14px; color:var(--ivory); }
+  .notif-item-body{ font-size:12px; color:var(--stone); margin-top:3px; line-height:1.5; }
+  .notif-item-time{ font-family:'IBM Plex Mono', monospace; font-size:9.5px; color:var(--stone-dim); margin-top:6px; }
+  .notif-empty{ padding:24px 16px; text-align:center; color:var(--stone-dim); font-size:12.5px; }
 </style>
   <script>
     if ("serviceWorker" in navigator) {
@@ -450,11 +592,27 @@
 <nav class="nav">
   <a href="bastion-auth.html" class="wordmark">Bast<em>ion</em></a>
   <div class="nav-right">
+    <div class="notif-wrap">
+      <button class="notif-bell" id="notifBellBtn" type="button" aria-label="Notifications">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <span class="notif-count" id="notifCount" style="display:none;"></span>
+      </button>
+      <div class="notif-dropdown" id="notifDropdown" style="display:none;">
+        <div class="notif-dropdown-title">Notifications</div>
+        <div id="notifList"></div>
+      </div>
+    </div>
+    <a href="bastion-messages.html" class="nav-btn" style="position:relative;">Messages<span id="navMsgDot" style="display:none; position:absolute; top:-3px; right:-3px; width:7px; height:7px; border-radius:50%; background:var(--brass);"></span></a>
     <a href="bastion-my-account.html" class="nav-btn">My Account</a>
     <a href="bastion-create-listing.html" class="nav-btn">List an Item</a>
     <a href="bastion-auth.html" class="nav-btn primary">Dashboard</a>
   </div>
 </nav>
+
+<div class="info-banner" id="deletionBanner" style="display:none;">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
+  <span>Your account deletion request has been received. It may take some time to process.</span>
+</div>
 
 <div class="page-head">
   <div class="eyebrow">Verified Escrow Exchange</div>
@@ -473,6 +631,33 @@
   <button class="chip" data-cat="Sneakers">Sneakers</button>
   <button class="chip" data-cat="Jewelry">Fine Jewelry</button>
   <button class="chip" data-cat="Cards">Trading Cards</button>
+</div>
+
+<div class="filter-row2">
+  <div class="price-range">
+    <span class="price-range-label">Price</span>
+    <input type="number" min="0" step="1" id="priceMin" placeholder="Min">
+    <span>–</span>
+    <input type="number" min="0" step="1" id="priceMax" placeholder="Max">
+  </div>
+  <div class="condition-bar" id="conditionBar">
+    <button class="chip active" data-cond="all">Any Condition</button>
+    <button class="chip" data-cond="New">New</button>
+    <button class="chip" data-cond="Like New">Like New</button>
+    <button class="chip" data-cond="Excellent">Excellent</button>
+    <button class="chip" data-cond="Good">Good</button>
+    <button class="chip" data-cond="Fair">Fair</button>
+    <button class="chip" data-cond="For Parts">For Parts</button>
+  </div>
+  <div class="sort-wrap">
+    <span class="price-range-label">Sort</span>
+    <select id="sortSelect" class="sort-select">
+      <option value="newest">Newest First</option>
+      <option value="price_asc">Price: Low to High</option>
+      <option value="price_desc">Price: High to Low</option>
+    </select>
+  </div>
+  <button class="clear-filters" id="clearFiltersBtn">Clear filters</button>
 </div>
 
 <div class="grid-wrap">
@@ -496,7 +681,11 @@ const TABLE_NAME = 'deals';
 
 let allDeals = [];
 let activeCategory = 'all';
+let activeCondition = 'all';
 let searchQuery = '';
+let priceMin = null;
+let priceMax = null;
+let activeSort = 'newest';
 let favoriteIds = new Set();
 let currentUserId = null;
 
@@ -584,6 +773,25 @@ function renderGrid(){
     });
   }
 
+  if(activeCondition !== 'all'){
+    filtered = filtered.filter(d => d.condition === activeCondition);
+  }
+
+  if(priceMin != null){
+    filtered = filtered.filter(d => Number(d.price) >= priceMin);
+  }
+  if(priceMax != null){
+    filtered = filtered.filter(d => Number(d.price) <= priceMax);
+  }
+
+  if(activeSort === 'price_asc'){
+    filtered = filtered.slice().sort((a, b) => Number(a.price) - Number(b.price));
+  } else if(activeSort === 'price_desc'){
+    filtered = filtered.slice().sort((a, b) => Number(b.price) - Number(a.price));
+  } else {
+    filtered = filtered.slice().sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+  }
+
   if(filtered.length === 0){
     grid.innerHTML = `
       <div class="state-block">
@@ -598,6 +806,7 @@ function renderGrid(){
     const name = escapeHtml(deal.item_name || deal.name || deal.title || 'Untitled item');
     const desc = escapeHtml(deal.description || 'No description provided.');
     const cat = escapeHtml(deal.category || 'Uncategorized');
+    const condition = deal.condition ? '<div class="card-condition">' + escapeHtml(deal.condition) + '</div>' : '';
     const price = deal.price != null ? formatPrice(deal.price) : '—';
     const fee = deal.price != null ? feeForPrice(deal.price) : '';
     const id = deal.id != null ? deal.id : '';
@@ -622,6 +831,7 @@ function renderGrid(){
           <span class="card-status ${statusClass}">${statusDot}${statusLabel}</span>
         </div>
         <div class="card-name">${name}</div>
+        ${condition}
         <div class="card-desc">${desc}</div>
         <div class="card-foot">
           <span class="card-price">${price}</span>
@@ -668,13 +878,159 @@ document.getElementById('searchInput').addEventListener('input', function(e){
 document.getElementById('filterBar').addEventListener('click', function(e){
   const btn = e.target.closest('.chip');
   if(!btn) return;
-  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  this.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
   btn.classList.add('active');
   activeCategory = btn.dataset.cat;
   renderGrid();
 });
 
+document.getElementById('conditionBar').addEventListener('click', function(e){
+  const btn = e.target.closest('.chip');
+  if(!btn) return;
+  this.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  activeCondition = btn.dataset.cond;
+  renderGrid();
+});
+
+function readPriceInputs(){
+  const minVal = document.getElementById('priceMin').value;
+  const maxVal = document.getElementById('priceMax').value;
+  priceMin = minVal !== '' ? Number(minVal) : null;
+  priceMax = maxVal !== '' ? Number(maxVal) : null;
+  renderGrid();
+}
+document.getElementById('priceMin').addEventListener('input', readPriceInputs);
+document.getElementById('priceMax').addEventListener('input', readPriceInputs);
+
+document.getElementById('sortSelect').addEventListener('change', function(e){
+  activeSort = e.target.value;
+  renderGrid();
+});
+
+document.getElementById('clearFiltersBtn').addEventListener('click', function(){
+  searchQuery = '';
+  activeCategory = 'all';
+  activeCondition = 'all';
+  priceMin = null;
+  priceMax = null;
+  activeSort = 'newest';
+  document.getElementById('searchInput').value = '';
+  document.getElementById('priceMin').value = '';
+  document.getElementById('priceMax').value = '';
+  document.getElementById('sortSelect').value = 'newest';
+  document.getElementById('filterBar').querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  document.getElementById('filterBar').querySelector('[data-cat="all"]').classList.add('active');
+  document.getElementById('conditionBar').querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  document.getElementById('conditionBar').querySelector('[data-cond="all"]').classList.add('active');
+  renderGrid();
+});
+
+if(new URLSearchParams(window.location.search).get('deletion_requested') === '1'){
+  document.getElementById('deletionBanner').style.display = 'flex';
+  const cleanUrl = window.location.pathname;
+  window.history.replaceState({}, '', cleanUrl);
+}
+
 loadDeals();
+
+(async function checkUnreadMessages(){
+  const dot = document.getElementById('navMsgDot');
+  if(!dot) return;
+  try{
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const session = sessionData && sessionData.session;
+    if(!session) return;
+    const uid = session.user.id;
+    const { data: convos } = await supabaseClient.from('conversations').select('id').or('buyer_id.eq.' + uid + ',seller_id.eq.' + uid);
+    const convoIds = (convos || []).map(function(c){ return c.id; });
+    if(!convoIds.length) return;
+    const { data: unread } = await supabaseClient.from('messages').select('id').in('conversation_id', convoIds).is('read_at', null).neq('sender_id', uid).limit(1);
+    if(unread && unread.length) dot.style.display = 'block';
+  } catch(e){ /* silent */ }
+})();
+
+(function initNotifications(){
+  const bellBtn = document.getElementById('notifBellBtn');
+  if(!bellBtn) return;
+
+  function escNotif(str){
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
+  async function loadNotifications(){
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const session = sessionData && sessionData.session;
+    if(!session) return;
+    const uid = session.user.id;
+
+    const { data, error } = await supabaseClient
+      .from('notifications')
+      .select('*')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+      .limit(30);
+
+    if(error || !data) return;
+
+    const unreadCount = data.filter(function(n){ return !n.is_read; }).length;
+    const countEl = document.getElementById('notifCount');
+    if(unreadCount > 0){
+      countEl.textContent = unreadCount > 9 ? '9+' : String(unreadCount);
+      countEl.style.display = 'flex';
+    } else {
+      countEl.style.display = 'none';
+    }
+
+    const list = document.getElementById('notifList');
+    if(data.length === 0){
+      list.innerHTML = '<div class="notif-empty">No notifications yet.</div>';
+      return;
+    }
+
+    list.innerHTML = data.map(function(n){
+      const time = n.created_at ? new Date(n.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '';
+      return '<div class="notif-item' + (n.is_read ? '' : ' unread') + '" data-id="' + escNotif(n.id) + '" data-link="' + escNotif(n.link || '') + '">' +
+        '<div class="notif-item-title">' + escNotif(n.title || 'Notification') + '</div>' +
+        (n.body ? '<div class="notif-item-body">' + escNotif(n.body) + '</div>' : '') +
+        '<div class="notif-item-time">' + time + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  async function markNotificationRead(id){
+    await supabaseClient.from('notifications').update({ is_read: true }).eq('id', id);
+  }
+
+  bellBtn.addEventListener('click', function(e){
+    e.stopPropagation();
+    const dropdown = document.getElementById('notifDropdown');
+    const isOpen = dropdown.style.display === 'block';
+    dropdown.style.display = isOpen ? 'none' : 'block';
+    if(!isOpen) loadNotifications();
+  });
+
+  document.getElementById('notifList').addEventListener('click', function(e){
+    const item = e.target.closest('.notif-item');
+    if(!item) return;
+    const id = item.dataset.id;
+    const link = item.dataset.link;
+    item.classList.remove('unread');
+    markNotificationRead(id);
+    if(link) window.location.href = link;
+  });
+
+  document.addEventListener('click', function(e){
+    const dropdown = document.getElementById('notifDropdown');
+    if(dropdown.style.display === 'block' && !dropdown.contains(e.target) && e.target !== bellBtn && !bellBtn.contains(e.target)){
+      dropdown.style.display = 'none';
+    }
+  });
+
+  loadNotifications();
+})();
 </script>
 
 <button type="button" class="install-btn" id="installBtn">

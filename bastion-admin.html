@@ -92,13 +92,71 @@
   .search-input:focus{ outline:none; border-color:var(--brass); }
   .badge.admin{ color:var(--brass); border-color:var(--brass); }
   .badge.banned{ color:#E0958D; border-color:#8C3F37; }
+  .badge.verified{ color:#8FBBAC; border-color:#2C5C4F; margin-right:6px; }
+
+  /* ---------- NOTIFICATIONS ---------- */
+  .notif-wrap{ position:relative; display:inline-flex; }
+  .notif-bell{
+    position:relative;
+    background:none; border:1px solid var(--field-border, var(--hairline));
+    color:var(--ivory);
+    border-radius:var(--radius);
+    width:36px; height:36px;
+    display:inline-flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    transition:border-color 0.2s ease;
+  }
+  .notif-bell:hover{ border-color:var(--brass); }
+  .notif-bell svg{ width:17px; height:17px; }
+  .notif-count{
+    position:absolute; top:-5px; right:-5px;
+    background:var(--brass); color:var(--brass-ink);
+    font-family:'IBM Plex Mono', monospace; font-size:9.5px; font-weight:600;
+    min-width:16px; height:16px; border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    padding:0 4px;
+  }
+  .notif-dropdown{
+    position:absolute; top:calc(100% + 10px); right:0;
+    width:320px; max-height:420px; overflow-y:auto;
+    background:var(--ink-soft); border:1px solid var(--hairline);
+    border-radius:var(--radius);
+    box-shadow:0 12px 32px rgba(0,0,0,0.45);
+    z-index:100;
+  }
+  .notif-dropdown-title{
+    font-family:'IBM Plex Mono', monospace; font-size:10.5px;
+    letter-spacing:0.08em; text-transform:uppercase; color:var(--stone-dim);
+    padding:14px 16px; border-bottom:1px solid var(--hairline);
+  }
+  .notif-item{
+    padding:14px 16px; border-bottom:1px solid var(--hairline);
+    cursor:pointer; transition:background 0.2s ease;
+  }
+  .notif-item:last-child{ border-bottom:none; }
+  .notif-item:hover{ background:rgba(255,255,255,0.03); }
+  .notif-item.unread{ background:rgba(199,162,104,0.06); }
+  .notif-item-title{ font-family:'Fraunces', serif; font-size:14px; color:var(--ivory); }
+  .notif-item-body{ font-size:12px; color:var(--stone); margin-top:3px; line-height:1.5; }
+  .notif-item-time{ font-family:'IBM Plex Mono', monospace; font-size:9.5px; color:var(--stone-dim); margin-top:6px; }
+  .notif-empty{ padding:24px 16px; text-align:center; color:var(--stone-dim); font-size:12.5px; }
 </style>
 </head>
 <body>
 
 <header>
   <div class="wordmark">Bast<em>ion</em></div>
-  <nav>
+  <nav style="display:flex; align-items:center; gap:20px;">
+    <div class="notif-wrap">
+      <button class="notif-bell" id="notifBellBtn" type="button" aria-label="Notifications">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <span class="notif-count" id="notifCount" style="display:none;"></span>
+      </button>
+      <div class="notif-dropdown" id="notifDropdown" style="display:none;">
+        <div class="notif-dropdown-title">Notifications</div>
+        <div id="notifList"></div>
+      </div>
+    </div>
     <a href="/bastion-my-account.html">My Account</a>
     <a href="/bastion-marketplace.html">Marketplace</a>
   </nav>
@@ -119,6 +177,13 @@
   <div class="section-title">Disputed Transactions</div>
   <div id="disputesList"></div>
 
+  <div class="section-title">Reports</div>
+  <div id="reportsList"></div>
+
+  <div class="section-title">Account Deletion Requests</div>
+  <div class="empty-note" style="padding-top:0;">"Mark completed" only clears the request from this queue — it does not delete the account. Actually delete the user in Supabase → Authentication → Users first, then mark it here.</div>
+  <div id="deletionRequestsList"></div>
+
   <div class="section-title">All Listings</div>
   <div id="listingsList"></div>
 </main>
@@ -137,6 +202,16 @@ function escapeHtml(str){
 
 function money(n){
   return '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function logAdminAction(action, targetType, targetId){
+  supabaseClient.rpc('log_admin_action', {
+    p_action: action,
+    p_target_type: targetType,
+    p_target_id: targetId != null ? String(targetId) : null
+  }).then(function(res){
+    if(res.error) console.error('Could not log admin action:', res.error.message);
+  });
 }
 
 async function checkAdminAccess(){
@@ -178,7 +253,9 @@ async function loadUsers(searchTerm){
 
   list.innerHTML = data.map(function(u){
     const badges = (u.is_admin ? '<span class="badge admin">Admin</span> ' : '') +
-                   (u.is_banned ? '<span class="badge banned">Banned</span>' : '');
+                   (u.is_banned ? '<span class="badge banned">Banned</span> ' : '') +
+                   (u.id_verified ? '<span class="badge verified">ID Verified</span> ' : '') +
+                   (u.authenticity_verified ? '<span class="badge verified">Authenticity Verified</span>' : '');
     return `
       <div class="row" data-user-id="${escapeHtml(u.id)}">
         <div class="row-top">
@@ -190,6 +267,8 @@ async function loadUsers(searchTerm){
         </div>
         <div class="row-actions">
           <button class="btn" onclick="editHandle('${u.id}', '${escapeHtml(u.handle || '')}')">Edit handle</button>
+          <button class="btn" onclick="toggleVerification('${u.id}', 'id_verified', ${!u.id_verified}, this)">${u.id_verified ? 'Revoke ID verification' : 'Mark ID verified'}</button>
+          <button class="btn" onclick="toggleVerification('${u.id}', 'authenticity_verified', ${!u.authenticity_verified}, this)">${u.authenticity_verified ? 'Revoke authenticity verification' : 'Mark authenticity verified'}</button>
           ${u.is_banned
             ? `<button class="btn" onclick="setBanStatus('${u.id}', false, null, this)">Unban</button>`
             : `<button class="btn danger" onclick="banUser('${u.id}', this)">Ban user</button>`
@@ -200,11 +279,30 @@ async function loadUsers(searchTerm){
   }).join('');
 }
 
+async function toggleVerification(userId, field, value, btn){
+  btn.disabled = true;
+  const update = {};
+  update[field] = value;
+  const { error } = await supabaseClient.from('profiles').update(update).eq('id', userId);
+  if(error){
+    alert('Could not update verification: ' + error.message);
+    btn.disabled = false;
+    return;
+  }
+  logAdminAction(
+    (value ? 'Marked ' : 'Revoked ') + (field === 'id_verified' ? 'ID verification' : 'authenticity verification'),
+    'user',
+    userId
+  );
+  loadUsers(document.getElementById('userSearch').value.trim());
+}
+
 async function editHandle(userId, currentHandle){
   const newHandle = prompt('New handle for this user:', currentHandle);
   if(newHandle === null || newHandle.trim() === '' || newHandle === currentHandle) return;
   const { error } = await supabaseClient.from('profiles').update({ handle: newHandle.trim() }).eq('id', userId);
   if(error){ alert('Could not update handle: ' + error.message); return; }
+  logAdminAction('Changed handle to @' + newHandle.trim(), 'user', userId);
   loadUsers(document.getElementById('userSearch').value.trim());
 }
 
@@ -225,6 +323,7 @@ async function setBanStatus(userId, banned, reason, btn){
     if(btn) btn.disabled = false;
     return;
   }
+  logAdminAction(banned ? ('Banned user' + (reason ? ': ' + reason : '')) : 'Unbanned user', 'user', userId);
   loadUsers(document.getElementById('userSearch').value.trim());
 }
 
@@ -265,6 +364,8 @@ async function loadDisputes(){
           </div>
           <div class="row-price">${money(txn.total)}</div>
         </div>
+        ${txn.dispute_reason ? `<div class="row-meta" style="margin-top:10px;"><span class="badge disputed">${escapeHtml(txn.dispute_reason)}</span></div>` : ''}
+        ${txn.dispute_details ? `<div class="row-meta" style="margin-top:6px; white-space:pre-wrap;">${escapeHtml(txn.dispute_details)}</div>` : ''}
         <div class="row-actions">
           <button class="btn primary" onclick="resolveDispute('${txn.id}', '${txn.deal_id || ''}', 'release', this)">Release funds to seller</button>
           <button class="btn danger" onclick="resolveDispute('${txn.id}', '${txn.deal_id || ''}', 'refund', this)">Refund buyer / cancel deal</button>
@@ -295,7 +396,123 @@ async function resolveDispute(txnId, dealId, action, btn){
   if(dealId && newDealStatus){
     await supabaseClient.from('deals').update({ status: newDealStatus }).eq('id', dealId);
   }
+  const actionLabel = action === 'release' ? 'Resolved dispute: released funds to seller'
+    : action === 'refund' ? 'Resolved dispute: refunded buyer / cancelled deal'
+    : 'Reopened disputed transaction';
+  logAdminAction(actionLabel, 'transaction', txnId);
   loadDisputes();
+}
+
+async function loadReports(){
+  const list = document.getElementById('reportsList');
+  const { data, error } = await supabaseClient
+    .from('reports')
+    .select('*')
+    .eq('status', 'open')
+    .order('created_at', { ascending: false });
+
+  if(error){
+    list.innerHTML = '<div class="empty-note">Could not load reports: ' + escapeHtml(error.message) + '</div>';
+    return;
+  }
+  if(!data || data.length === 0){
+    list.innerHTML = '<div class="empty-note">No open reports right now.</div>';
+    return;
+  }
+
+  list.innerHTML = data.map(function(r){
+    const targetHref = r.target_type === 'listing'
+      ? '/bastion-deal-detail.html?id=' + encodeURIComponent(r.target_id)
+      : '/bastion-seller-profile.html?id=' + encodeURIComponent(r.target_id);
+    return `
+      <div class="row" data-report-id="${escapeHtml(r.id)}">
+        <div class="row-top">
+          <div>
+            <div class="row-title">${escapeHtml(r.target_label || (r.target_type === 'listing' ? 'Listing' : 'Seller'))}</div>
+            <div class="row-meta">
+              ${escapeHtml(r.target_type)} · reported by ${escapeHtml(r.reporter_id)}<br>
+              <span class="badge disputed">${escapeHtml(r.reason)}</span>
+            </div>
+          </div>
+        </div>
+        ${r.details ? `<div class="row-meta" style="margin-top:6px; white-space:pre-wrap;">${escapeHtml(r.details)}</div>` : ''}
+        <div class="row-actions">
+          <a class="btn" href="${targetHref}" target="_blank">View ${escapeHtml(r.target_type)}</a>
+          <button class="btn primary" onclick="resolveReport('${r.id}', 'resolved', this)">Mark resolved</button>
+          <button class="btn" onclick="resolveReport('${r.id}', 'dismissed', this)">Dismiss</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function resolveReport(reportId, status, btn){
+  btn.disabled = true;
+  const { error } = await supabaseClient.from('reports').update({ status: status }).eq('id', reportId);
+  if(error){
+    alert('Could not update report: ' + error.message);
+    btn.disabled = false;
+    return;
+  }
+  logAdminAction(status === 'resolved' ? 'Marked report resolved' : 'Dismissed report', 'report', reportId);
+  loadReports();
+}
+
+async function loadDeletionRequests(){
+  const list = document.getElementById('deletionRequestsList');
+  const { data, error } = await supabaseClient
+    .from('account_deletion_requests')
+    .select('*')
+    .eq('status', 'pending')
+    .order('requested_at', { ascending: false });
+
+  if(error){
+    list.innerHTML = '<div class="empty-note">Could not load deletion requests: ' + escapeHtml(error.message) + '</div>';
+    return;
+  }
+  if(!data || data.length === 0){
+    list.innerHTML = '<div class="empty-note">No pending deletion requests.</div>';
+    return;
+  }
+
+  list.innerHTML = data.map(function(r){
+    return `
+      <div class="row" data-deletion-id="${escapeHtml(r.id)}">
+        <div class="row-top">
+          <div>
+            <div class="row-title">User ${escapeHtml(String(r.user_id).slice(0,8).toUpperCase())}</div>
+            <div class="row-meta">
+              User ID: ${escapeHtml(r.user_id)}<br>
+              Requested: ${escapeHtml(new Date(r.requested_at).toLocaleString())}
+            </div>
+          </div>
+        </div>
+        <div class="row-actions">
+          <button class="btn primary" onclick="resolveDeletionRequest('${r.id}', 'completed', this)">Mark completed</button>
+          <button class="btn" onclick="resolveDeletionRequest('${r.id}', 'cancelled', this)">Cancel request</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function resolveDeletionRequest(requestId, status, btn){
+  btn.disabled = true;
+  const { error } = await supabaseClient
+    .from('account_deletion_requests')
+    .update({ status: status, processed_at: new Date().toISOString() })
+    .eq('id', requestId);
+  if(error){
+    alert('Could not update deletion request: ' + error.message);
+    btn.disabled = false;
+    return;
+  }
+  logAdminAction(
+    status === 'completed' ? 'Marked account deletion request completed' : 'Cancelled account deletion request',
+    'account_deletion_request',
+    requestId
+  );
+  loadDeletionRequests();
 }
 
 async function loadListings(){
@@ -348,6 +565,7 @@ async function removeListing(dealId, btn){
     btn.disabled = false;
     return;
   }
+  logAdminAction('Removed listing', 'listing', dealId);
   loadListings();
 }
 
@@ -358,7 +576,91 @@ async function removeListing(dealId, btn){
   document.getElementById('content').style.display = 'block';
   loadUsers();
   loadDisputes();
+  loadReports();
+  loadDeletionRequests();
   loadListings();
+})();
+
+(function initNotifications(){
+  const bellBtn = document.getElementById('notifBellBtn');
+  if(!bellBtn) return;
+
+  function escNotif(str){
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
+  async function loadNotifications(){
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const session = sessionData && sessionData.session;
+    if(!session) return;
+    const uid = session.user.id;
+
+    const { data, error } = await supabaseClient
+      .from('notifications')
+      .select('*')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+      .limit(30);
+
+    if(error || !data) return;
+
+    const unreadCount = data.filter(function(n){ return !n.is_read; }).length;
+    const countEl = document.getElementById('notifCount');
+    if(unreadCount > 0){
+      countEl.textContent = unreadCount > 9 ? '9+' : String(unreadCount);
+      countEl.style.display = 'flex';
+    } else {
+      countEl.style.display = 'none';
+    }
+
+    const list = document.getElementById('notifList');
+    if(data.length === 0){
+      list.innerHTML = '<div class="notif-empty">No notifications yet.</div>';
+      return;
+    }
+
+    list.innerHTML = data.map(function(n){
+      const time = n.created_at ? new Date(n.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '';
+      return '<div class="notif-item' + (n.is_read ? '' : ' unread') + '" data-id="' + escNotif(n.id) + '" data-link="' + escNotif(n.link || '') + '">' +
+        '<div class="notif-item-title">' + escNotif(n.title || 'Notification') + '</div>' +
+        (n.body ? '<div class="notif-item-body">' + escNotif(n.body) + '</div>' : '') +
+        '<div class="notif-item-time">' + time + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  async function markNotificationRead(id){
+    await supabaseClient.from('notifications').update({ is_read: true }).eq('id', id);
+  }
+
+  bellBtn.addEventListener('click', function(e){
+    e.stopPropagation();
+    const dropdown = document.getElementById('notifDropdown');
+    const isOpen = dropdown.style.display === 'block';
+    dropdown.style.display = isOpen ? 'none' : 'block';
+    if(!isOpen) loadNotifications();
+  });
+
+  document.getElementById('notifList').addEventListener('click', function(e){
+    const item = e.target.closest('.notif-item');
+    if(!item) return;
+    const id = item.dataset.id;
+    const link = item.dataset.link;
+    item.classList.remove('unread');
+    markNotificationRead(id);
+    if(link) window.location.href = link;
+  });
+
+  document.addEventListener('click', function(e){
+    const dropdown = document.getElementById('notifDropdown');
+    if(dropdown.style.display === 'block' && !dropdown.contains(e.target) && e.target !== bellBtn && !bellBtn.contains(e.target)){
+      dropdown.style.display = 'none';
+    }
+  });
+
+  loadNotifications();
 })();
 </script>
 

@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0b0d12">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Bastion">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bastion — Messages</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,450;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0B0D;
+    --ink-soft:#101216;
+    --surface:#15171B;
+    --field:#1B1E23;
+    --field-border:#2A2D33;
+    --ivory:#F1ECE1;
+    --stone:#8D8F94;
+    --stone-dim:#5B5D62;
+    --brass:#C7A268;
+    --brass-dim:#8C6F44;
+    --brass-ink:#171308;
+    --emerald:#2C5C4F;
+    --rust:#B5453D;
+    --hairline:rgba(241,236,225,0.08);
+    --radius:2px;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+
+  html,body{
+    min-height:100%;
+    background:var(--ink);
+    color:var(--ivory);
+    font-family:'Inter', -apple-system, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .nav{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 24px;
+    border-bottom:1px solid var(--hairline);
+    position:sticky; top:0;
+    background:var(--ink);
+    z-index:10;
+  }
+  @media(min-width:900px){ .nav{ padding:22px 56px; } }
+
+  .wordmark{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-size:22px;
+    color:var(--ivory);
+    text-decoration:none;
+  }
+  .wordmark em{ font-style:italic; font-weight:400; color:var(--brass); }
+
+  .nav-right{ display:flex; align-items:center; gap:14px; }
+  .nav-btn{
+    background:none; border:1px solid var(--field-border);
+    color:var(--ivory);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    padding:9px 16px;
+    border-radius:var(--radius);
+    cursor:pointer;
+    text-decoration:none;
+    display:inline-flex;
+    align-items:center;
+    transition:border-color 0.2s ease, color 0.2s ease;
+  }
+  .nav-btn:hover{ border-color:var(--brass); }
+  .nav-btn.primary{ background:var(--brass); color:var(--brass-ink); border-color:var(--brass); }
+  .nav-btn.primary:hover{ background:#D4B27E; }
+
+  .wrap{
+    max-width:760px;
+    margin:0 auto;
+    padding:48px 24px 100px;
+  }
+  @media(min-width:900px){ .wrap{ padding:64px 56px 120px; } }
+
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--brass);
+    margin-bottom:16px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:16px; height:1px;
+    background:var(--brass);
+    display:inline-block;
+  }
+
+  .page-title{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-style:italic;
+    font-size:32px;
+    color:var(--ivory);
+    line-height:1.2;
+  }
+  .page-title span{ color:var(--brass); }
+
+  .state-block{
+    text-align:center;
+    padding:100px 24px;
+    color:var(--stone);
+  }
+  .state-block .icon{
+    font-family:'Fraunces', serif;
+    font-size:40px;
+    color:var(--brass-dim);
+    margin-bottom:18px;
+  }
+  .state-block h3{
+    font-family:'Fraunces', serif;
+    font-style:italic;
+    font-weight:450;
+    font-size:20px;
+    color:var(--ivory);
+    margin-bottom:10px;
+  }
+  .state-block p{ font-size:13px; max-width:340px; margin:0 auto 20px; line-height:1.6; }
+  .spinner{
+    width:22px; height:22px;
+    border:2px solid var(--field-border);
+    border-top-color:var(--brass);
+    border-radius:50%;
+    margin:0 auto 18px;
+    animation:spin 0.8s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  .hidden{ display:none !important; }
+
+  /* ---------- INBOX ---------- */
+  .inbox-list{ border:1px solid var(--hairline); margin-top:28px; }
+  .convo-row{
+    display:flex; gap:14px; align-items:center;
+    padding:16px 20px;
+    border-bottom:1px solid var(--hairline);
+    cursor:pointer;
+    transition:background 0.2s ease;
+  }
+  .convo-row:last-child{ border-bottom:none; }
+  .convo-row:hover{ background:var(--ink-soft); }
+  .convo-avatar{
+    width:38px; height:38px; border-radius:50%; flex-shrink:0;
+    background:var(--field); border:1px solid var(--field-border);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces', serif; font-size:15px; color:var(--brass);
+  }
+  .convo-main{ flex:1; min-width:0; }
+  .convo-top{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+  .convo-name{
+    font-family:'Fraunces', serif; font-size:15px; color:var(--ivory);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .convo-time{
+    font-family:'IBM Plex Mono', monospace; font-size:10px;
+    color:var(--stone-dim); flex-shrink:0;
+  }
+  .convo-item{
+    font-family:'IBM Plex Mono', monospace; font-size:10px;
+    color:var(--brass-dim); margin-top:3px;
+  }
+  .convo-snippet{
+    font-size:12.5px; color:var(--stone); margin-top:4px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .convo-snippet.unread{ color:var(--ivory); font-weight:600; }
+  .unread-dot{ width:8px; height:8px; border-radius:50%; background:var(--brass); flex-shrink:0; }
+  .empty-row{ padding:28px 20px; text-align:center; color:var(--stone); font-size:13px; }
+  .empty-row a{ color:var(--brass); }
+
+  /* ---------- THREAD ---------- */
+  .thread-head{
+    display:flex; align-items:center; gap:14px;
+    padding:0 0 24px;
+    border-bottom:1px solid var(--hairline);
+    margin-bottom:0;
+  }
+  .back-link{
+    font-family:'IBM Plex Mono', monospace; font-size:11px;
+    letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--stone); text-decoration:none;
+    transition:color 0.2s ease; flex-shrink:0;
+  }
+  .back-link:hover{ color:var(--brass); }
+  .thread-title{ font-family:'Fraunces', serif; font-size:17px; color:var(--ivory); }
+  .thread-sub{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--stone-dim); margin-top:3px; }
+  .thread-sub a{ color:var(--brass); text-decoration:none; }
+
+  .safety-note{
+    display:flex; gap:10px; align-items:flex-start;
+    background:var(--ink-soft); border:1px solid var(--hairline);
+    border-radius:var(--radius); padding:12px 14px;
+    margin:18px 0; font-size:12px; line-height:1.6; color:var(--stone);
+  }
+  .safety-note svg{ width:15px; height:15px; flex-shrink:0; margin-top:1px; color:var(--brass); }
+
+  .thread-body{
+    display:flex; flex-direction:column; gap:10px;
+    padding:22px 0; min-height:280px; max-height:52vh; overflow-y:auto;
+  }
+  .bubble{ max-width:74%; padding:10px 14px; border-radius:12px; font-size:13.5px; line-height:1.55; }
+  .bubble.mine{
+    align-self:flex-end; background:var(--brass); color:var(--brass-ink);
+    border-bottom-right-radius:2px;
+  }
+  .bubble.theirs{
+    align-self:flex-start; background:var(--surface); color:var(--ivory);
+    border:1px solid var(--hairline); border-bottom-left-radius:2px;
+  }
+  .bubble-time{ display:block; font-family:'IBM Plex Mono', monospace; font-size:9px; margin-top:5px; opacity:0.65; }
+
+  .thread-input-row{
+    display:flex; gap:10px; align-items:flex-end;
+    padding:16px 0 0; border-top:1px solid var(--hairline);
+  }
+  .thread-input-row textarea{
+    flex:1; resize:none; background:var(--field); border:1px solid var(--field-border);
+    color:var(--ivory); border-radius:var(--radius); padding:11px 13px;
+    font-family:'Inter', sans-serif; font-size:13.5px; outline:none;
+    min-height:44px; max-height:120px;
+  }
+  .thread-input-row textarea:focus{ border-color:var(--brass); }
+  .send-btn{
+    background:var(--brass); color:var(--brass-ink); border:none;
+    border-radius:var(--radius); padding:12px 20px;
+    font-family:'IBM Plex Mono', monospace; font-size:11px;
+    letter-spacing:0.08em; text-transform:uppercase; cursor:pointer;
+    flex-shrink:0;
+  }
+  .send-btn:hover{ background:#D4B27E; }
+  .send-btn:disabled{ opacity:0.5; cursor:not-allowed; }
+
+  /* ---------- NOTIFICATIONS ---------- */
+  .notif-wrap{ position:relative; display:inline-flex; }
+  .notif-bell{
+    position:relative;
+    background:none; border:1px solid var(--field-border, var(--hairline));
+    color:var(--ivory);
+    border-radius:var(--radius);
+    width:36px; height:36px;
+    display:inline-flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    transition:border-color 0.2s ease;
+  }
+  .notif-bell:hover{ border-color:var(--brass); }
+  .notif-bell svg{ width:17px; height:17px; }
+  .notif-count{
+    position:absolute; top:-5px; right:-5px;
+    background:var(--brass); color:var(--brass-ink);
+    font-family:'IBM Plex Mono', monospace; font-size:9.5px; font-weight:600;
+    min-width:16px; height:16px; border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    padding:0 4px;
+  }
+  .notif-dropdown{
+    position:absolute; top:calc(100% + 10px); right:0;
+    width:320px; max-height:420px; overflow-y:auto;
+    background:var(--ink-soft); border:1px solid var(--hairline);
+    border-radius:var(--radius);
+    box-shadow:0 12px 32px rgba(0,0,0,0.45);
+    z-index:100;
+  }
+  .notif-dropdown-title{
+    font-family:'IBM Plex Mono', monospace; font-size:10.5px;
+    letter-spacing:0.08em; text-transform:uppercase; color:var(--stone-dim);
+    padding:14px 16px; border-bottom:1px solid var(--hairline);
+  }
+  .notif-item{
+    padding:14px 16px; border-bottom:1px solid var(--hairline);
+    cursor:pointer; transition:background 0.2s ease;
+  }
+  .notif-item:last-child{ border-bottom:none; }
+  .notif-item:hover{ background:rgba(255,255,255,0.03); }
+  .notif-item.unread{ background:rgba(199,162,104,0.06); }
+  .notif-item-title{ font-family:'Fraunces', serif; font-size:14px; color:var(--ivory); }
+  .notif-item-body{ font-size:12px; color:var(--stone); margin-top:3px; line-height:1.5; }
+  .notif-item-time{ font-family:'IBM Plex Mono', monospace; font-size:9.5px; color:var(--stone-dim); margin-top:6px; }
+  .notif-empty{ padding:24px 16px; text-align:center; color:var(--stone-dim); font-size:12.5px; }
+</style>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("/service-worker.js").catch(function(){});
+      });
+    }
+  </script>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="bastion-auth.html" class="wordmark">Bast<em>ion</em></a>
+  <div class="nav-right">
+    <div class="notif-wrap">
+      <button class="notif-bell" id="notifBellBtn" type="button" aria-label="Notifications">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <span class="notif-count" id="notifCount" style="display:none;"></span>
+      </button>
+      <div class="notif-dropdown" id="notifDropdown" style="display:none;">
+        <div class="notif-dropdown-title">Notifications</div>
+        <div id="notifList"></div>
+      </div>
+    </div>
+    <a href="bastion-marketplace.html" class="nav-btn">Marketplace</a>
+    <a href="bastion-my-account.html" class="nav-btn primary">My Account</a>
+  </div>
+</nav>
+
+<div id="signInRequired" class="state-block hidden">
+  <div class="icon">B</div>
+  <h3>Sign in required</h3>
+  <p>You'll need to sign in to see your messages.</p>
+  <a href="bastion-auth.html" class="nav-btn primary">Sign In</a>
+</div>
+
+<div id="loadingState" class="state-block">
+  <div class="spinner"></div>
+  <h3>Loading…</h3>
+</div>
+
+<div id="errorState" class="state-block hidden">
+  <div class="icon">B</div>
+  <h3 id="errorTitle">Something went wrong</h3>
+  <p id="errorMsg"></p>
+</div>
+
+<div class="wrap hidden" id="inboxWrap">
+  <div class="eyebrow">Verified Escrow Exchange</div>
+  <h1 class="page-title">Messages</h1>
+  <div class="inbox-list" id="inboxList"></div>
+</div>
+
+<div class="wrap hidden" id="threadWrap">
+  <div class="thread-head">
+    <a href="bastion-messages.html" class="back-link">← Inbox</a>
+    <div>
+      <div class="thread-title" id="threadTitle"></div>
+      <div class="thread-sub" id="threadSub"></div>
+    </div>
+  </div>
+
+  <div class="safety-note">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+    <span>If you're meeting in person: pick a public place, and verify the item matches the listing before you pay or release funds.</span>
+  </div>
+
+  <div class="thread-body" id="threadBody"></div>
+
+  <div class="thread-input-row">
+    <textarea id="messageInput" placeholder="Write a message…" maxlength="2000" rows="1"></textarea>
+    <button class="send-btn" id="sendBtn">Send</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = 'https://xokyqobttfhugdponfpg.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_nb18Wk7poF2HR0ZjpiJFnQ_tvv4wl0o';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUserId = null;
+let conversationId = null;
+let lastMessageTime = null;
+let pollTimer = null;
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+function initials(label){
+  return (label || '?').replace('@','').slice(0,2).toUpperCase();
+}
+
+function timeAgo(iso){
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if(mins < 1) return 'now';
+  if(mins < 60) return mins + 'm';
+  const hrs = Math.floor(mins / 60);
+  if(hrs < 24) return hrs + 'h';
+  const days = Math.floor(hrs / 24);
+  if(days < 7) return days + 'd';
+  return new Date(iso).toLocaleDateString('en-US', { month:'short', day:'numeric' });
+}
+
+function showState(id){
+  ['signInRequired','loadingState','errorState','inboxWrap','threadWrap'].forEach(function(s){
+    document.getElementById(s).classList.toggle('hidden', s !== id);
+  });
+}
+
+function showError(title, msg){
+  document.getElementById('errorTitle').textContent = title;
+  document.getElementById('errorMsg').textContent = msg;
+  showState('errorState');
+}
+
+async function getSessionUser(){
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  const session = sessionData && sessionData.session;
+  return session ? session.user.id : null;
+}
+
+/* ---------- INBOX ---------- */
+
+async function loadInbox(){
+  currentUserId = await getSessionUser();
+  if(!currentUserId){ showState('signInRequired'); return; }
+
+  const { data: convos, error } = await supabaseClient
+    .from('conversations')
+    .select('*, deals(item_name)')
+    .or('buyer_id.eq.' + currentUserId + ',seller_id.eq.' + currentUserId)
+    .order('last_message_at', { ascending: false });
+
+  if(error){
+    showError("Couldn't load your messages", error.message);
+    return;
+  }
+
+  if(!convos || convos.length === 0){
+    document.getElementById('inboxList').innerHTML =
+      '<div class="empty-row">No conversations yet. Message a seller from any listing page to start one.</div>';
+    showState('inboxWrap');
+    return;
+  }
+
+  const otherIds = [...new Set(convos.map(function(c){
+    return c.buyer_id === currentUserId ? c.seller_id : c.buyer_id;
+  }))];
+
+  const convoIds = convos.map(function(c){ return c.id; });
+
+  const [profilesRes, unreadRes, msgsRes] = await Promise.all([
+    supabaseClient.from('profiles').select('id,handle').in('id', otherIds),
+    supabaseClient.from('messages').select('conversation_id').in('conversation_id', convoIds).is('read_at', null).neq('sender_id', currentUserId),
+    supabaseClient.from('messages').select('conversation_id,body,created_at').in('conversation_id', convoIds).order('created_at', { ascending: false })
+  ]);
+
+  const handleMap = {};
+  (profilesRes.data || []).forEach(function(p){ handleMap[p.id] = p.handle; });
+
+  const unreadSet = new Set((unreadRes.data || []).map(function(m){ return m.conversation_id; }));
+
+  const snippetMap = {};
+  (msgsRes.data || []).forEach(function(m){
+    if(!snippetMap[m.conversation_id]) snippetMap[m.conversation_id] = m;
+  });
+
+  document.getElementById('inboxList').innerHTML = convos.map(function(c){
+    const otherId = c.buyer_id === currentUserId ? c.seller_id : c.buyer_id;
+    const handle = handleMap[otherId];
+    const label = handle ? '@' + handle : 'User ' + String(otherId).slice(0,6).toUpperCase();
+    const itemName = c.deals ? c.deals.item_name : null;
+    const snippet = snippetMap[c.id];
+    const isUnread = unreadSet.has(c.id);
+
+    return '' +
+      '<div class="convo-row" onclick="window.location.href=\'bastion-messages.html?id=' + encodeURIComponent(c.id) + '\'">' +
+        '<div class="convo-avatar">' + escapeHtml(initials(label)) + '</div>' +
+        '<div class="convo-main">' +
+          '<div class="convo-top">' +
+            '<span class="convo-name">' + escapeHtml(label) + '</span>' +
+            '<span class="convo-time">' + timeAgo(c.last_message_at) + '</span>' +
+          '</div>' +
+          (itemName ? '<div class="convo-item">Re: ' + escapeHtml(itemName) + '</div>' : '') +
+          '<div class="convo-snippet' + (isUnread ? ' unread' : '') + '">' + (snippet ? escapeHtml(snippet.body) : 'No messages yet.') + '</div>' +
+        '</div>' +
+        (isUnread ? '<span class="unread-dot"></span>' : '') +
+      '</div>';
+  }).join('');
+
+  showState('inboxWrap');
+}
+
+/* ---------- THREAD ---------- */
+
+function appendBubble(msg, mine){
+  const body = document.getElementById('threadBody');
+  const div = document.createElement('div');
+  div.className = 'bubble ' + (mine ? 'mine' : 'theirs');
+  div.innerHTML = escapeHtml(msg.body).replace(/\n/g, '<br>') +
+    '<span class="bubble-time">' + timeAgo(msg.created_at) + '</span>';
+  body.appendChild(div);
+}
+
+function scrollThreadToBottom(){
+  const body = document.getElementById('threadBody');
+  body.scrollTop = body.scrollHeight;
+}
+
+async function markRead(ids){
+  if(!ids.length) return;
+  await supabaseClient.from('messages').update({ read_at: new Date().toISOString() }).in('id', ids);
+}
+
+async function pollNewMessages(){
+  if(!conversationId || !lastMessageTime) return;
+  const { data, error } = await supabaseClient
+    .from('messages')
+    .select('*')
+    .eq('conversation_id', conversationId)
+    .gt('created_at', lastMessageTime)
+    .order('created_at', { ascending: true });
+
+  if(error || !data || data.length === 0) return;
+
+  data.forEach(function(m){ appendBubble(m, m.sender_id === currentUserId); });
+  lastMessageTime = data[data.length - 1].created_at;
+  scrollThreadToBottom();
+
+  const unreadIds = data.filter(function(m){ return m.sender_id !== currentUserId; }).map(function(m){ return m.id; });
+  markRead(unreadIds);
+}
+
+async function sendMessage(){
+  const input = document.getElementById('messageInput');
+  const text = input.value.trim();
+  if(!text) return;
+
+  const btn = document.getElementById('sendBtn');
+  btn.disabled = true;
+
+  const { data, error } = await supabaseClient
+    .from('messages')
+    .insert([{ conversation_id: conversationId, sender_id: currentUserId, body: text }])
+    .select()
+    .single();
+
+  btn.disabled = false;
+
+  if(error){
+    alert('Could not send: ' + error.message);
+    return;
+  }
+
+  input.value = '';
+  input.style.height = 'auto';
+  appendBubble(data, true);
+  lastMessageTime = data.created_at;
+  scrollThreadToBottom();
+  input.focus();
+}
+
+async function loadThread(id){
+  currentUserId = await getSessionUser();
+  if(!currentUserId){ showState('signInRequired'); return; }
+
+  const { data: convo, error } = await supabaseClient
+    .from('conversations')
+    .select('*, deals(id,item_name)')
+    .eq('id', id)
+    .maybeSingle();
+
+  if(error || !convo || (convo.buyer_id !== currentUserId && convo.seller_id !== currentUserId)){
+    showError('Conversation not found', "This conversation doesn't exist or you don't have access to it.");
+    return;
+  }
+
+  const otherId = convo.buyer_id === currentUserId ? convo.seller_id : convo.buyer_id;
+  const { data: profile } = await supabaseClient.from('profiles').select('handle').eq('id', otherId).maybeSingle();
+  const label = (profile && profile.handle) ? '@' + profile.handle : 'User ' + String(otherId).slice(0,6).toUpperCase();
+
+  document.getElementById('threadTitle').textContent = label;
+  document.getElementById('threadSub').innerHTML = convo.deals
+    ? 'Re: ' + escapeHtml(convo.deals.item_name) + ' · <a href="bastion-deal-detail.html?id=' + encodeURIComponent(convo.deals.id) + '">View listing</a>'
+    : '';
+
+  const { data: messages, error: msgErr } = await supabaseClient
+    .from('messages')
+    .select('*')
+    .eq('conversation_id', id)
+    .order('created_at', { ascending: true });
+
+  if(msgErr){
+    showError("Couldn't load this conversation", msgErr.message);
+    return;
+  }
+
+  const body = document.getElementById('threadBody');
+  body.innerHTML = '';
+  (messages || []).forEach(function(m){ appendBubble(m, m.sender_id === currentUserId); });
+  lastMessageTime = (messages && messages.length) ? messages[messages.length - 1].created_at : new Date(0).toISOString();
+
+  showState('threadWrap');
+  scrollThreadToBottom();
+
+  const unreadIds = (messages || []).filter(function(m){ return m.sender_id !== currentUserId && !m.read_at; }).map(function(m){ return m.id; });
+  markRead(unreadIds);
+
+  pollTimer = setInterval(pollNewMessages, 4000);
+}
+
+document.getElementById('sendBtn').addEventListener('click', sendMessage);
+document.getElementById('messageInput').addEventListener('keydown', function(e){
+  if(e.key === 'Enter' && !e.shiftKey){
+    e.preventDefault();
+    sendMessage();
+  }
+});
+document.getElementById('messageInput').addEventListener('input', function(){
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+window.addEventListener('beforeunload', function(){
+  if(pollTimer) clearInterval(pollTimer);
+});
+
+conversationId = new URLSearchParams(window.location.search).get('id');
+if(conversationId){
+  loadThread(conversationId);
+} else {
+  loadInbox();
+}
+
+(function initNotifications(){
+  const bellBtn = document.getElementById('notifBellBtn');
+  if(!bellBtn) return;
+
+  function escNotif(str){
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
+  async function loadNotifications(){
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const session = sessionData && sessionData.session;
+    if(!session) return;
+    const uid = session.user.id;
+
+    const { data, error } = await supabaseClient
+      .from('notifications')
+      .select('*')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+      .limit(30);
+
+    if(error || !data) return;
+
+    const unreadCount = data.filter(function(n){ return !n.is_read; }).length;
+    const countEl = document.getElementById('notifCount');
+    if(unreadCount > 0){
+      countEl.textContent = unreadCount > 9 ? '9+' : String(unreadCount);
+      countEl.style.display = 'flex';
+    } else {
+      countEl.style.display = 'none';
+    }
+
+    const list = document.getElementById('notifList');
+    if(data.length === 0){
+      list.innerHTML = '<div class="notif-empty">No notifications yet.</div>';
+      return;
+    }
+
+    list.innerHTML = data.map(function(n){
+      const time = n.created_at ? new Date(n.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '';
+      return '<div class="notif-item' + (n.is_read ? '' : ' unread') + '" data-id="' + escNotif(n.id) + '" data-link="' + escNotif(n.link || '') + '">' +
+        '<div class="notif-item-title">' + escNotif(n.title || 'Notification') + '</div>' +
+        (n.body ? '<div class="notif-item-body">' + escNotif(n.body) + '</div>' : '') +
+        '<div class="notif-item-time">' + time + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  async function markNotificationRead(id){
+    await supabaseClient.from('notifications').update({ is_read: true }).eq('id', id);
+  }
+
+  bellBtn.addEventListener('click', function(e){
+    e.stopPropagation();
+    const dropdown = document.getElementById('notifDropdown');
+    const isOpen = dropdown.style.display === 'block';
+    dropdown.style.display = isOpen ? 'none' : 'block';
+    if(!isOpen) loadNotifications();
+  });
+
+  document.getElementById('notifList').addEventListener('click', function(e){
+    const item = e.target.closest('.notif-item');
+    if(!item) return;
+    const id = item.dataset.id;
+    const link = item.dataset.link;
+    item.classList.remove('unread');
+    markNotificationRead(id);
+    if(link) window.location.href = link;
+  });
+
+  document.addEventListener('click', function(e){
+    const dropdown = document.getElementById('notifDropdown');
+    if(dropdown.style.display === 'block' && !dropdown.contains(e.target) && e.target !== bellBtn && !bellBtn.contains(e.target)){
+      dropdown.style.display = 'none';
+    }
+  });
+
+  loadNotifications();
+})();
+</script>
+</body>
+</html>

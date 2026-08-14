@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0b0d12">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Bastion">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bastion — List an Item</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,450;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0B0D;
+    --ink-soft:#101216;
+    --surface:#15171B;
+    --field:#1B1E23;
+    --field-border:#2A2D33;
+    --ivory:#F1ECE1;
+    --stone:#8D8F94;
+    --stone-dim:#5B5D62;
+    --brass:#C7A268;
+    --brass-dim:#8C6F44;
+    --brass-ink:#171308;
+    --emerald:#2C5C4F;
+    --rust:#B5453D;
+    --hairline:rgba(241,236,225,0.08);
+    --radius:2px;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+
+  html,body{
+    min-height:100%;
+    background:var(--ink);
+    color:var(--ivory);
+    font-family:'Inter', -apple-system, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .nav{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 24px;
+    border-bottom:1px solid var(--hairline);
+    position:sticky; top:0;
+    background:var(--ink);
+    z-index:10;
+  }
+  @media(min-width:900px){ .nav{ padding:22px 56px; } }
+
+  .wordmark{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-size:22px;
+    color:var(--ivory);
+    text-decoration:none;
+  }
+  .wordmark em{ font-style:italic; font-weight:400; color:var(--brass); }
+
+  .back-link{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--stone);
+    text-decoration:none;
+    transition:color 0.2s ease;
+  }
+  .back-link:hover{ color:var(--brass); }
+
+  .wrap{
+    max-width:620px;
+    margin:0 auto;
+    padding:48px 24px 100px;
+  }
+  @media(min-width:900px){ .wrap{ padding:64px 24px 120px; } }
+
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--brass);
+    margin-bottom:16px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:16px; height:1px;
+    background:var(--brass);
+    display:inline-block;
+  }
+
+  .page-title{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-style:italic;
+    font-size:32px;
+    color:var(--ivory);
+    line-height:1.2;
+  }
+
+  .page-sub{
+    font-size:13.5px;
+    color:var(--stone);
+    margin-top:10px;
+    max-width:440px;
+    line-height:1.6;
+  }
+
+  form{ margin-top:36px; }
+
+  .field{ margin-bottom:20px; }
+  .field label{
+    display:block;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--stone);
+    margin-bottom:8px;
+  }
+  .field input, .field select, .field textarea{
+    width:100%;
+    background:var(--field);
+    border:1px solid var(--field-border);
+    border-radius:var(--radius);
+    color:var(--ivory);
+    font-family:'Inter', sans-serif;
+    font-size:14.5px;
+    padding:13px 14px;
+    outline:none;
+    transition:border-color 0.2s ease, background 0.2s ease;
+  }
+  .field textarea{ resize:vertical; min-height:110px; line-height:1.6; }
+  .field input::placeholder, .field textarea::placeholder{ color:var(--stone-dim); }
+  .field input:focus, .field select:focus, .field textarea:focus{
+    border-color:var(--brass);
+    background:#1E2126;
+  }
+  .field select{
+    appearance:none;
+    -webkit-appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238D8F94' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-position:right 14px center;
+    padding-right:36px;
+  }
+
+  .row-2{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:20px;
+  }
+  @media(min-width:520px){ .row-2{ grid-template-columns:1fr 1fr; } }
+
+  .price-input-wrap{ position:relative; }
+  .price-input-wrap .dollar{
+    position:absolute; left:14px; top:50%; transform:translateY(-50%);
+    color:var(--stone-dim);
+    font-size:14.5px;
+    pointer-events:none;
+  }
+  .price-input-wrap input{ padding-left:26px; }
+
+  .detail-fields{
+    display:none;
+    flex-direction:column;
+    gap:20px;
+    margin-top:4px;
+    padding:20px;
+    background:var(--ink-soft);
+    border:1px solid var(--hairline);
+    margin-bottom:24px;
+  }
+  .detail-fields.show{ display:flex; }
+  .detail-fields-title{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--brass-dim);
+    margin-bottom:-6px;
+  }
+  .detail-row-2{ display:grid; grid-template-columns:1fr; gap:16px; }
+  @media(min-width:500px){ .detail-row-2{ grid-template-columns:1fr 1fr; } }
+  .check-row{ display:flex; align-items:center; gap:10px; }
+  .check-row input{ accent-color:var(--brass); width:16px; height:16px; }
+  .check-row label{ font-size:13px; color:var(--ivory); margin-bottom:0; text-transform:none; font-family:'Inter', sans-serif; letter-spacing:normal; }
+
+  .photo-field textarea{ min-height:70px; }
+  .photo-hint{
+    font-size:11.5px;
+    color:var(--stone-dim);
+    margin-top:6px;
+    line-height:1.5;
+  }
+
+  .photo-upload-box{
+    border:1px dashed var(--hairline);
+    background:var(--ink-soft);
+    border-radius:var(--radius);
+    padding:28px 18px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color 0.2s ease, background 0.2s ease;
+  }
+  .photo-upload-box:hover{ border-color:var(--brass); background:rgba(212,178,126,0.05); }
+  .photo-upload-box.dragover{ border-color:var(--brass); background:rgba(212,178,126,0.08); }
+  .photo-pick-icon{ font-size:26px; margin-bottom:8px; opacity:0.7; }
+  .photo-pick-text{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--stone);
+    margin-bottom:4px;
+  }
+  #photoPreviewWrap{ text-align:center; }
+  #photoPreview{
+    max-width:100%;
+    max-height:220px;
+    border-radius:calc(var(--radius) - 2px);
+    display:block;
+    margin:0 auto 12px;
+  }
+  .photo-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(84px, 1fr));
+    gap:10px;
+    margin-top:12px;
+  }
+  .photo-tile{
+    position:relative;
+    aspect-ratio:1/1;
+    border-radius:calc(var(--radius) - 2px);
+    overflow:hidden;
+    background:var(--ink-soft);
+    border:1px solid var(--hairline);
+  }
+  .photo-tile img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .photo-tile.cover::after{
+    content:'COVER';
+    position:absolute; bottom:0; left:0; right:0;
+    background:rgba(11,13,18,0.85);
+    color:var(--brass);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:8.5px;
+    letter-spacing:0.1em;
+    text-align:center;
+    padding:3px 0;
+  }
+  .photo-tile-remove{
+    position:absolute; top:4px; right:4px;
+    width:20px; height:20px;
+    border-radius:50%;
+    background:rgba(11,13,18,0.85);
+    border:1px solid var(--hairline);
+    color:var(--stone);
+    font-size:13px;
+    line-height:1;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+  }
+  .photo-tile-remove:hover{ border-color:#8C3F37; color:#E0958D; }
+  .photo-tile-uploading{
+    position:absolute; inset:0;
+    background:rgba(11,13,18,0.55);
+    display:flex; align-items:center; justify-content:center;
+    color:var(--brass);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9px;
+  }
+  .photo-tile-error{
+    position:absolute; inset:0;
+    background:rgba(140,63,55,0.75);
+    display:flex; align-items:center; justify-content:center;
+    color:#fff;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9px;
+    text-align:center;
+    padding:4px;
+  }
+  .photo-remove-btn{
+    background:none;
+    border:1px solid var(--hairline);
+    color:var(--stone);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    padding:7px 14px;
+    border-radius:calc(var(--radius) - 2px);
+    cursor:pointer;
+  }
+  .photo-remove-btn:hover{ border-color:#8C3F37; color:#E0958D; }
+  .photo-upload-progress{
+    height:3px;
+    background:var(--hairline);
+    border-radius:2px;
+    overflow:hidden;
+    margin-top:8px;
+    display:none;
+  }
+  .photo-upload-progress.show{ display:block; }
+  .photo-upload-progress-fill{
+    height:100%;
+    background:var(--brass);
+    width:0%;
+    transition:width 0.2s ease;
+  }
+
+  .fee-preview{
+    background:var(--ink-soft);
+    border:1px solid var(--hairline);
+    padding:16px 18px;
+    margin-top:-4px;
+    margin-bottom:24px;
+    font-size:12.5px;
+    color:var(--stone);
+    display:none;
+  }
+  .fee-preview.show{ display:block; }
+  .fee-preview strong{ color:var(--brass); }
+
+  .submit{
+    width:100%;
+    background:var(--brass);
+    color:var(--brass-ink);
+    border:none;
+    border-radius:var(--radius);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    font-weight:500;
+    padding:16px;
+    cursor:pointer;
+    transition:background 0.2s ease, transform 0.1s ease;
+  }
+  .submit:hover{ background:#D4B27E; }
+  .submit:active{ transform:scale(0.995); }
+  .submit:disabled{ opacity:0.55; cursor:not-allowed; }
+
+  .status-line{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    line-height:1.6;
+    margin-top:16px;
+    padding:12px 14px;
+    border:1px solid transparent;
+    display:none;
+  }
+  .status-line.show{ display:block; }
+  .status-line.ok{ color:#8FBBAC; border-color:#2C5C4F; background:rgba(44,92,79,0.12); }
+  .status-line.bad{ color:#E0958D; border-color:#8C3F37; background:rgba(140,63,55,0.12); }
+  .status-line.pending{ color:var(--stone); border-color:var(--hairline); }
+  .visually-hidden-input{
+    position:absolute;
+    width:1px;
+    height:1px;
+    padding:0;
+    margin:-1px;
+    overflow:hidden;
+    clip:rect(0,0,0,0);
+    white-space:nowrap;
+    border:0;
+  }
+</style>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("/service-worker.js").catch(function(){});
+      });
+    }
+  </script>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="bastion-auth.html" class="wordmark">Bast<em>ion</em></a>
+  <a href="bastion-marketplace.html" class="back-link">← Back to Marketplace</a>
+</nav>
+
+<div class="wrap">
+  <div class="eyebrow">Verified Escrow Exchange</div>
+  <h1 class="page-title">List an item.</h1>
+  <p class="page-sub">Every listing is escrow-protected by default — buyers won't release funds until they've confirmed the item matches what's described here.</p>
+
+  <form id="listingForm">
+    <div class="field">
+      <label for="itemName">Item name</label>
+      <input id="itemName" type="text" placeholder="e.g. Rolex Submariner Date 126610LN" required maxlength="120">
+    </div>
+
+    <div class="row-2">
+      <div class="field">
+        <label for="category">Category</label>
+        <select id="category" required>
+          <option value="" disabled selected>Select one</option>
+          <option value="Watches">Watches</option>
+          <option value="Vehicles">Vehicles</option>
+          <option value="Sneakers">Sneakers</option>
+          <option value="Jewelry">Fine Jewelry</option>
+          <option value="Cards">Trading Cards</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="price">Price</label>
+        <div class="price-input-wrap">
+          <span class="dollar">$</span>
+          <input id="price" type="number" min="1" step="1" placeholder="8,500" required>
+        </div>
+      </div>
+    </div>
+
+    <div class="fee-preview" id="feePreview"></div>
+
+    <div class="field">
+      <label for="photoFile">Photos</label>
+      <div class="photo-upload-box" id="photoDropZone">
+        <div class="photo-pick-icon">&#128247;</div>
+        <div class="photo-pick-text">Tap to add photos</div>
+        <div class="photo-hint">JPG, PNG, or WEBP · up to 8MB each · add as many as you need</div>
+        <input id="photoFile" type="file" accept="image/png, image/jpeg, image/webp" multiple class="visually-hidden-input">
+      </div>
+      <div class="photo-grid" id="photoGrid"></div>
+      <div class="photo-hint" id="photoUploadStatus"></div>
+    </div>
+
+
+    <!-- Watches -->
+    <div class="detail-fields" id="fields-Watches">
+      <div class="detail-fields-title">Timepiece Details</div>
+      <div class="detail-row-2">
+        <div class="field"><label for="w-reference">Reference #</label><input id="w-reference" type="text" placeholder="e.g. 5711/1A-010"></div>
+        <div class="field"><label for="w-movement">Movement</label><input id="w-movement" type="text" placeholder="e.g. Automatic"></div>
+      </div>
+      <div class="detail-row-2">
+        <div class="field"><label for="w-material">Case Material</label><input id="w-material" type="text" placeholder="e.g. Stainless Steel"></div>
+        <div class="field"><label for="w-size">Case Size</label><input id="w-size" type="text" placeholder="e.g. 40mm"></div>
+      </div>
+      <div class="detail-row-2">
+        <div class="field"><label for="w-year">Year</label><input id="w-year" type="text" placeholder="e.g. 2021"></div>
+        <div class="field"><label for="w-condition">Condition</label><input id="w-condition" type="text" placeholder="e.g. Excellent, recently serviced"></div>
+      </div>
+      <div class="check-row"><input type="checkbox" id="w-box"><label for="w-box">Box included</label></div>
+      <div class="check-row"><input type="checkbox" id="w-papers"><label for="w-papers">Papers included</label></div>
+    </div>
+
+    <!-- Sneakers -->
+    <div class="detail-fields" id="fields-Sneakers">
+      <div class="detail-fields-title">Sneaker Details</div>
+      <div class="detail-row-2">
+        <div class="field"><label for="s-size">Size (US)</label><input id="s-size" type="text" placeholder="e.g. 10.5"></div>
+        <div class="field"><label for="s-condition">Condition</label><input id="s-condition" type="text" placeholder="e.g. Deadstock, worn twice"></div>
+      </div>
+      <div class="check-row"><input type="checkbox" id="s-worn"><label for="s-worn">Previously worn</label></div>
+      <div class="check-row"><input type="checkbox" id="s-box"><label for="s-box">Original box included</label></div>
+    </div>
+
+    <!-- Vehicles -->
+    <div class="detail-fields" id="fields-Vehicles">
+      <div class="detail-fields-title">Vehicle Details</div>
+      <div class="detail-row-2">
+        <div class="field"><label for="v-make">Make</label><input id="v-make" type="text" placeholder="e.g. Porsche"></div>
+        <div class="field"><label for="v-model">Model</label><input id="v-model" type="text" placeholder="e.g. 911 Turbo S"></div>
+      </div>
+      <div class="detail-row-2">
+        <div class="field"><label for="v-year">Year</label><input id="v-year" type="text" placeholder="e.g. 2023"></div>
+        <div class="field"><label for="v-mileage">Mileage</label><input id="v-mileage" type="text" placeholder="e.g. 4,200 miles"></div>
+      </div>
+      <div class="field"><label for="v-vin">VIN</label><input id="v-vin" type="text" placeholder="Vehicle Identification Number"></div>
+    </div>
+
+    <!-- Jewelry -->
+    <div class="detail-fields" id="fields-Jewelry">
+      <div class="detail-fields-title">Jewelry Details</div>
+      <div class="detail-row-2">
+        <div class="field"><label for="j-material">Material</label><input id="j-material" type="text" placeholder="e.g. 18k White Gold"></div>
+        <div class="field"><label for="j-carat">Carat Weight</label><input id="j-carat" type="text" placeholder="e.g. 2.5ct"></div>
+      </div>
+      <div class="field"><label for="j-cert">Certification</label><input id="j-cert" type="text" placeholder="e.g. GIA Certified"></div>
+    </div>
+
+    <!-- Trading Cards -->
+    <div class="detail-fields" id="fields-Cards">
+      <div class="detail-fields-title">Card Details</div>
+      <div class="detail-row-2">
+        <div class="field"><label for="c-grade">Grade</label><input id="c-grade" type="text" placeholder="e.g. PSA 10"></div>
+        <div class="field"><label for="c-year">Year</label><input id="c-year" type="text" placeholder="e.g. 2003"></div>
+      </div>
+      <div class="field"><label for="c-set">Set / Card Number</label><input id="c-set" type="text" placeholder="e.g. Topps Chrome #111"></div>
+    </div>
+
+    <div class="field">
+      <label for="description">Description</label>
+      <textarea id="description" placeholder="Condition, box and papers, service history, anything a buyer would want to know before purchasing." required maxlength="1000"></textarea>
+    </div>
+
+    <button type="submit" class="submit" id="submitBtn">Post Listing</button>
+    <div class="status-line" id="statusLine"></div>
+  </form>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = 'https://xokyqobttfhugdponfpg.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_nb18Wk7poF2HR0ZjpiJFnQ_tvv4wl0o';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const TABLE_NAME = 'deals';
+const editId = new URLSearchParams(window.location.search).get('id');
+
+async function requireLogin(){
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  const session = sessionData && sessionData.session;
+  if(!session){
+    alert('Please sign in to list an item.');
+    window.location.href = '/bastion-auth.html';
+    return false;
+  }
+  return true;
+}
+requireLogin();
+
+// ---- Photo upload (Supabase Storage, multiple photos) ----
+const PHOTO_BUCKET = 'listing-photos';
+const dropZone = document.getElementById('photoDropZone');
+const fileInput = document.getElementById('photoFile');
+const photoGrid = document.getElementById('photoGrid');
+const uploadStatus = document.getElementById('photoUploadStatus');
+
+// Each entry: { id, url (final or null while uploading), localPreview, uploading, error }
+let photos = [];
+
+function setPhotoStatus(msg, isError){
+  uploadStatus.textContent = msg || '';
+  uploadStatus.style.color = isError ? '#E0958D' : '';
+}
+
+function renderPhotoGrid(){
+  photoGrid.innerHTML = '';
+  photos.forEach(function(p, idx){
+    const tile = document.createElement('div');
+    tile.className = 'photo-tile' + (idx === 0 ? ' cover' : '');
+
+    const img = document.createElement('img');
+    img.src = p.url || p.localPreview;
+    tile.appendChild(img);
+
+    if(p.uploading){
+      const overlay = document.createElement('div');
+      overlay.className = 'photo-tile-uploading';
+      overlay.textContent = 'UPLOADING…';
+      tile.appendChild(overlay);
+    } else if(p.error){
+      const overlay = document.createElement('div');
+      overlay.className = 'photo-tile-error';
+      overlay.textContent = 'FAILED';
+      tile.appendChild(overlay);
+    } else {
+      const removeBtn = document.createElement('div');
+      removeBtn.className = 'photo-tile-remove';
+      removeBtn.textContent = '\u00D7';
+      removeBtn.addEventListener('click', function(e){
+        e.stopPropagation();
+        photos = photos.filter(function(x){ return x.id !== p.id; });
+        renderPhotoGrid();
+      });
+      tile.appendChild(removeBtn);
+    }
+    photoGrid.appendChild(tile);
+  });
+}
+
+dropZone.addEventListener('click', function(){ fileInput.click(); });
+
+['dragover'].forEach(evt => dropZone.addEventListener(evt, function(e){
+  e.preventDefault();
+  dropZone.classList.add('dragover');
+}));
+['dragleave', 'drop'].forEach(evt => dropZone.addEventListener(evt, function(e){
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+}));
+dropZone.addEventListener('drop', function(e){
+  const files = e.dataTransfer.files;
+  if(files && files.length) handlePhotoFiles(files);
+});
+
+fileInput.addEventListener('change', function(){
+  if(fileInput.files && fileInput.files.length){
+    const selectedFiles = Array.from(fileInput.files);
+    handlePhotoFiles(selectedFiles);
+  }
+  fileInput.value = '';
+});
+
+async function handlePhotoFiles(fileList){
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  const session = sessionData && sessionData.session;
+  if(!session){
+    setPhotoStatus('Please sign in to upload photos.', true);
+    window.location.href = '/bastion-auth.html';
+    return;
+  }
+
+  const files = Array.from(fileList);
+  setPhotoStatus('');
+
+  for(const file of files){
+    if(!file.type.match(/^image\/(png|jpeg|jpg|webp)$/)){
+      setPhotoStatus('Skipped a file — only JPG, PNG, or WEBP images are supported.', true);
+      continue;
+    }
+    if(file.size > 8 * 1024 * 1024){
+      setPhotoStatus('Skipped a file — image was over 8MB.', true);
+      continue;
+    }
+
+    const id = Date.now() + '-' + Math.random().toString(36).slice(2);
+    const localPreview = URL.createObjectURL(file);
+    photos.push({ id: id, url: null, localPreview: localPreview, uploading: true, error: false });
+    renderPhotoGrid();
+
+    try{
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      const path = session.user.id + '/' + id + '.' + ext;
+
+      const { error: uploadError } = await supabaseClient.storage
+        .from(PHOTO_BUCKET)
+        .upload(path, file, { cacheControl: '3600', upsert: false });
+
+      const entry = photos.find(function(p){ return p.id === id; });
+      if(uploadError){
+        if(entry){ entry.uploading = false; entry.error = true; }
+        setPhotoStatus('One photo failed to upload: ' + uploadError.message, true);
+      } else {
+        const { data: publicUrlData } = supabaseClient.storage.from(PHOTO_BUCKET).getPublicUrl(path);
+        if(entry){ entry.uploading = false; entry.url = publicUrlData.publicUrl; }
+      }
+      renderPhotoGrid();
+    } catch(err){
+      const entry = photos.find(function(p){ return p.id === id; });
+      if(entry){ entry.uploading = false; entry.error = true; }
+      setPhotoStatus('One photo failed to upload: ' + (err.message || String(err)), true);
+      renderPhotoGrid();
+    }
+  }
+}
+
+async function loadForEdit(){
+  if(!editId) return;
+
+  const { data, error } = await supabaseClient.from(TABLE_NAME).select('*').eq('id', editId).single();
+  if(error || !data) return;
+
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  const session = sessionData && sessionData.session;
+  let isOwner = session && session.user.id === data.seller_id;
+  let isAdmin = false;
+  if(session && !isOwner){
+    const { data: profile } = await supabaseClient.from('profiles').select('is_admin').eq('id', session.user.id).single();
+    isAdmin = !!(profile && profile.is_admin);
+  }
+  if(!session || (!isOwner && !isAdmin)){
+    alert("You can only edit your own listings.");
+    window.location.href = '/bastion-my-account.html';
+    return;
+  }
+
+  document.getElementById('itemName').value = data.item_name || '';
+  document.getElementById('category').value = data.category || '';
+  document.getElementById('price').value = data.price || '';
+  document.getElementById('description').value = data.description || '';
+
+  // Pre-fill existing photos: cover photo (image_url) first, then any additional_photos.
+  const existingPhotos = [];
+  if(data.image_url) existingPhotos.push(data.image_url);
+  if(data.details && Array.isArray(data.details.additional_photos)){
+    data.details.additional_photos.forEach(function(u){ if(u) existingPhotos.push(u); });
+  }
+  photos = existingPhotos.map(function(url){
+    return { id: Date.now() + '-' + Math.random().toString(36).slice(2), url: url, localPreview: url, uploading: false, error: false };
+  });
+  renderPhotoGrid();
+
+  const catEvent = new Event('change');
+  document.getElementById('category').dispatchEvent(catEvent);
+  updateFeePreview();
+
+  const d = data.details || {};
+  const setVal = (id, val) => { const el = document.getElementById(id); if(el && val != null) el.value = val; };
+  const setChecked = (id, val) => { const el = document.getElementById(id); if(el) el.checked = !!val; };
+
+  if(data.category === 'Watches'){
+    setVal('w-reference', d.reference); setVal('w-movement', d.movement);
+    setVal('w-material', d.case_material); setVal('w-size', d.case_size);
+    setVal('w-year', d.year); setVal('w-condition', d.condition);
+    setChecked('w-box', d.box_included); setChecked('w-papers', d.papers_included);
+  } else if(data.category === 'Sneakers'){
+    setVal('s-size', d.size); setVal('s-condition', d.condition);
+    setChecked('s-worn', d.previously_worn); setChecked('s-box', d.box_included);
+  } else if(data.category === 'Vehicles'){
+    setVal('v-make', d.make); setVal('v-model', d.model); setVal('v-year', d.year);
+    setVal('v-mileage', d.mileage); setVal('v-vin', d.vin);
+  } else if(data.category === 'Jewelry'){
+    setVal('j-material', d.material); setVal('j-carat', d.carat_weight); setVal('j-cert', d.certification);
+  } else if(data.category === 'Cards'){
+    setVal('c-grade', d.grade); setVal('c-year', d.year); setVal('c-set', d.set_number);
+  }
+
+  document.querySelector('.page-title').textContent = 'Edit your listing.';
+  document.getElementById('submitBtn').textContent = 'Save Changes';
+}
+loadForEdit();
+
+function feeRateForPrice(n){
+  if(n < 2000) return 0.08;
+  if(n < 10000) return 0.06;
+  if(n < 50000) return 0.045;
+  return 0.03;
+}
+
+function formatMoney(n){
+  return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function updateFeePreview(){
+  const priceEl = document.getElementById('price');
+  const preview = document.getElementById('feePreview');
+  const n = Number(priceEl.value);
+  if(!n || n <= 0){
+    preview.classList.remove('show');
+    return;
+  }
+  const rate = feeRateForPrice(n);
+  const fee = n * rate;
+  const buyerTotal = n + fee;
+  preview.innerHTML = `A buyer would pay <strong>${formatMoney(buyerTotal)}</strong> total (item price + ${(rate*100).toFixed(1)}% protection fee of <strong>${formatMoney(fee)}</strong>).`;
+  preview.classList.add('show');
+}
+
+document.getElementById('price').addEventListener('input', updateFeePreview);
+
+const categoryFieldMap = {
+  Watches: 'fields-Watches',
+  Sneakers: 'fields-Sneakers',
+  Vehicles: 'fields-Vehicles',
+  Jewelry: 'fields-Jewelry',
+  Cards: 'fields-Cards'
+};
+
+document.getElementById('category').addEventListener('change', function(e){
+  Object.values(categoryFieldMap).forEach(function(id){
+    document.getElementById(id).classList.remove('show');
+  });
+  const targetId = categoryFieldMap[e.target.value];
+  if(targetId){
+    document.getElementById(targetId).classList.add('show');
+  }
+});
+
+function collectDetails(category){
+  const val = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const checked = id => { const el = document.getElementById(id); return el ? el.checked : false; };
+
+  if(category === 'Watches'){
+    return {
+      reference: val('w-reference'),
+      movement: val('w-movement'),
+      case_material: val('w-material'),
+      case_size: val('w-size'),
+      year: val('w-year'),
+      condition: val('w-condition'),
+      box_included: checked('w-box'),
+      papers_included: checked('w-papers')
+    };
+  }
+  if(category === 'Sneakers'){
+    return {
+      size: val('s-size'),
+      condition: val('s-condition'),
+      previously_worn: checked('s-worn'),
+      box_included: checked('s-box')
+    };
+  }
+  if(category === 'Vehicles'){
+    return {
+      make: val('v-make'),
+      model: val('v-model'),
+      year: val('v-year'),
+      mileage: val('v-mileage'),
+      vin: val('v-vin')
+    };
+  }
+  if(category === 'Jewelry'){
+    return {
+      material: val('j-material'),
+      carat_weight: val('j-carat'),
+      certification: val('j-cert')
+    };
+  }
+  if(category === 'Cards'){
+    return {
+      grade: val('c-grade'),
+      year: val('c-year'),
+      set_number: val('c-set')
+    };
+  }
+  return {};
+}
+
+function setStatus(msg, type){
+  const statusEl = document.getElementById('statusLine');
+  statusEl.textContent = msg;
+  statusEl.className = 'status-line show ' + type;
+}
+
+document.getElementById('listingForm').addEventListener('submit', async function(e){
+  e.preventDefault();
+
+  const btn = document.getElementById('submitBtn');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'POSTING…';
+  setStatus('Saving your listing…', 'pending');
+
+  const item_name = document.getElementById('itemName').value.trim();
+  const category = document.getElementById('category').value;
+  const price = Number(document.getElementById('price').value);
+  const description = document.getElementById('description').value.trim();
+  const details = collectDetails(category);
+
+  if(!item_name || !category || !price || price <= 0 || !description){
+    setStatus('Please fill in every field with a valid value.', 'bad');
+    btn.disabled = false;
+    btn.textContent = originalText;
+    return;
+  }
+
+  if(photos.some(function(p){ return p.uploading; })){
+    setStatus('Please wait for all photos to finish uploading.', 'bad');
+    btn.disabled = false;
+    btn.textContent = originalText;
+    return;
+  }
+
+  const goodPhotos = photos.filter(function(p){ return p.url && !p.error; }).map(function(p){ return p.url; });
+  const image_url = goodPhotos.length ? goodPhotos[0] : null;
+  if(goodPhotos.length > 1){
+    details.additional_photos = goodPhotos.slice(1);
+  }
+
+  try{
+    // Attach the logged-in seller's id if a session exists, so the listing is tied to their account.
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const userId = sessionData && sessionData.session ? sessionData.session.user.id : null;
+
+    if(!userId){
+      setStatus('You must be signed in to post a listing.', 'bad');
+      btn.disabled = false;
+      btn.textContent = originalText;
+      window.location.href = '/bastion-auth.html';
+      return;
+    }
+
+    const payload = {
+      item_name,
+      category,
+      price,
+      description,
+      image_url: image_url,
+      details
+    };
+    // Only stamp seller_id on a brand-new listing — an admin editing someone
+    // else's listing must never reassign ownership to their own account.
+    if(!editId){
+      payload.seller_id = userId;
+    }
+
+    const { data, error } = editId
+      ? await supabaseClient.from(TABLE_NAME).update(payload).eq('id', editId).select()
+      : await supabaseClient.from(TABLE_NAME).insert([payload]).select();
+
+    if(error){
+      setStatus('ERROR: ' + error.message, 'bad');
+      btn.disabled = false;
+      btn.textContent = originalText;
+      return;
+    }
+
+    setStatus(editId ? 'Changes saved — redirecting…' : 'Listed successfully — redirecting to the marketplace…', 'ok');
+    setTimeout(function(){
+      window.location.href = editId ? ('/bastion-deal-detail.html?id=' + encodeURIComponent(editId)) : '/bastion-marketplace.html';
+    }, 900);
+
+  } catch(err){
+    setStatus('ERROR: ' + (err.message || String(err)), 'bad');
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+});
+</script>
+
+</body>
+</html>

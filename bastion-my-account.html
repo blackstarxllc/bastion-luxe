@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0b0d12">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Bastion">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bastion — My Account</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,450;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0B0D;
+    --ink-soft:#101216;
+    --surface:#15171B;
+    --field:#1B1E23;
+    --field-border:#2A2D33;
+    --ivory:#F1ECE1;
+    --stone:#8D8F94;
+    --stone-dim:#5B5D62;
+    --brass:#C7A268;
+    --brass-dim:#8C6F44;
+    --brass-ink:#171308;
+    --emerald:#2C5C4F;
+    --rust:#B5453D;
+    --hairline:rgba(241,236,225,0.08);
+    --radius:2px;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+
+  html,body{
+    min-height:100%;
+    background:var(--ink);
+    color:var(--ivory);
+    font-family:'Inter', -apple-system, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .nav{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 24px;
+    border-bottom:1px solid var(--hairline);
+    position:sticky; top:0;
+    background:var(--ink);
+    z-index:10;
+  }
+  @media(min-width:900px){ .nav{ padding:22px 56px; } }
+
+  .wordmark{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-size:22px;
+    color:var(--ivory);
+    text-decoration:none;
+  }
+  .wordmark em{ font-style:italic; font-weight:400; color:var(--brass); }
+
+  .nav-right{ display:flex; align-items:center; gap:14px; }
+  .nav-btn{
+    background:none; border:1px solid var(--field-border);
+    color:var(--ivory);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    padding:9px 16px;
+    border-radius:var(--radius);
+    cursor:pointer;
+    text-decoration:none;
+    display:inline-flex;
+    align-items:center;
+    transition:border-color 0.2s ease, color 0.2s ease;
+  }
+  .nav-btn:hover{ border-color:var(--brass); }
+  .nav-btn.primary{ background:var(--brass); color:var(--brass-ink); border-color:var(--brass); }
+  .nav-btn.primary:hover{ background:#D4B27E; }
+
+  .wrap{
+    max-width:920px;
+    margin:0 auto;
+    padding:48px 24px 100px;
+  }
+  @media(min-width:900px){ .wrap{ padding:64px 56px 120px; } }
+
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--brass);
+    margin-bottom:16px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:16px; height:1px;
+    background:var(--brass);
+    display:inline-block;
+  }
+
+  .page-title{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-style:italic;
+    font-size:32px;
+    color:var(--ivory);
+    line-height:1.2;
+  }
+  .page-title span{ color:var(--brass); }
+
+  .section{ margin-top:52px; }
+  .section-head{
+    display:flex; align-items:baseline; justify-content:space-between;
+    margin-bottom:20px;
+  }
+  .section-title{
+    font-family:'Fraunces', serif;
+    font-style:italic;
+    font-weight:450;
+    font-size:20px;
+    color:var(--ivory);
+  }
+  .section-count{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--stone-dim);
+  }
+
+  .list{
+    border:1px solid var(--hairline);
+  }
+
+  .row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    padding:18px 20px;
+    border-bottom:1px solid var(--hairline);
+    cursor:pointer;
+    transition:background 0.2s ease;
+  }
+  .row:last-child{ border-bottom:none; }
+  .row:hover{ background:var(--ink-soft); }
+
+  .row-left{ min-width:0; }
+  .row-name{
+    font-family:'Fraunces', serif;
+    font-size:15.5px;
+    color:var(--ivory);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .row-meta{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    color:var(--stone-dim);
+    margin-top:4px;
+    letter-spacing:0.03em;
+  }
+
+  .row-right{
+    display:flex; align-items:center; gap:14px;
+    flex-shrink:0;
+  }
+  .row-price{
+    font-family:'Fraunces', serif;
+    font-size:16px;
+    color:var(--brass);
+  }
+
+  .status-badge{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9.5px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    padding:4px 9px;
+    border-radius:2px;
+    border:1px solid var(--hairline);
+    color:var(--stone);
+  }
+  .status-badge.funded{ color:#D9B36B; border-color:var(--brass-dim); }
+  .status-badge.shipped{ color:#8FB3D9; border-color:#3F5C8C; }
+  .status-badge.released{ color:#8FBBAC; border-color:var(--emerald); }
+
+  .remove-btn{
+    background:none;
+    border:1px solid var(--field-border);
+    color:var(--stone);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9.5px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    padding:6px 10px;
+    border-radius:2px;
+    cursor:pointer;
+    transition:border-color 0.2s ease, color 0.2s ease;
+  }
+  .remove-btn:hover{ border-color:var(--rust); color:#E0958D; }
+
+  .empty-row{
+    padding:28px 20px;
+    text-align:center;
+    color:var(--stone);
+    font-size:13px;
+  }
+  .empty-row a{ color:var(--brass); }
+
+  .state-block{
+    text-align:center;
+    padding:100px 24px;
+    color:var(--stone);
+  }
+  .state-block .icon{
+    font-family:'Fraunces', serif;
+    font-size:40px;
+    color:var(--brass-dim);
+    margin-bottom:18px;
+  }
+  .state-block h3{
+    font-family:'Fraunces', serif;
+    font-style:italic;
+    font-weight:450;
+    font-size:20px;
+    color:var(--ivory);
+    margin-bottom:10px;
+  }
+  .state-block p{ font-size:13px; max-width:340px; margin:0 auto 20px; line-height:1.6; }
+  .spinner{
+    width:22px; height:22px;
+    border:2px solid var(--field-border);
+    border-top-color:var(--brass);
+    border-radius:50%;
+    margin:0 auto 18px;
+    animation:spin 0.8s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  .hidden{ display:none !important; }
+</style>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("/service-worker.js").catch(function(){});
+      });
+    }
+  </script>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="bastion-auth.html" class="wordmark">Bast<em>ion</em></a>
+  <div class="nav-right">
+    <a href="bastion-create-listing.html" class="nav-btn">List an Item</a>
+    <a href="bastion-marketplace.html" class="nav-btn primary">Marketplace</a>
+  </div>
+</nav>
+
+<div id="signInRequired" class="state-block hidden">
+  <div class="icon">B</div>
+  <h3>Sign in required</h3>
+  <p>You'll need to sign in to see your listings and transactions.</p>
+  <a href="bastion-auth.html" class="nav-btn primary">Sign In</a>
+</div>
+
+<div id="loadingState" class="state-block">
+  <div class="spinner"></div>
+  <h3>Loading your account…</h3>
+  <p>Pulling your listings and transactions.</p>
+</div>
+
+<div class="wrap hidden" id="accountContent">
+  <div class="eyebrow">Verified Escrow Exchange</div>
+  <h1 class="page-title">My <span>Account</span></h1>
+
+  <div style="margin-top:28px; padding:20px; background:var(--ink-soft); border:1px solid var(--hairline);">
+    <div class="section-count" style="margin-bottom:10px;">Public Handle</div>
+    <div id="handleDisplay" style="font-family:'Fraunces', serif; font-size:16px; color:var(--brass); margin-bottom:12px;"></div>
+    <input type="text" id="handleEditInput" placeholder="e.g. marcus_collects" pattern="[a-zA-Z0-9_]{3,20}" style="background:var(--field); border:1px solid var(--field-border); border-radius:2px; color:var(--ivory); font-family:'Inter',sans-serif; font-size:13px; padding:9px 12px; outline:none; width:200px;">
+    <button id="saveHandleEditBtn" style="margin-left:8px; background:var(--brass); color:var(--brass-ink); border:none; border-radius:2px; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.08em; text-transform:uppercase; padding:9px 14px; cursor:pointer;">Save</button>
+    <div id="handleEditStatus" style="font-size:11.5px; color:var(--stone); margin-top:8px;"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <div class="section-title">Saved Items</div>
+      <div class="section-count" id="savedCount"></div>
+    </div>
+    <div class="list" id="savedList"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <div class="section-title">My Listings</div>
+      <div class="section-count" id="listingsCount"></div>
+    </div>
+    <div class="list" id="listingsList"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <div class="section-title">My Transactions</div>
+      <div class="section-count" id="transactionsCount"></div>
+    </div>
+    <div class="list" id="transactionsList"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = 'https://xokyqobttfhugdponfpg.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_nb18Wk7poF2HR0ZjpiJFnQ_tvv4wl0o';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+function formatMoney(n){
+  const num = Number(n);
+  if(isNaN(num)) return '—';
+  return '$' + num.toLocaleString('en-US');
+}
+
+function renderSaved(favDeals){
+  const el = document.getElementById('savedList');
+  document.getElementById('savedCount').textContent = favDeals.length + (favDeals.length === 1 ? ' item' : ' items');
+
+  if(favDeals.length === 0){
+    el.innerHTML = `<div class="empty-row">Nothing saved yet. <a href="bastion-marketplace.html">Browse the marketplace →</a></div>`;
+    return;
+  }
+
+  el.innerHTML = favDeals.map(function(d){
+    const name = escapeHtml(d.item_name || d.name || 'Untitled item');
+    const cat = escapeHtml(d.category || 'Uncategorized');
+    return `
+      <div class="row" onclick="window.location.href='bastion-deal-detail.html?id=${encodeURIComponent(d.id)}'">
+        <div class="row-left">
+          <div class="row-name">${name}</div>
+          <div class="row-meta">${cat}</div>
+        </div>
+        <div class="row-right">
+          <span class="row-price">${formatMoney(d.price)}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderListings(deals){
+  const el = document.getElementById('listingsList');
+  document.getElementById('listingsCount').textContent = deals.length + (deals.length === 1 ? ' item' : ' items');
+
+  if(deals.length === 0){
+    el.innerHTML = `<div class="empty-row">You haven't listed anything yet. <a href="bastion-create-listing.html">List your first item →</a></div>`;
+    return;
+  }
+
+  el.innerHTML = deals.map(function(d){
+    const name = escapeHtml(d.item_name || d.name || 'Untitled item');
+    const cat = escapeHtml(d.category || 'Uncategorized');
+    return `
+      <div class="row">
+        <div class="row-left" onclick="window.location.href='bastion-deal-detail.html?id=${encodeURIComponent(d.id)}'" style="cursor:pointer; flex:1;">
+          <div class="row-name">${name}</div>
+          <div class="row-meta">${cat}</div>
+        </div>
+        <div class="row-right">
+          <span class="row-price">${formatMoney(d.price)}</span>
+          <button class="remove-btn" onclick="event.stopPropagation(); window.location.href='bastion-create-listing.html?id=${encodeURIComponent(d.id)}'">Edit</button>
+          <button class="remove-btn" onclick="event.stopPropagation(); removeListing('${d.id}', this)">Remove</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function removeListing(id, btn){
+  if(!confirm('Remove this listing? This cannot be undone.')) return;
+  btn.disabled = true;
+  btn.textContent = '…';
+  const { error } = await supabaseClient.from('deals').delete().eq('id', id);
+  if(error){
+    alert('Could not remove listing: ' + error.message);
+    btn.disabled = false;
+    btn.textContent = 'Remove';
+    return;
+  }
+  btn.closest('.row').remove();
+}
+
+function renderTransactions(txns, userId){
+  const el = document.getElementById('transactionsList');
+  document.getElementById('transactionsCount').textContent = txns.length + (txns.length === 1 ? ' deal' : ' deals');
+
+  if(txns.length === 0){
+    el.innerHTML = `<div class="empty-row">No transactions yet. Once you buy or sell through Bastion, they'll show up here.</div>`;
+    return;
+  }
+
+  el.innerHTML = txns.map(function(t){
+    const name = escapeHtml(t.item_name || 'Untitled item');
+    const role = t.buyer_id === userId ? 'Buying' : (t.seller_id === userId ? 'Selling' : '');
+    const status = escapeHtml(t.status || 'funded');
+    return `
+      <div class="row" onclick="window.location.href='bastion-transaction.html?id=${encodeURIComponent(t.id)}'">
+        <div class="row-left">
+          <div class="row-name">${name}</div>
+          <div class="row-meta">${role}</div>
+        </div>
+        <div class="row-right">
+          <span class="row-price">${formatMoney(t.total)}</span>
+          <span class="status-badge ${status}">${status}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function loadHandle(userId){
+  const { data } = await supabaseClient.from('profiles').select('handle').eq('id', userId).maybeSingle();
+  const display = document.getElementById('handleDisplay');
+  const input = document.getElementById('handleEditInput');
+  if(data && data.handle){
+    display.textContent = '@' + data.handle;
+    input.value = data.handle;
+  } else {
+    display.textContent = 'Not set yet';
+  }
+
+  document.getElementById('saveHandleEditBtn').addEventListener('click', async function(){
+    const handle = input.value.trim();
+    const statusEl = document.getElementById('handleEditStatus');
+    if(!/^[a-zA-Z0-9_]{3,20}$/.test(handle)){
+      statusEl.textContent = 'Use 3-20 letters, numbers, or underscores.';
+      return;
+    }
+    const { error } = await supabaseClient.from('profiles').upsert({ id: userId, handle: handle });
+    if(error){
+      statusEl.textContent = error.message.includes('duplicate') ? 'That handle is already taken.' : error.message;
+      return;
+    }
+    display.textContent = '@' + handle;
+    statusEl.textContent = 'Saved.';
+  });
+}
+
+async function loadAccount(){
+  const loadingEl = document.getElementById('loadingState');
+  const signInEl = document.getElementById('signInRequired');
+  const contentEl = document.getElementById('accountContent');
+
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  const session = sessionData && sessionData.session;
+
+  if(!session){
+    loadingEl.classList.add('hidden');
+    signInEl.classList.remove('hidden');
+    return;
+  }
+
+  const userId = session.user.id;
+  loadHandle(userId);
+
+  try{
+    const [listingsRes, buyingRes, sellingRes, favoritesRes] = await Promise.all([
+      supabaseClient.from('deals').select('*').eq('seller_id', userId).order('created_at', { ascending: false }),
+      supabaseClient.from('transactions').select('*').eq('buyer_id', userId),
+      supabaseClient.from('transactions').select('*').eq('seller_id', userId),
+      supabaseClient.from('favorites').select('deal_id').eq('user_id', userId)
+    ]);
+
+    const deals = listingsRes.data || [];
+
+    let favDeals = [];
+    const favIds = (favoritesRes.data || []).map(f => f.deal_id);
+    if(favIds.length > 0){
+      const { data: favDealsData } = await supabaseClient.from('deals').select('*').in('id', favIds);
+      favDeals = favDealsData || [];
+    }
+    renderSaved(favDeals);
+
+    // Merge buyer + seller transactions, de-duplicated by id
+    const txnMap = {};
+    (buyingRes.data || []).forEach(function(t){ txnMap[t.id] = t; });
+    (sellingRes.data || []).forEach(function(t){ txnMap[t.id] = t; });
+    const txns = Object.values(txnMap).sort(function(a,b){
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    });
+
+    renderListings(deals);
+    renderTransactions(txns, userId);
+
+    loadingEl.classList.add('hidden');
+    contentEl.classList.remove('hidden');
+
+  } catch(err){
+    loadingEl.classList.add('hidden');
+    contentEl.classList.remove('hidden');
+    document.getElementById('listingsList').innerHTML = `<div class="empty-row">Error loading listings: ${escapeHtml(err.message || String(err))}</div>`;
+    document.getElementById('transactionsList').innerHTML = `<div class="empty-row">Error loading transactions: ${escapeHtml(err.message || String(err))}</div>`;
+  }
+}
+
+loadAccount();
+</script>
+
+</body>
+</html>

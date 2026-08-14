@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0b0d12">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Bastion">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bastion — Sign in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,450;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0B0D;
+    --ink-soft:#101216;
+    --surface:#15171B;
+    --field:#1B1E23;
+    --field-border:#2A2D33;
+    --ivory:#F1ECE1;
+    --stone:#8D8F94;
+    --stone-dim:#5B5D62;
+    --brass:#C7A268;
+    --brass-dim:#8C6F44;
+    --brass-ink:#171308;
+    --emerald:#2C5C4F;
+    --hairline:rgba(241,236,225,0.08);
+    --radius:2px;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+
+  html,body{
+    height:100%;
+    background:var(--ink);
+    color:var(--ivory);
+    font-family:'Inter', -apple-system, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .stage{
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+  }
+
+  @media(min-width:900px){
+    .stage{ flex-direction:row; }
+  }
+
+  /* ---------- BRAND PANEL ---------- */
+  .brand{
+    position:relative;
+    background:
+      radial-gradient(ellipse 900px 500px at 20% -10%, rgba(199,162,104,0.08), transparent 60%),
+      var(--ink-soft);
+    padding:44px 32px 32px;
+    overflow:hidden;
+    border-bottom:1px solid var(--hairline);
+  }
+
+  @media(min-width:900px){
+    .brand{
+      width:44%;
+      min-height:100vh;
+      padding:64px 56px;
+      border-bottom:none;
+      border-right:1px solid var(--hairline);
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+    }
+  }
+
+  .ledger-lines{
+    position:absolute; inset:0;
+    background-image:
+      repeating-linear-gradient(52deg, transparent, transparent 12px, var(--hairline) 12px, var(--hairline) 13px),
+      repeating-linear-gradient(-52deg, transparent, transparent 12px, var(--hairline) 12px, var(--hairline) 13px);
+    -webkit-mask-image:radial-gradient(ellipse 780px 620px at 22% 8%, black, transparent 68%);
+            mask-image:radial-gradient(ellipse 780px 620px at 22% 8%, black, transparent 68%);
+    pointer-events:none;
+  }
+
+  .brand-top{ position:relative; z-index:1; }
+
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--brass);
+    margin-bottom:18px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:16px; height:1px;
+    background:var(--brass);
+    display:inline-block;
+  }
+
+  .wordmark{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-size:44px;
+    letter-spacing:-0.01em;
+    line-height:1;
+    color:var(--ivory);
+  }
+  .wordmark em{
+    font-style:italic;
+    font-weight:400;
+    color:var(--brass);
+  }
+
+  .tagline{
+    font-family:'Fraunces', serif;
+    font-style:italic;
+    font-weight:400;
+    font-size:22px;
+    line-height:1.35;
+    color:var(--ivory);
+    margin-top:22px;
+    max-width:360px;
+  }
+
+  .sub-copy{
+    font-size:13.5px;
+    line-height:1.7;
+    color:var(--stone);
+    margin-top:16px;
+    max-width:300px;
+  }
+
+  .cert-divider{
+    position:relative; z-index:1;
+    height:1px;
+    margin:32px 0 4px;
+    background:linear-gradient(to right, transparent, var(--hairline) 15%, var(--hairline) 85%, transparent);
+  }
+
+  /* seal */
+  .seal-wrap{
+    position:relative;
+    z-index:1;
+    display:flex;
+    justify-content:center;
+    margin:36px 0 8px;
+  }
+  @media(min-width:900px){ .seal-wrap{ margin:0; } }
+
+  .seal{ width:168px; height:168px; }
+  .seal-ring-text{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9px;
+    letter-spacing:1.25em;
+    fill:var(--brass-dim);
+  }
+  .seal-ring{
+    fill:none;
+    stroke:var(--hairline);
+    stroke-width:1;
+  }
+  .seal-core{
+    fill:none;
+    stroke:var(--brass);
+    stroke-width:1;
+  }
+  .seal-monogram{
+    font-family:'Fraunces', serif;
+    font-weight:300;
+    font-size:46px;
+    fill:var(--ivory);
+    text-anchor:middle;
+  }
+  .seal.stamped .seal-core{ animation: pulse-ring 0.6s ease-out; }
+  @keyframes pulse-ring{
+    0%{ stroke:var(--emerald); stroke-width:2.4; }
+    100%{ stroke:var(--brass); stroke-width:1; }
+  }
+
+  .process{
+    position:relative; z-index:1;
+    display:flex;
+    gap:22px;
+    margin-top:auto;
+    padding-top:28px;
+    border-top:1px solid var(--hairline);
+  }
+  @media(min-width:900px){ .process{ margin-top:40px; } }
+
+  .process-step{ flex:1; }
+  .process-step .n{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    color:var(--brass-dim);
+    letter-spacing:0.08em;
+  }
+  .process-step .label{
+    font-size:13px;
+    color:var(--stone);
+    margin-top:5px;
+  }
+
+  .categories{
+    position:relative; z-index:1;
+    margin-top:24px;
+  }
+  .categories-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9.5px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--stone-dim);
+    margin-bottom:11px;
+  }
+  .chip-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .chip{
+    font-family:'Inter', sans-serif;
+    font-size:11.5px;
+    color:var(--stone);
+    border:1px solid var(--hairline);
+    border-radius:2px;
+    padding:6px 12px;
+    transition:border-color 0.2s ease, color 0.2s ease;
+  }
+  .chip:hover{ border-color:var(--brass-dim); color:var(--ivory); }
+  .chip-more{
+    border-style:dashed;
+    color:var(--stone-dim);
+  }
+
+  .tick{ stroke:var(--brass-dim); stroke-width:1; opacity:0.55; }
+
+  /* ---------- FORM PANEL ---------- */
+  .panel{
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:40px 24px 56px;
+  }
+  @media(min-width:900px){ .panel{ padding:64px; } }
+
+  .card{ width:100%; max-width:380px; }
+
+  .tabs{
+    display:flex;
+    gap:28px;
+    border-bottom:1px solid var(--hairline);
+    margin-bottom:34px;
+  }
+  .tab{
+    background:none; border:none;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--stone-dim);
+    padding:0 0 14px;
+    cursor:pointer;
+    position:relative;
+    transition:color 0.2s ease;
+  }
+  .tab.active{ color:var(--ivory); }
+  .tab::after{
+    content:"";
+    position:absolute; left:0; right:0; bottom:-1px;
+    height:1.5px;
+    background:var(--brass);
+    transform:scaleX(0);
+    transition:transform 0.25s ease;
+  }
+  .tab.active::after{ transform:scaleX(1); }
+
+  .form-head h1{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-style:italic;
+    font-size:28px;
+    color:var(--ivory);
+    line-height:1.2;
+  }
+  .form-head p{
+    font-size:13.5px;
+    color:var(--stone);
+    margin-top:8px;
+    margin-bottom:30px;
+  }
+
+  .field{ margin-bottom:18px; }
+  .field label{
+    display:block;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--stone);
+    margin-bottom:8px;
+  }
+  .field-input{
+    position:relative;
+    display:flex;
+    align-items:center;
+  }
+  .field input{
+    width:100%;
+    background:var(--field);
+    border:1px solid var(--field-border);
+    border-radius:var(--radius);
+    color:var(--ivory);
+    font-family:'Inter', sans-serif;
+    font-size:14.5px;
+    padding:13px 14px;
+    outline:none;
+    transition:border-color 0.2s ease, background 0.2s ease;
+  }
+  .field input::placeholder{ color:var(--stone-dim); }
+  .field input:focus{
+    border-color:var(--brass);
+    background:#1E2126;
+  }
+  .field.with-toggle input{ padding-right:44px; }
+
+  .eye-btn{
+    position:absolute; right:10px;
+    background:none; border:none;
+    color:var(--stone-dim);
+    cursor:pointer;
+    padding:6px;
+    display:flex;
+  }
+  .eye-btn:hover{ color:var(--stone); }
+  .eye-btn svg{ width:17px; height:17px; }
+
+  .agree{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    margin:6px 0 26px;
+  }
+  .agree input{ margin-top:3px; accent-color:var(--brass); }
+  .agree label{ font-size:12.5px; color:var(--stone); line-height:1.5; }
+  .agree a{ color:var(--brass); text-decoration:none; border-bottom:1px solid var(--brass-dim); }
+
+  .row-between{
+    display:flex; justify-content:flex-end;
+    margin-bottom:26px; margin-top:-8px;
+  }
+  .link-quiet{
+    font-size:12.5px;
+    color:var(--stone);
+    text-decoration:none;
+    border-bottom:1px solid transparent;
+  }
+  .link-quiet:hover{ color:var(--brass); border-color:var(--brass-dim); }
+
+  .submit{
+    width:100%;
+    background:var(--brass);
+    color:var(--brass-ink);
+    border:none;
+    border-radius:var(--radius);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    font-weight:500;
+    padding:15px;
+    cursor:pointer;
+    transition:background 0.2s ease, transform 0.1s ease;
+    position:relative;
+    overflow:hidden;
+  }
+  .submit:hover{ background:#D4B27E; }
+  .submit:active{ transform:scale(0.995); }
+  .submit:disabled{ opacity:0.55; cursor:not-allowed; }
+
+  .status-line{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    line-height:1.6;
+    margin-top:14px;
+    padding:10px 12px;
+    border:1px solid transparent;
+    display:none;
+  }
+  .status-line.show{ display:block; }
+  .status-line.ok{ color:#8FBBAC; border-color:#2C5C4F; background:rgba(44,92,79,0.12); }
+  .status-line.bad{ color:#E0958D; border-color:#8C3F37; background:rgba(140,63,55,0.12); }
+  .status-line.pending{ color:var(--stone); border-color:var(--hairline); }
+
+  .switch-line{
+    text-align:center;
+    font-size:13px;
+    color:var(--stone);
+    margin-top:26px;
+  }
+  .switch-line button{
+    background:none; border:none;
+    color:var(--brass);
+    font-family:'Inter', sans-serif;
+    font-size:13px;
+    cursor:pointer;
+    border-bottom:1px solid var(--brass-dim);
+    padding:0;
+  }
+
+  .toast{
+    position:fixed;
+    left:50%; bottom:28px;
+    transform:translate(-50%, 20px);
+    background:var(--surface);
+    border:1px solid var(--hairline);
+    border-left:2px solid var(--emerald);
+    padding:14px 20px;
+    font-size:13px;
+    color:var(--ivory);
+    opacity:0;
+    pointer-events:none;
+    transition:opacity 0.3s ease, transform 0.3s ease;
+    display:flex; align-items:center; gap:10px;
+    max-width:90vw;
+  }
+  .toast.show{
+    opacity:1;
+    transform:translate(-50%, 0);
+  }
+  .toast .dot{
+    width:6px; height:6px; border-radius:50%;
+    background:var(--emerald);
+    flex-shrink:0;
+  }
+
+  form{ display:none; }
+  form.active{ display:block; }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation:none !important; transition:none !important; }
+  }
+
+  .stage.hidden{ display:none !important; }
+
+  .dashboard{ display:none; min-height:100vh; background:var(--ink); }
+  .dashboard.show{ display:block; }
+
+  .dash-nav{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 24px;
+    border-bottom:1px solid var(--hairline);
+  }
+  @media(min-width:900px){ .dash-nav{ padding:24px 56px; } }
+
+  .dash-wordmark{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-size:22px;
+    color:var(--ivory);
+  }
+  .dash-wordmark em{ font-style:italic; font-weight:400; color:var(--brass); }
+
+  .dash-nav-right{ display:flex; align-items:center; gap:18px; }
+  .dash-user{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--stone);
+    display:none;
+  }
+  @media(min-width:600px){ .dash-user{ display:inline; } }
+
+  .dash-signout{
+    background:none; border:1px solid var(--field-border);
+    color:var(--stone);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    padding:8px 14px;
+    border-radius:var(--radius);
+    cursor:pointer;
+    transition:border-color 0.2s ease, color 0.2s ease;
+  }
+  .dash-signout:hover{ border-color:var(--brass-dim); color:var(--ivory); }
+
+  .dash-body{
+    max-width:920px;
+    margin:0 auto;
+    padding:48px 24px 80px;
+  }
+  @media(min-width:900px){ .dash-body{ padding:64px 56px 100px; } }
+
+  .dash-heading{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-style:italic;
+    font-size:32px;
+    color:var(--ivory);
+    line-height:1.2;
+    margin-top:14px;
+  }
+  .dash-heading span{ color:var(--brass); }
+  .dash-sub{
+    font-size:14px;
+    color:var(--stone);
+    margin-top:12px;
+    max-width:440px;
+    line-height:1.6;
+  }
+
+  .dash-grid{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:1px;
+    background:var(--hairline);
+    margin-top:40px;
+    border:1px solid var(--hairline);
+  }
+  @media(max-width:640px){ .dash-grid{ grid-template-columns:1fr; } }
+
+  .dash-card{ background:var(--ink); padding:22px 20px; }
+  .dash-card-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--stone-dim);
+  }
+  .dash-card-value{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-size:38px;
+    color:var(--brass);
+    margin-top:10px;
+  }
+  .dash-card-foot{ font-size:12px; color:var(--stone); margin-top:6px; }
+
+  .dash-actions{
+    display:flex;
+    gap:14px;
+    margin-top:36px;
+    flex-wrap:wrap;
+  }
+  .dash-primary{ width:auto; padding:14px 26px; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
+  .dash-secondary{
+    background:none;
+    border:1px solid var(--field-border);
+    color:var(--ivory);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    padding:14px 26px;
+    border-radius:var(--radius);
+    cursor:pointer;
+    transition:border-color 0.2s ease;
+    text-decoration:none;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .dash-secondary:hover{ border-color:var(--brass); }
+
+  .dash-empty{
+    margin-top:64px;
+    padding-top:40px;
+    border-top:1px solid var(--hairline);
+    text-align:center;
+    color:var(--stone);
+    font-size:13.5px;
+    max-width:400px;
+    margin-left:auto; margin-right:auto;
+    line-height:1.7;
+  }
+</style>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("/service-worker.js").catch(function(){});
+      });
+    }
+  </script>
+</head>
+<body>
+
+<div class="stage">
+
+  <!-- BRAND PANEL -->
+  <div class="brand">
+    <div class="ledger-lines"></div>
+
+    <div class="brand-top">
+      <div class="eyebrow">Verified Escrow Exchange</div>
+      <div class="wordmark">Bast<em>ion</em></div>
+      <div class="tagline">Every trade, held to a standard.</div>
+      <p class="sub-copy">Funds are held in escrow until the item is verified and both sides confirm the exchange. Nothing moves until it should.</p>
+    </div>
+
+    <div class="cert-divider"></div>
+
+    <div class="seal-wrap">
+      <svg class="seal" viewBox="0 0 200 200" id="seal">
+        <circle class="seal-ring" cx="100" cy="100" r="94"/>
+        <g id="ticks"></g>
+        <circle class="seal-core" cx="100" cy="100" r="72"/>
+        <text class="seal-monogram" x="100" y="118">B</text>
+        <path id="ringPath" d="M 100,20 A 80,80 0 1 1 99.9,20" fill="none"/>
+        <text class="seal-ring-text">
+          <textPath href="#ringPath" startOffset="3%">FUNDED &#183; VERIFIED &#183; RELEASED</textPath>
+        </text>
+        <path d="M 100,10 L 103,16 L 100,22 L 97,16 Z" fill="var(--brass)"/>
+      </svg>
+    </div>
+
+    <div class="process">
+      <div class="process-step">
+        <div class="n">01 — FUND</div>
+        <div class="label">Buyer's payment is secured in escrow.</div>
+      </div>
+      <div class="process-step">
+        <div class="n">02 — VERIFY</div>
+        <div class="label">Meet safely in person, or ship — either way, the item gets checked.</div>
+      </div>
+      <div class="process-step">
+        <div class="n">03 — RELEASE</div>
+        <div class="label">Funds release once both sides confirm.</div>
+      </div>
+    </div>
+
+    <div class="categories">
+      <div class="categories-label">Categories Held in Trust</div>
+      <div class="chip-row">
+        <span class="chip">Watches</span>
+        <span class="chip">Vehicles</span>
+        <span class="chip">Sneakers</span>
+        <span class="chip">Fine Jewelry</span>
+        <span class="chip">Trading Cards</span>
+        <span class="chip chip-more">+ More</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- FORM PANEL -->
+  <div class="panel">
+    <div class="card">
+
+      <div class="tabs">
+        <button class="tab active" id="tabSignin" onclick="switchTab('signin')">Sign In</button>
+        <button class="tab" id="tabSignup" onclick="switchTab('signup')">Join</button>
+      </div>
+
+      <!-- SIGN IN -->
+      <form id="formSignin" class="active" onsubmit="return handleSubmit(event,'signin')">
+        <div class="form-head">
+          <h1>Step back inside.</h1>
+          <p>Your account is exactly as you left it.</p>
+        </div>
+
+        <div class="field">
+          <label for="si-email">Email</label>
+          <div class="field-input">
+            <input id="si-email" type="email" placeholder="you@domain.com" required>
+          </div>
+        </div>
+
+        <div class="field with-toggle">
+          <label for="si-pass">Password</label>
+          <div class="field-input">
+            <input id="si-pass" type="password" placeholder="••••••••••" required>
+            <button type="button" class="eye-btn" onclick="toggleEye('si-pass', this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="row-between">
+          <a href="#" class="link-quiet">Forgot password?</a>
+        </div>
+
+        <button type="submit" class="submit">Sign In</button>
+        <div class="status-line" id="statusSignin"></div>
+
+        <div class="switch-line">New to Bastion? <button type="button" onclick="switchTab('signup')">Create an account</button></div>
+      </form>
+
+      <!-- SIGN UP -->
+      <form id="formSignup" onsubmit="return handleSubmit(event,'signup')">
+        <div class="form-head">
+          <h1>Request entry.</h1>
+          <p>Membership is verified before your first trade.</p>
+        </div>
+
+        <div class="field">
+          <label for="su-name">Full name</label>
+          <div class="field-input">
+            <input id="su-name" type="text" placeholder="As it appears on ID" required>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="su-handle">Public Handle</label>
+          <div class="field-input">
+            <input id="su-handle" type="text" placeholder="e.g. marcus_collects" required pattern="[a-zA-Z0-9_]{3,20}" title="3-20 characters, letters/numbers/underscores only">
+          </div>
+          <div style="font-size:11.5px; color:var(--stone-dim); margin-top:6px; line-height:1.5;">Shown publicly on your listings and profile. Your name and email stay private.</div>
+        </div>
+
+        <div class="field">
+          <label for="su-email">Email</label>
+          <div class="field-input">
+            <input id="su-email" type="email" placeholder="you@domain.com" required>
+          </div>
+        </div>
+
+        <div class="field with-toggle">
+          <label for="su-pass">Password</label>
+          <div class="field-input">
+            <input id="su-pass" type="password" placeholder="At least 10 characters" required minlength="10">
+            <button type="button" class="eye-btn" onclick="toggleEye('su-pass', this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="agree">
+          <input type="checkbox" id="su-agree" required>
+          <label for="su-agree">I agree to the <a href="/bastion-terms.html" target="_blank">Terms of Service</a> and <a href="/bastion-privacy.html" target="_blank">Privacy Policy</a>.</label>
+        </div>
+
+        <button type="submit" class="submit">Create Account</button>
+        <div class="status-line" id="statusSignup"></div>
+
+        <div class="switch-line">Already have an account? <button type="button" onclick="switchTab('signin')">Sign in</button></div>
+      </form>
+
+    </div>
+  </div>
+
+</div>
+
+<div class="dashboard" id="dashboard">
+  <nav class="dash-nav">
+    <div class="dash-wordmark">Bast<em>ion</em></div>
+    <div class="dash-nav-right">
+      <span class="dash-user" id="dashUserEmail"></span>
+      <a href="bastion-my-account.html" class="dash-signout" style="text-decoration:none; display:inline-flex; align-items:center;">My Account</a>
+      <button class="dash-signout" id="signOutBtn">Sign Out</button>
+    </div>
+  </nav>
+
+  <div class="dash-body">
+    <div class="dash-welcome">
+      <div class="eyebrow">Member Dashboard</div>
+      <h1 class="dash-heading">Welcome back, <span id="dashFirstName">there</span>.</h1>
+      <p class="dash-sub">Your vault is empty for now — list an item or browse what's available.</p>
+    </div>
+
+    <div class="dash-card hidden" id="handlePrompt" style="margin-top:24px; padding:20px;">
+      <div class="dash-card-label" style="margin-bottom:10px;">Choose your public handle</div>
+      <p style="font-size:12.5px; color:var(--stone); margin-bottom:14px; line-height:1.6;">This is what buyers and sellers see on your listings and reviews. Your real name and email stay private.</p>
+      <input type="text" id="handleInput" placeholder="e.g. marcus_collects" pattern="[a-zA-Z0-9_]{3,20}" style="width:100%; max-width:280px; background:var(--field); border:1px solid var(--field-border); border-radius:2px; color:var(--ivory); font-family:'Inter',sans-serif; font-size:14px; padding:11px 14px; outline:none;">
+      <button id="saveHandleBtn" style="margin-left:10px; background:var(--brass); color:var(--brass-ink); border:none; border-radius:2px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.1em; text-transform:uppercase; padding:11px 18px; cursor:pointer;">Save</button>
+      <div id="handleStatus" style="font-size:12px; color:#E0958D; margin-top:10px;"></div>
+    </div>
+
+    <div class="dash-grid">
+      <div class="dash-card">
+        <div class="dash-card-label">Active Listings</div>
+        <div class="dash-card-value" id="statActiveListings">0</div>
+        <div class="dash-card-foot">Items you have for sale</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-card-label">Open Trades</div>
+        <div class="dash-card-value">0</div>
+        <div class="dash-card-foot">Deals currently in escrow</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-card-label">Completed Trades</div>
+        <div class="dash-card-value">0</div>
+        <div class="dash-card-foot">Successfully released</div>
+      </div>
+    </div>
+
+    <div class="dash-actions">
+      <a class="submit dash-primary" href="bastion-create-listing.html">List an Item</a>
+      <a class="dash-secondary" href="bastion-marketplace.html">Browse Marketplace</a>
+    </div>
+
+    <div class="dash-empty" id="dashEmpty">
+      <p>Nothing here yet. When you list your first watch, vehicle, or piece of jewelry, it will appear in this space.</p>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastText"></span></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = 'https://xokyqobttfhugdponfpg.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_nb18Wk7poF2HR0ZjpiJFnQ_tvv4wl0o';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const TABLE_NAME = 'deals';
+</script>
+<script>
+(function buildTicks(){
+  const ns = 'http://www.w3.org/2000/svg';
+  const g = document.getElementById('ticks');
+  const cx = 100, cy = 100, rOuter = 92, rInner = 87;
+  for(let i=0; i<60; i++){
+    const angle = (i / 60) * Math.PI * 2;
+    const major = i % 5 === 0;
+    const rIn = major ? 84 : rInner;
+    const x1 = cx + rIn * Math.sin(angle);
+    const y1 = cy - rIn * Math.cos(angle);
+    const x2 = cx + rOuter * Math.sin(angle);
+    const y2 = cy - rOuter * Math.cos(angle);
+    const line = document.createElementNS(ns, 'line');
+    line.setAttribute('x1', x1.toFixed(2));
+    line.setAttribute('y1', y1.toFixed(2));
+    line.setAttribute('x2', x2.toFixed(2));
+    line.setAttribute('y2', y2.toFixed(2));
+    line.setAttribute('class', 'tick');
+    if(major) line.style.opacity = '0.85';
+    g.appendChild(line);
+  }
+})();
+
+function switchTab(which){
+  document.getElementById('tabSignin').classList.toggle('active', which==='signin');
+  document.getElementById('tabSignup').classList.toggle('active', which==='signup');
+  document.getElementById('formSignin').classList.toggle('active', which==='signin');
+  document.getElementById('formSignup').classList.toggle('active', which==='signup');
+}
+
+function toggleEye(id, btn){
+  const input = document.getElementById(id);
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+async function handleSubmit(e, kind){
+  e.preventDefault();
+  const form = e.target;
+  const btn = form.querySelector('.submit');
+  const statusEl = document.getElementById(kind === 'signin' ? 'statusSignin' : 'statusSignup');
+  const originalText = btn.textContent;
+
+  function setStatus(msg, type){
+    statusEl.textContent = msg;
+    statusEl.className = 'status-line show ' + type;
+  }
+
+  setStatus('Connecting…', 'pending');
+  btn.textContent = kind === 'signin' ? 'SIGNING IN…' : 'CREATING ACCOUNT…';
+  btn.disabled = true;
+
+  if(typeof window.supabase === 'undefined' || typeof supabaseClient === 'undefined'){
+    setStatus('ERROR: Supabase library did not load. Check your internet connection and reload the page.', 'bad');
+    btn.textContent = originalText;
+    btn.disabled = false;
+    return false;
+  }
+
+  try{
+    let result;
+    if(kind === 'signin'){
+      const email = document.getElementById('si-email').value;
+      const password = document.getElementById('si-pass').value;
+      result = await supabaseClient.auth.signInWithPassword({ email, password });
+    } else {
+      const full_name = document.getElementById('su-name').value;
+      const handle = document.getElementById('su-handle').value.trim();
+      const email = document.getElementById('su-email').value;
+      const password = document.getElementById('su-pass').value;
+      result = await supabaseClient.auth.signUp({
+        email, password,
+        options: { data: { full_name } }
+      });
+
+      // If signup succeeded and we have a session right away, save the public handle now.
+      if(!result.error && result.data && result.data.session){
+        const userId = result.data.session.user.id;
+        const { error: profileError } = await supabaseClient
+          .from('profiles')
+          .insert([{ id: userId, handle: handle, tos_accepted_at: new Date().toISOString() }]);
+        if(profileError){
+          // Handle likely already taken, or profiles table not reachable — don't block account creation over this.
+          console.warn('Could not save handle:', profileError.message);
+        }
+      }
+    }
+
+    if(result.error){
+      setStatus('ERROR: ' + result.error.message, 'bad');
+    } else {
+      const seal = document.getElementById('seal');
+      seal.classList.remove('stamped');
+      void seal.offsetWidth;
+      seal.classList.add('stamped');
+
+      const session = result.data && result.data.session;
+
+      if(session){
+        // Block banned accounts immediately, even though they signed in successfully.
+        const { data: profile } = await supabaseClient
+          .from('profiles')
+          .select('is_banned, ban_reason')
+          .eq('id', session.user.id)
+          .single();
+
+        if(profile && profile.is_banned){
+          await supabaseClient.auth.signOut();
+          setStatus('This account has been suspended' + (profile.ban_reason ? ': ' + profile.ban_reason : '.') + ' Contact support if you believe this is a mistake.', 'bad');
+          btn.textContent = originalText;
+          btn.disabled = false;
+          return false;
+        }
+
+        setStatus(kind === 'signin' ? 'Welcome back — signed in successfully.' : 'Account created — you\'re in.', 'ok');
+        setTimeout(()=> showDashboard(session.user), 650);
+      } else if(kind === 'signup'){
+        setStatus('Account created. Check your email (' + document.getElementById('su-email').value + ') for a confirmation link.', 'ok');
+      } else {
+        setStatus('Signed in, but no session came back. Try again.', 'bad');
+      }
+    }
+  } catch(err){
+    setStatus('ERROR: ' + (err && err.message ? err.message : String(err)), 'bad');
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+
+  return false;
+}
+
+function showToast(message, isError){
+  const toast = document.getElementById('toast');
+  const text = document.getElementById('toastText');
+  const dot = toast.querySelector('.dot');
+  const color = isError ? '#B5453D' : 'var(--emerald)';
+  text.textContent = message;
+  dot.style.background = color;
+  toast.style.borderLeftColor = color;
+  toast.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(()=> toast.classList.remove('show'), 3800);
+}
+
+async function checkAndPromptHandle(userId){
+  const { data, error } = await supabaseClient.from('profiles').select('handle').eq('id', userId).maybeSingle();
+  if(error || data) return; // profile exists, or table unreachable — nothing to prompt
+
+  const prompt = document.getElementById('handlePrompt');
+  prompt.classList.remove('hidden');
+
+  document.getElementById('saveHandleBtn').addEventListener('click', async function(){
+    const handle = document.getElementById('handleInput').value.trim();
+    const statusEl = document.getElementById('handleStatus');
+    if(!/^[a-zA-Z0-9_]{3,20}$/.test(handle)){
+      statusEl.textContent = 'Use 3-20 letters, numbers, or underscores.';
+      return;
+    }
+    const { error: insertError } = await supabaseClient.from('profiles').insert([{ id: userId, handle: handle }]);
+    if(insertError){
+      statusEl.textContent = insertError.message.includes('duplicate') ? 'That handle is already taken.' : insertError.message;
+      return;
+    }
+    prompt.classList.add('hidden');
+  });
+}
+
+async function loadDashboardStats(userId){
+  try{
+    const { count, error } = await supabaseClient
+      .from(TABLE_NAME)
+      .select('*', { count: 'exact', head: true })
+      .eq('seller_id', userId);
+    if(!error && typeof count === 'number'){
+      document.getElementById('statActiveListings').textContent = count;
+      document.getElementById('dashEmpty').style.display = count > 0 ? 'none' : 'block';
+    }
+  } catch(e){ /* stats are non-critical, fail silently */ }
+}
+
+function showDashboard(user){
+  document.querySelector('.stage').classList.add('hidden');
+  document.getElementById('dashboard').classList.add('show');
+  const name = (user.user_metadata && user.user_metadata.full_name) ? user.user_metadata.full_name : user.email;
+  document.getElementById('dashUserEmail').textContent = user.email;
+  document.getElementById('dashFirstName').textContent = name.split(' ')[0];
+  loadDashboardStats(user.id);
+  checkAndPromptHandle(user.id);
+}
+
+function hideDashboard(){
+  document.getElementById('dashboard').classList.remove('show');
+  document.querySelector('.stage').classList.remove('hidden');
+}
+
+document.getElementById('signOutBtn').addEventListener('click', async function(){
+  this.disabled = true;
+  this.textContent = 'SIGNING OUT…';
+  try{
+    await supabaseClient.auth.signOut();
+  } catch(e){}
+  hideDashboard();
+  this.disabled = false;
+  this.textContent = 'Sign Out';
+});
+
+(async function checkExistingSession(){
+  if(typeof supabaseClient === 'undefined') return;
+  try{
+    const { data } = await supabaseClient.auth.getSession();
+    if(data && data.session){
+      const { data: profile } = await supabaseClient
+        .from('profiles')
+        .select('is_banned, ban_reason')
+        .eq('id', data.session.user.id)
+        .single();
+      if(profile && profile.is_banned){
+        await supabaseClient.auth.signOut();
+        setStatus('This account has been suspended' + (profile.ban_reason ? ': ' + profile.ban_reason : '.') + ' Contact support if you believe this is a mistake.', 'bad');
+        return;
+      }
+      showDashboard(data.session.user);
+    }
+  } catch(e){}
+})();
+</script>
+
+</body>
+</html>

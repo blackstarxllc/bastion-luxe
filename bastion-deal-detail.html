@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0b0d12">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Bastion">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bastion — Deal Detail</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,450;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0B0D;
+    --ink-soft:#101216;
+    --surface:#15171B;
+    --field:#1B1E23;
+    --field-border:#2A2D33;
+    --ivory:#F1ECE1;
+    --stone:#8D8F94;
+    --stone-dim:#5B5D62;
+    --brass:#C7A268;
+    --brass-dim:#8C6F44;
+    --brass-ink:#171308;
+    --emerald:#2C5C4F;
+    --rust:#B5453D;
+    --hairline:rgba(241,236,225,0.08);
+    --radius:2px;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+
+  html,body{
+    min-height:100%;
+    background:var(--ink);
+    color:var(--ivory);
+    font-family:'Inter', -apple-system, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .nav{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 24px;
+    border-bottom:1px solid var(--hairline);
+    position:sticky; top:0;
+    background:var(--ink);
+    z-index:10;
+  }
+  @media(min-width:900px){ .nav{ padding:22px 56px; } }
+
+  .wordmark{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-size:22px;
+    color:var(--ivory);
+    text-decoration:none;
+  }
+  .wordmark em{ font-style:italic; font-weight:400; color:var(--brass); }
+
+  .back-link{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--stone);
+    text-decoration:none;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    transition:color 0.2s ease;
+  }
+  .back-link:hover{ color:var(--brass); }
+
+  .wrap{
+    max-width:920px;
+    margin:0 auto;
+    padding:48px 24px 100px;
+  }
+  @media(min-width:900px){ .wrap{ padding:64px 56px 120px; } }
+
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--brass);
+    margin-bottom:16px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:16px; height:1px;
+    background:var(--brass);
+    display:inline-block;
+  }
+
+  .photo-panel{
+    width:100%;
+    aspect-ratio:4/3;
+    background:var(--ink-soft);
+    border:1px solid var(--hairline);
+    margin-bottom:28px;
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden;
+  }
+  .photo-panel img{ width:100%; height:100%; object-fit:cover; }
+  .photo-panel .seal-mini{
+    width:54px; height:54px;
+    border:1px solid var(--brass-dim);
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces', serif;
+    font-size:24px;
+    color:var(--brass-dim);
+  }
+
+  .extra-photos{
+    display:flex; gap:10px;
+    margin-bottom:28px;
+    flex-wrap:wrap;
+  }
+  .extra-photos img{
+    width:90px; height:90px;
+    object-fit:cover;
+    border:1px solid var(--hairline);
+  }
+
+  .spec-title{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--stone-dim);
+    margin-top:32px;
+    margin-bottom:14px;
+    padding-bottom:10px;
+    border-bottom:1px solid var(--hairline);
+  }
+  .spec-row{
+    display:flex;
+    justify-content:space-between;
+    gap:20px;
+    padding:11px 0;
+    border-bottom:1px solid var(--hairline);
+    font-size:13px;
+  }
+  .spec-row:last-child{ border-bottom:none; }
+  .spec-key{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+    color:var(--stone);
+    white-space:nowrap;
+  }
+  .spec-val{ color:var(--ivory); text-align:right; }
+
+  .related-section{
+    margin-top:64px;
+    padding-top:36px;
+    border-top:1px solid var(--hairline);
+  }
+  .related-title{
+    font-family:'Fraunces', serif;
+    font-style:italic;
+    font-weight:450;
+    font-size:20px;
+    color:var(--ivory);
+    margin-bottom:20px;
+  }
+  .related-scroll{
+    display:flex;
+    gap:16px;
+    overflow-x:auto;
+    padding-bottom:8px;
+  }
+  .related-card{
+    flex:0 0 180px;
+    border:1px solid var(--hairline);
+    cursor:pointer;
+  }
+  .related-photo{
+    aspect-ratio:1;
+    background:var(--ink-soft);
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden;
+  }
+  .related-photo img{ width:100%; height:100%; object-fit:cover; }
+  .related-photo .mini-seal{
+    width:32px; height:32px;
+    border:1px solid var(--brass-dim);
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces', serif;
+    font-size:15px;
+    color:var(--brass-dim);
+  }
+  .related-info{ padding:12px; }
+  .related-name{
+    font-family:'Fraunces', serif;
+    font-size:12.5px;
+    color:var(--ivory);
+    line-height:1.4;
+  }
+  .related-price{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--brass);
+    margin-top:6px;
+  }
+
+  .layout{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:40px;
+  }
+  @media(min-width:800px){
+    .layout{ grid-template-columns:1.3fr 1fr; gap:56px; }
+  }
+
+  /* ---------- LEFT: item info ---------- */
+  .title-row{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:16px;
+  }
+  .fav-btn-large{
+    flex-shrink:0;
+    width:40px; height:40px;
+    background:var(--ink-soft);
+    border:1px solid var(--hairline);
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    transition:border-color 0.2s ease;
+  }
+  .fav-btn-large:hover{ border-color:var(--brass); }
+  .fav-btn-large svg{ width:18px; height:18px; stroke:var(--ivory); fill:none; transition:fill 0.2s ease, stroke 0.2s ease; }
+  .fav-btn-large.active svg{ fill:var(--brass); stroke:var(--brass); }
+
+  .trusted-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9.5px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:var(--brass);
+    margin-left:8px;
+    border:1px solid var(--brass-dim);
+    padding:3px 8px;
+    border-radius:2px;
+  }
+  .trusted-badge svg{ width:11px; height:11px; }
+
+  .seller-rating{
+    display:flex; align-items:center; gap:6px;
+    margin-top:4px;
+    font-size:11.5px;
+    color:var(--stone);
+  }
+  .seller-rating .stars{ color:var(--brass); letter-spacing:1px; }
+
+  .item-name{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-style:italic;
+    font-size:36px;
+    color:var(--ivory);
+    line-height:1.2;
+  }
+
+  .item-cat{
+    display:inline-block;
+    margin-top:14px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--brass-dim);
+    border:1px solid var(--hairline);
+    padding:5px 10px;
+    border-radius:2px;
+  }
+
+  .item-desc{
+    font-size:14.5px;
+    line-height:1.75;
+    color:var(--stone);
+    margin-top:28px;
+    max-width:480px;
+  }
+
+  .divider{
+    height:1px;
+    background:var(--hairline);
+    margin:36px 0;
+  }
+
+  .process{
+    display:flex;
+    gap:24px;
+    flex-wrap:wrap;
+  }
+  .process-step{ flex:1; min-width:130px; }
+  .process-step .n{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    color:var(--brass-dim);
+    letter-spacing:0.08em;
+  }
+  .process-step .label{
+    font-size:12.5px;
+    color:var(--stone);
+    margin-top:5px;
+    line-height:1.5;
+  }
+
+  /* ---------- RIGHT: transaction card ---------- */
+  .deal-card{
+    background:var(--ink-soft);
+    border:1px solid var(--hairline);
+    padding:28px;
+    height:fit-content;
+    position:sticky;
+    top:100px;
+  }
+
+  .price-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--stone-dim);
+  }
+
+  .price-value{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-size:42px;
+    color:var(--brass);
+    margin-top:8px;
+  }
+
+  .fee-line{
+    display:flex; justify-content:space-between;
+    font-size:12.5px;
+    color:var(--stone);
+    margin-top:18px;
+    padding-top:18px;
+    border-top:1px solid var(--hairline);
+  }
+  .fee-line strong{ color:var(--ivory); font-weight:500; }
+
+  .total-line{
+    display:flex; justify-content:space-between;
+    align-items:baseline;
+    margin-top:14px;
+    padding-top:14px;
+    border-top:1px solid var(--hairline);
+  }
+  .total-line .t-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--stone);
+  }
+  .total-line .t-value{
+    font-family:'Fraunces', serif;
+    font-size:20px;
+    color:var(--ivory);
+  }
+
+  .submit{
+    width:100%;
+    background:var(--brass);
+    color:var(--brass-ink);
+    border:none;
+    border-radius:var(--radius);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    font-weight:500;
+    padding:16px;
+    cursor:pointer;
+    margin-top:26px;
+    transition:background 0.2s ease, transform 0.1s ease;
+  }
+  .submit:hover{ background:#D4B27E; }
+  .submit:active{ transform:scale(0.995); }
+
+  .seal-note{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top:18px;
+    font-size:11.5px;
+    color:var(--stone-dim);
+    line-height:1.5;
+  }
+  .seal-note svg{ flex-shrink:0; width:16px; height:16px; color:var(--brass-dim); }
+
+  .seller-note{
+    margin-top:20px;
+    padding-top:20px;
+    border-top:1px solid var(--hairline);
+    font-size:12px;
+    color:var(--stone);
+    line-height:1.6;
+  }
+  .seller-note strong{ color:var(--ivory); }
+
+  /* ---------- STATES ---------- */
+  .state-block{
+    text-align:center;
+    padding:100px 24px;
+    color:var(--stone);
+  }
+  .state-block .icon{
+    font-family:'Fraunces', serif;
+    font-size:40px;
+    color:var(--brass-dim);
+    margin-bottom:18px;
+  }
+  .state-block h3{
+    font-family:'Fraunces', serif;
+    font-style:italic;
+    font-weight:450;
+    font-size:20px;
+    color:var(--ivory);
+    margin-bottom:10px;
+  }
+  .state-block p{
+    font-size:13px;
+    max-width:340px;
+    margin:0 auto;
+    line-height:1.6;
+  }
+  .state-block.error h3{ color:var(--rust); }
+  .spinner{
+    width:22px; height:22px;
+    border:2px solid var(--field-border);
+    border-top-color:var(--brass);
+    border-radius:50%;
+    margin:0 auto 18px;
+    animation:spin 0.8s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  .hidden{ display:none !important; }
+  .photo-panel{ cursor:zoom-in; }
+  .extra-photos img{ cursor:zoom-in; }
+
+  .lightbox{
+    display:none;
+    position:fixed; inset:0;
+    background:rgba(10,11,13,0.96);
+    z-index:1000;
+    align-items:center; justify-content:center;
+    flex-direction:column;
+  }
+  .lightbox.show{ display:flex; }
+  .lightbox img{
+    max-width:92vw; max-height:78vh;
+    object-fit:contain;
+    border:1px solid var(--hairline);
+  }
+  .lightbox-close{
+    position:absolute; top:18px; right:22px;
+    background:none; border:1px solid var(--hairline);
+    color:var(--stone); width:38px; height:38px;
+    border-radius:50%; font-size:18px; line-height:1;
+    cursor:pointer;
+  }
+  .lightbox-close:hover{ border-color:var(--brass); color:var(--brass); }
+  .lightbox-nav{
+    position:absolute; top:50%; transform:translateY(-50%);
+    background:rgba(21,23,27,0.85); border:1px solid var(--hairline);
+    color:var(--ivory); width:44px; height:44px;
+    border-radius:50%; font-size:20px; cursor:pointer;
+  }
+  .lightbox-nav:hover{ border-color:var(--brass); color:var(--brass); }
+  .lightbox-nav.prev{ left:16px; }
+  .lightbox-nav.next{ right:16px; }
+  .lightbox-count{
+    margin-top:14px; font-family:'IBM Plex Mono', monospace;
+    font-size:11px; letter-spacing:0.08em; color:var(--stone-dim);
+  }
+</style>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("/service-worker.js").catch(function(){});
+      });
+    }
+  </script>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="bastion-auth.html" class="wordmark">Bast<em>ion</em></a>
+  <a href="bastion-marketplace.html" class="back-link">← Back to Marketplace</a>
+</nav>
+
+<div class="wrap">
+
+  <div id="loadingState" class="state-block">
+    <div class="spinner"></div>
+    <h3>Loading item…</h3>
+    <p>Retrieving details from the vault.</p>
+  </div>
+
+  <div id="errorState" class="state-block error hidden">
+    <div class="icon">B</div>
+    <h3 id="errorTitle">Item not found</h3>
+    <p id="errorMsg">This listing may have been removed or the link is incorrect.</p>
+  </div>
+
+  <div id="dealContent" class="hidden">
+    <div class="eyebrow">Verified Escrow Exchange</div>
+
+    <div class="photo-panel" id="photoPanel">
+      <div class="seal-mini">B</div>
+    </div>
+    <div class="extra-photos" id="extraPhotos"></div>
+
+    <div class="lightbox" id="lightbox">
+      <button type="button" class="lightbox-close" id="lightboxClose">&#10005;</button>
+      <button type="button" class="lightbox-nav prev" id="lightboxPrev">&#8249;</button>
+      <img id="lightboxImg" alt="Item photo, enlarged">
+      <button type="button" class="lightbox-nav next" id="lightboxNext">&#8250;</button>
+      <div class="lightbox-count" id="lightboxCount"></div>
+    </div>
+
+    <div class="layout">
+      <!-- LEFT -->
+      <div>
+        <div class="title-row">
+          <h1 class="item-name" id="itemName"></h1>
+          <button class="fav-btn-large" id="favBtn">
+            <svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M12 21s-7-4.5-9.5-9C.5 8 2 4 6 4c2 0 3.5 1.2 4 3 .5-1.8 2-3 4-3 4 0 5.5 4 3.5 8-2.5 4.5-9.5 9-9.5 9z"/></svg>
+          </button>
+        </div>
+        <span class="item-cat" id="itemCat"></span>
+        <p class="item-desc" id="itemDesc"></p>
+
+        <div class="spec-title hidden" id="specTitle">Item Details</div>
+        <div id="specGrid"></div>
+
+        <div class="divider"></div>
+
+        <div class="process">
+          <div class="process-step">
+            <div class="n">01 — FUND</div>
+            <div class="label">Your payment is secured in escrow the moment you buy.</div>
+          </div>
+          <div class="process-step">
+            <div class="n">02 — VERIFY</div>
+            <div class="label">Meet safely in person, or have it shipped — you check it before funds move.</div>
+          </div>
+          <div class="process-step">
+            <div class="n">03 — RELEASE</div>
+            <div class="label">Funds release to the seller once you confirm.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT -->
+      <div class="deal-card">
+        <div class="price-label">Listed Price</div>
+        <div class="price-value" id="itemPrice"></div>
+
+        <div class="fee-line">
+          <span>Protection fee</span>
+          <strong id="feeAmount"></strong>
+        </div>
+        <div class="total-line">
+          <span class="t-label">Total due</span>
+          <span class="t-value" id="totalAmount"></span>
+        </div>
+
+        <button class="submit" id="buyBtn">Begin Secure Purchase</button>
+
+        <div class="seal-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
+          <span>Held in escrow until you confirm the item matches the listing.</span>
+        </div>
+
+        <div class="seller-note" id="sellerNote"></div>
+      </div>
+    </div>
+
+    <div class="related-section hidden" id="relatedSection">
+      <div class="related-title">You May Also Like</div>
+      <div class="related-scroll" id="relatedScroll"></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = 'https://xokyqobttfhugdponfpg.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_nb18Wk7poF2HR0ZjpiJFnQ_tvv4wl0o';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const TABLE_NAME = 'deals';
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+function formatMoney(n){
+  return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function feeRateForPrice(n){
+  if(n < 2000) return 0.08;
+  if(n < 10000) return 0.06;
+  if(n < 50000) return 0.045;
+  return 0.03;
+}
+
+function renderStars(rating){
+  const rounded = Math.round(rating);
+  return '★'.repeat(rounded) + '☆'.repeat(5 - rounded);
+}
+
+async function renderSellerInfo(sellerId){
+  const note = document.getElementById('sellerNote');
+  if(!sellerId){
+    note.textContent = '';
+    return;
+  }
+  note.style.cursor = 'pointer';
+  note.addEventListener('click', function(){
+    window.location.href = 'bastion-seller-profile.html?id=' + encodeURIComponent(sellerId);
+  });
+
+  try{
+    const [tradesRes, reviewsRes, profileRes] = await Promise.all([
+      supabaseClient.from('transactions').select('*', { count: 'exact', head: true }).eq('seller_id', sellerId).eq('status', 'released'),
+      supabaseClient.from('reviews').select('rating').eq('seller_id', sellerId),
+      supabaseClient.from('profiles').select('handle').eq('id', sellerId).maybeSingle()
+    ]);
+
+    const tradeCount = tradesRes.count || 0;
+    const reviews = reviewsRes.data || [];
+    const avgRating = reviews.length > 0
+      ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+      : null;
+    const sellerLabel = (profileRes.data && profileRes.data.handle) ? '@' + profileRes.data.handle : 'Seller ' + String(sellerId).slice(0,6).toUpperCase();
+
+    const isTrusted = tradeCount >= 5;
+    const badgeHtml = isTrusted
+      ? '<span class="trusted-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>Trusted Seller</span>'
+      : '';
+
+    const ratingHtml = avgRating != null
+      ? '<div class="seller-rating"><span class="stars">' + renderStars(avgRating) + '</span><span>' + avgRating.toFixed(1) + ' (' + reviews.length + (reviews.length === 1 ? ' review' : ' reviews') + ')</span></div>'
+      : '<div class="seller-rating">No reviews yet</div>';
+
+    note.innerHTML = '<strong>' + sellerLabel + '</strong>' + badgeHtml + ' · ' + tradeCount + (tradeCount === 1 ? ' completed trade' : ' completed trades') + ratingHtml;
+
+  } catch(e){
+    note.textContent = '';
+  }
+}
+
+async function setupFavoriteButton(dealId){
+  const btn = document.getElementById('favBtn');
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  const session = sessionData && sessionData.session;
+  if(!session) return;
+
+  const userId = session.user.id;
+  const { data } = await supabaseClient
+    .from('favorites')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('deal_id', dealId)
+    .maybeSingle();
+
+  if(data){ btn.classList.add('active'); }
+
+  btn.addEventListener('click', async function(){
+    if(btn.classList.contains('active')){
+      await supabaseClient.from('favorites').delete().eq('user_id', userId).eq('deal_id', dealId);
+      btn.classList.remove('active');
+    } else {
+      await supabaseClient.from('favorites').insert([{ user_id: userId, deal_id: dealId }]);
+      btn.classList.add('active');
+    }
+  });
+}
+
+function labelize(key){
+  return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function renderSpecSheet(details, category){
+  const specTitle = document.getElementById('specTitle');
+  const specGrid = document.getElementById('specGrid');
+  if(!details || typeof details !== 'object' || Object.keys(details).length === 0){
+    return;
+  }
+
+  const rows = [];
+  Object.keys(details).forEach(function(key){
+    const value = details[key];
+    if(value === '' || value == null) return;
+    if(Array.isArray(value)) return; // additional_photos handled separately
+    let displayVal = value;
+    if(typeof value === 'boolean') displayVal = value ? 'Yes' : 'No';
+    rows.push('<div class="spec-row"><span class="spec-key">' + labelize(key) + '</span><span class="spec-val">' + displayVal + '</span></div>');
+  });
+
+  if(rows.length === 0) return;
+
+  specTitle.textContent = category === 'Watches' ? 'Timepiece Details' :
+                           category === 'Vehicles' ? 'Vehicle Details' :
+                           category === 'Sneakers' ? 'Sneaker Details' :
+                           category === 'Jewelry' ? 'Jewelry Details' :
+                           category === 'Cards' ? 'Card Details' : 'Item Details';
+  specTitle.classList.remove('hidden');
+  specGrid.innerHTML = rows.join('');
+}
+
+let allPhotos = [];
+let lightboxIndex = 0;
+
+function renderPhoto(imageUrl, details){
+  allPhotos = [];
+  if(imageUrl) allPhotos.push(imageUrl);
+  if(details && Array.isArray(details.additional_photos)){
+    details.additional_photos.forEach(function(u){ if(u) allPhotos.push(u); });
+  }
+
+  const panel = document.getElementById('photoPanel');
+  if(imageUrl){
+    panel.innerHTML = '<img src="' + escapeHtml(imageUrl) + '" alt="Item photo">';
+    panel.onclick = function(){ openLightbox(0); };
+  }
+
+  const extra = document.getElementById('extraPhotos');
+  if(details && Array.isArray(details.additional_photos) && details.additional_photos.length > 0){
+    extra.innerHTML = details.additional_photos.map(function(url, i){
+      return '<img src="' + escapeHtml(url) + '" alt="Additional photo" data-idx="' + (i + 1) + '">';
+    }).join('');
+    Array.from(extra.querySelectorAll('img')).forEach(function(img){
+      img.addEventListener('click', function(){ openLightbox(Number(img.dataset.idx)); });
+    });
+  }
+}
+
+function openLightbox(index){
+  if(!allPhotos.length) return;
+  lightboxIndex = index;
+  updateLightboxImage();
+  document.getElementById('lightbox').classList.add('show');
+}
+
+function closeLightbox(){
+  document.getElementById('lightbox').classList.remove('show');
+}
+
+function updateLightboxImage(){
+  document.getElementById('lightboxImg').src = allPhotos[lightboxIndex];
+  document.getElementById('lightboxCount').textContent = (lightboxIndex + 1) + ' / ' + allPhotos.length;
+  const multi = allPhotos.length > 1;
+  document.getElementById('lightboxPrev').style.display = multi ? 'block' : 'none';
+  document.getElementById('lightboxNext').style.display = multi ? 'block' : 'none';
+}
+
+document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
+document.getElementById('lightbox').addEventListener('click', function(e){
+  if(e.target.id === 'lightbox') closeLightbox();
+});
+document.getElementById('lightboxPrev').addEventListener('click', function(){
+  lightboxIndex = (lightboxIndex - 1 + allPhotos.length) % allPhotos.length;
+  updateLightboxImage();
+});
+document.getElementById('lightboxNext').addEventListener('click', function(){
+  lightboxIndex = (lightboxIndex + 1) % allPhotos.length;
+  updateLightboxImage();
+});
+document.addEventListener('keydown', function(e){
+  if(!document.getElementById('lightbox').classList.contains('show')) return;
+  if(e.key === 'Escape') closeLightbox();
+  if(e.key === 'ArrowLeft') document.getElementById('lightboxPrev').click();
+  if(e.key === 'ArrowRight') document.getElementById('lightboxNext').click();
+});
+
+async function renderRelated(category, currentId){
+  if(!category) return;
+  const { data, error } = await supabaseClient
+    .from(TABLE_NAME)
+    .select('*')
+    .eq('category', category)
+    .neq('id', currentId)
+    .limit(6);
+
+  if(error || !data || data.length === 0) return;
+
+  const section = document.getElementById('relatedSection');
+  const scroll = document.getElementById('relatedScroll');
+
+  scroll.innerHTML = data.map(function(d){
+    const name = escapeHtml(d.item_name || d.name || 'Untitled item');
+    const price = d.price != null ? formatMoney(d.price) : '—';
+    const photo = d.image_url
+      ? '<img src="' + escapeHtml(d.image_url) + '" alt="' + name + '">'
+      : '<div class="mini-seal">B</div>';
+    return `
+      <div class="related-card" onclick="window.location.href='bastion-deal-detail.html?id=${encodeURIComponent(d.id)}'">
+        <div class="related-photo">${photo}</div>
+        <div class="related-info">
+          <div class="related-name">${name}</div>
+          <div class="related-price">${price}</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  section.classList.remove('hidden');
+}
+
+function getIdFromUrl(){
+  const params = new URLSearchParams(window.location.search);
+  return params.get('id');
+}
+
+async function loadDeal(){
+  const loadingEl = document.getElementById('loadingState');
+  const errorEl = document.getElementById('errorState');
+  const contentEl = document.getElementById('dealContent');
+
+  const id = getIdFromUrl();
+  if(!id){
+    loadingEl.classList.add('hidden');
+    document.getElementById('errorTitle').textContent = 'No item specified';
+    document.getElementById('errorMsg').textContent = 'This link is missing an item reference. Head back to the marketplace and pick a listing.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  try{
+    const { data, error } = await supabaseClient
+      .from(TABLE_NAME)
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if(error || !data){
+      loadingEl.classList.add('hidden');
+      document.getElementById('errorMsg').textContent = error ? error.message : 'This listing may have been removed.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+
+    const name = data.item_name || data.name || data.title || 'Untitled item';
+    const desc = data.description || 'No description provided for this item.';
+    const cat = data.category || 'Uncategorized';
+    const price = Number(data.price) || 0;
+    const rate = feeRateForPrice(price);
+    const fee = price * rate;
+    const total = price + fee;
+
+    document.getElementById('itemName').textContent = name;
+    document.getElementById('itemCat').textContent = cat;
+    document.getElementById('itemDesc').textContent = desc;
+    document.getElementById('itemPrice').textContent = formatMoney(price);
+    document.getElementById('feeAmount').textContent = formatMoney(fee) + ' (' + (rate*100).toFixed(1) + '%)';
+    document.getElementById('totalAmount').textContent = formatMoney(total);
+    document.title = 'Bastion — ' + name;
+
+    renderPhoto(data.image_url, data.details);
+    renderSpecSheet(data.details, cat);
+    renderRelated(cat, data.id);
+    renderSellerInfo(data.seller_id);
+    setupFavoriteButton(data.id);
+
+    const buyBtn = document.getElementById('buyBtn');
+    if(data.status === 'sold'){
+      buyBtn.textContent = 'Sold';
+      buyBtn.disabled = true;
+      buyBtn.style.opacity = '0.5';
+      buyBtn.style.cursor = 'not-allowed';
+    } else if(data.status === 'pending'){
+      buyBtn.textContent = 'Sale Pending';
+      buyBtn.disabled = true;
+      buyBtn.style.opacity = '0.5';
+      buyBtn.style.cursor = 'not-allowed';
+    }
+
+    loadingEl.classList.add('hidden');
+    contentEl.classList.remove('hidden');
+
+    document.getElementById('buyBtn').addEventListener('click', async function(){
+      const btn = this;
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'STARTING PURCHASE…';
+
+      try{
+        const { data: sessionData } = await supabaseClient.auth.getSession();
+        const session = sessionData && sessionData.session;
+
+        if(!session){
+          alert('Please sign in before starting a purchase.');
+          window.location.href = 'bastion-auth.html';
+          return;
+        }
+
+        const buyerId = session.user.id;
+        if(data.seller_id && data.seller_id === buyerId){
+          alert("This is your own listing — you can't purchase your own item.");
+          btn.disabled = false;
+          btn.textContent = originalText;
+          return;
+        }
+
+        const releaseCode = String(Math.floor(100000 + Math.random() * 900000));
+
+        const { data: txn, error: txnError } = await supabaseClient
+          .from('transactions')
+          .insert([{
+            deal_id: data.id,
+            buyer_id: buyerId,
+            seller_id: data.seller_id || null,
+            item_name: name,
+            price: price,
+            fee: fee,
+            total: total,
+            status: 'funded',
+            release_code: releaseCode
+          }])
+          .select()
+          .single();
+
+        if(txnError){
+          alert('Could not start the purchase: ' + txnError.message);
+          btn.disabled = false;
+          btn.textContent = originalText;
+          return;
+        }
+
+        // Mark the listing as pending so nobody else can buy it mid-transaction.
+        await supabaseClient.from(TABLE_NAME).update({ status: 'pending' }).eq('id', data.id);
+
+        window.location.href = 'bastion-transaction.html?id=' + encodeURIComponent(txn.id);
+
+      } catch(err){
+        alert('Something went wrong: ' + (err.message || String(err)));
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    });
+
+  } catch(err){
+    loadingEl.classList.add('hidden');
+    document.getElementById('errorMsg').textContent = err.message || String(err);
+    errorEl.classList.remove('hidden');
+  }
+}
+
+loadDeal();
+</script>
+
+</body>
+</html>

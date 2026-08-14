@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0b0d12">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Bastion">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bastion — Transaction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,450;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0B0D;
+    --ink-soft:#101216;
+    --surface:#15171B;
+    --field:#1B1E23;
+    --field-border:#2A2D33;
+    --ivory:#F1ECE1;
+    --stone:#8D8F94;
+    --stone-dim:#5B5D62;
+    --brass:#C7A268;
+    --brass-dim:#8C6F44;
+    --brass-ink:#171308;
+    --emerald:#2C5C4F;
+    --rust:#B5453D;
+    --hairline:rgba(241,236,225,0.08);
+    --radius:2px;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+
+  html,body{
+    min-height:100%;
+    background:var(--ink);
+    color:var(--ivory);
+    font-family:'Inter', -apple-system, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .nav{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 24px;
+    border-bottom:1px solid var(--hairline);
+    position:sticky; top:0;
+    background:var(--ink);
+    z-index:10;
+  }
+  @media(min-width:900px){ .nav{ padding:22px 56px; } }
+
+  .wordmark{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-size:22px;
+    color:var(--ivory);
+    text-decoration:none;
+  }
+  .wordmark em{ font-style:italic; font-weight:400; color:var(--brass); }
+
+  .back-link{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--stone);
+    text-decoration:none;
+    transition:color 0.2s ease;
+  }
+  .back-link:hover{ color:var(--brass); }
+
+  .wrap{
+    max-width:680px;
+    margin:0 auto;
+    padding:48px 24px 100px;
+  }
+  @media(min-width:900px){ .wrap{ padding:64px 24px 120px; } }
+
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--brass);
+    margin-bottom:16px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:16px; height:1px;
+    background:var(--brass);
+    display:inline-block;
+  }
+
+  .item-name{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-style:italic;
+    font-size:30px;
+    color:var(--ivory);
+    line-height:1.2;
+  }
+
+  .role-tag{
+    display:inline-block;
+    margin-top:12px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--brass-dim);
+    border:1px solid var(--hairline);
+    padding:5px 10px;
+    border-radius:2px;
+  }
+
+  /* ---------- STEPPER ---------- */
+  .stepper{
+    display:flex;
+    margin-top:44px;
+    margin-bottom:44px;
+  }
+
+  .step{
+    flex:1;
+    position:relative;
+    text-align:center;
+  }
+
+  .step-line{
+    position:absolute;
+    top:14px; left:-50%; right:50%;
+    height:2px;
+    background:var(--field-border);
+    z-index:0;
+  }
+  .step:first-child .step-line{ display:none; }
+  .step.done .step-line, .step.active .step-line{ background:var(--brass); }
+
+  .step-dot{
+    width:30px; height:30px;
+    border-radius:50%;
+    border:2px solid var(--field-border);
+    background:var(--ink);
+    display:flex; align-items:center; justify-content:center;
+    margin:0 auto;
+    position:relative; z-index:1;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--stone-dim);
+    transition:border-color 0.3s ease, color 0.3s ease, background 0.3s ease;
+  }
+  .step.done .step-dot{
+    border-color:var(--brass);
+    background:var(--brass);
+    color:var(--brass-ink);
+  }
+  .step.active .step-dot{
+    border-color:var(--brass);
+    color:var(--brass);
+  }
+
+  .step-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--stone-dim);
+    margin-top:10px;
+  }
+  .step.done .step-label, .step.active .step-label{ color:var(--ivory); }
+
+  /* ---------- STATUS CARD ---------- */
+  .status-card{
+    background:var(--ink-soft);
+    border:1px solid var(--hairline);
+    padding:28px;
+  }
+
+  .status-headline{
+    font-family:'Fraunces', serif;
+    font-style:italic;
+    font-weight:450;
+    font-size:22px;
+    color:var(--ivory);
+  }
+
+  .status-desc{
+    font-size:13.5px;
+    color:var(--stone);
+    line-height:1.65;
+    margin-top:10px;
+    max-width:440px;
+  }
+
+  .divider{
+    height:1px;
+    background:var(--hairline);
+    margin:24px 0;
+  }
+
+  .amount-row{
+    display:flex; justify-content:space-between;
+    font-size:13px;
+    color:var(--stone);
+    margin-bottom:8px;
+  }
+  .amount-row strong{ color:var(--ivory); font-weight:500; }
+  .amount-row.total{
+    margin-top:12px;
+    padding-top:12px;
+    border-top:1px solid var(--hairline);
+    font-size:14.5px;
+  }
+  .amount-row.total strong{ color:var(--brass); font-size:18px; font-family:'Fraunces', serif; }
+
+  .action-btn{
+    width:100%;
+    background:var(--brass);
+    color:var(--brass-ink);
+    border:none;
+    border-radius:var(--radius);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    font-weight:500;
+    padding:16px;
+    cursor:pointer;
+    margin-top:24px;
+    transition:background 0.2s ease, transform 0.1s ease;
+  }
+  .action-btn:hover{ background:#D4B27E; }
+  .action-btn:active{ transform:scale(0.995); }
+  .action-btn:disabled{ opacity:0.5; cursor:not-allowed; }
+
+  .action-btn.secondary{
+    background:none;
+    border:1px solid var(--field-border);
+    color:var(--ivory);
+  }
+  .action-btn.secondary:hover{ border-color:var(--brass); background:none; }
+
+  .waiting-note{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top:24px;
+    padding:14px 16px;
+    background:var(--field);
+    border:1px solid var(--hairline);
+    font-size:12.5px;
+    color:var(--stone);
+    line-height:1.5;
+  }
+  .waiting-note svg{ flex-shrink:0; width:16px; height:16px; color:var(--brass-dim); }
+
+  .complete-note{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top:24px;
+    padding:14px 16px;
+    background:rgba(44,92,79,0.12);
+    border:1px solid var(--emerald);
+    font-size:12.5px;
+    color:#8FBBAC;
+    line-height:1.5;
+  }
+  .complete-note svg{ flex-shrink:0; width:16px; height:16px; }
+
+  .review-box{
+    margin-top:24px;
+    padding:20px;
+    background:var(--field);
+    border:1px solid var(--hairline);
+  }
+  .review-box.hidden{ display:none; }
+  .review-title{
+    font-family:'Fraunces', serif;
+    font-style:italic;
+    font-size:16px;
+    color:var(--ivory);
+    margin-bottom:14px;
+  }
+  .star-picker{ display:flex; gap:6px; margin-bottom:14px; }
+  .star-picker button{
+    background:none; border:none;
+    font-size:26px;
+    color:var(--field-border);
+    cursor:pointer;
+    line-height:1;
+    padding:0;
+  }
+  .star-picker button.filled{ color:var(--brass); }
+  .review-box textarea{
+    width:100%;
+    background:var(--ink);
+    border:1px solid var(--field-border);
+    border-radius:2px;
+    color:var(--ivory);
+    font-family:'Inter', sans-serif;
+    font-size:13px;
+    padding:12px;
+    min-height:70px;
+    outline:none;
+    resize:vertical;
+  }
+  .review-box textarea:focus{ border-color:var(--brass); }
+  .review-submit{
+    margin-top:12px;
+    background:var(--brass);
+    color:var(--brass-ink);
+    border:none;
+    border-radius:2px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    padding:11px 20px;
+    cursor:pointer;
+  }
+  .review-submit:disabled{ opacity:0.5; cursor:not-allowed; }
+  .review-done{
+    font-size:12.5px;
+    color:#8FBBAC;
+    margin-top:10px;
+  }
+
+  .dispute-link{
+    display:block;
+    text-align:center;
+    margin-top:16px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:var(--stone-dim);
+    background:none;
+    border:none;
+    cursor:pointer;
+    width:100%;
+  }
+  .dispute-link:hover{ color:var(--rust); }
+
+  .dispute-note{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top:24px;
+    padding:14px 16px;
+    background:rgba(181,69,61,0.1);
+    border:1px solid var(--rust);
+    font-size:12.5px;
+    color:#E0958D;
+    line-height:1.5;
+  }
+
+  .code-box{
+    margin-top:18px;
+    padding:20px;
+    background:var(--field);
+    border:1px solid var(--brass-dim);
+    text-align:center;
+  }
+  .code-box-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--stone);
+    margin-bottom:10px;
+  }
+  .code-digits{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:32px;
+    letter-spacing:8px;
+    color:var(--brass);
+    font-weight:500;
+  }
+  .code-warning{
+    font-size:11.5px;
+    color:var(--stone);
+    margin-top:12px;
+    line-height:1.6;
+  }
+
+  .code-entry{
+    margin-top:18px;
+  }
+  .code-entry-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--stone);
+    margin-bottom:10px;
+  }
+  .code-entry input{
+    width:100%;
+    background:var(--field);
+    border:1px solid var(--field-border);
+    border-radius:2px;
+    color:var(--ivory);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:20px;
+    letter-spacing:6px;
+    text-align:center;
+    padding:14px;
+    outline:none;
+  }
+  .code-entry input:focus{ border-color:var(--brass); }
+  .code-entry button{
+    width:100%;
+    margin-top:10px;
+    background:var(--brass);
+    color:var(--brass-ink);
+    border:none;
+    border-radius:2px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    padding:13px;
+    cursor:pointer;
+  }
+  .code-entry button:disabled{ opacity:0.5; cursor:not-allowed; }
+  .code-error{ font-size:12px; color:#E0958D; margin-top:8px; text-align:center; }
+
+  .or-divider{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin:20px 0;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--stone-dim);
+  }
+  .or-divider::before, .or-divider::after{
+    content:"";
+    flex:1;
+    height:1px;
+    background:var(--hairline);
+  }
+
+  .state-block{
+    text-align:center;
+    padding:100px 24px;
+    color:var(--stone);
+  }
+  .state-block .icon{
+    font-family:'Fraunces', serif;
+    font-size:40px;
+    color:var(--brass-dim);
+    margin-bottom:18px;
+  }
+  .state-block h3{
+    font-family:'Fraunces', serif;
+    font-style:italic;
+    font-weight:450;
+    font-size:20px;
+    color:var(--ivory);
+    margin-bottom:10px;
+  }
+  .state-block p{ font-size:13px; max-width:340px; margin:0 auto; line-height:1.6; }
+  .state-block.error h3{ color:var(--rust); }
+  .spinner{
+    width:22px; height:22px;
+    border:2px solid var(--field-border);
+    border-top-color:var(--brass);
+    border-radius:50%;
+    margin:0 auto 18px;
+    animation:spin 0.8s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  .hidden{ display:none !important; }
+</style>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("/service-worker.js").catch(function(){});
+      });
+    }
+  </script>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="bastion-auth.html" class="wordmark">Bast<em>ion</em></a>
+  <a href="bastion-marketplace.html" class="back-link">← Back to Marketplace</a>
+</nav>
+
+<div class="wrap">
+
+  <div id="loadingState" class="state-block">
+    <div class="spinner"></div>
+    <h3>Loading transaction…</h3>
+    <p>Retrieving the current status.</p>
+  </div>
+
+  <div id="errorState" class="state-block error hidden">
+    <div class="icon">B</div>
+    <h3 id="errorTitle">Transaction not found</h3>
+    <p id="errorMsg">This transaction may not exist, or you may need to sign in.</p>
+  </div>
+
+  <div id="txnContent" class="hidden">
+    <div class="eyebrow">Verified Escrow Exchange</div>
+    <h1 class="item-name" id="itemName"></h1>
+    <span class="role-tag" id="roleTag"></span>
+
+    <div class="stepper">
+      <div class="step" id="stepFunded">
+        <div class="step-line"></div>
+        <div class="step-dot">1</div>
+        <div class="step-label">Funded</div>
+      </div>
+      <div class="step" id="stepShipped">
+        <div class="step-line"></div>
+        <div class="step-dot">2</div>
+        <div class="step-label">Verified</div>
+      </div>
+      <div class="step" id="stepReleased">
+        <div class="step-line"></div>
+        <div class="step-dot">3</div>
+        <div class="step-label">Released</div>
+      </div>
+    </div>
+
+    <div class="status-card">
+      <div class="status-headline" id="statusHeadline"></div>
+      <p class="status-desc" id="statusDesc"></p>
+
+      <div class="divider"></div>
+
+      <div class="amount-row"><span>Item price</span><strong id="amtPrice"></strong></div>
+      <div class="amount-row"><span>Protection fee</span><strong id="amtFee"></strong></div>
+      <div class="amount-row total"><span>Total in escrow</span><strong id="amtTotal"></strong></div>
+
+      <div id="actionArea"></div>
+      <button class="dispute-link hidden" id="disputeLink">Report a problem with this trade</button>
+    </div>
+
+    <div class="review-box hidden" id="reviewBox">
+      <div class="review-title">Rate this seller</div>
+      <div class="star-picker" id="starPicker">
+        <button type="button" data-star="1">★</button>
+        <button type="button" data-star="2">★</button>
+        <button type="button" data-star="3">★</button>
+        <button type="button" data-star="4">★</button>
+        <button type="button" data-star="5">★</button>
+      </div>
+      <textarea id="reviewComment" placeholder="How was the trade? (optional)"></textarea>
+      <br>
+      <button class="review-submit" id="submitReview">Submit Review</button>
+      <div class="review-done hidden" id="reviewDone">Thanks — your review has been posted.</div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = 'https://xokyqobttfhugdponfpg.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_nb18Wk7poF2HR0ZjpiJFnQ_tvv4wl0o';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+function formatMoney(n){
+  return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function getIdFromUrl(){
+  return new URLSearchParams(window.location.search).get('id');
+}
+
+function updateStepper(status){
+  const order = ['funded', 'shipped', 'released'];
+  if(status === 'disputed'){
+    document.querySelectorAll('.step').forEach(function(el){ el.classList.remove('done', 'active'); });
+    return;
+  }
+  const currentIndex = order.indexOf(status);
+  const ids = { funded: 'stepFunded', shipped: 'stepShipped', released: 'stepReleased' };
+
+  order.forEach(function(key, i){
+    const el = document.getElementById(ids[key]);
+    el.classList.remove('done', 'active');
+    if(i < currentIndex) el.classList.add('done');
+    else if(i === currentIndex) el.classList.add('active');
+  });
+}
+
+async function fileDispute(txnId){
+  if(!confirm('This flags the trade for manual review and pauses the fund/verify/release process. Continue?')) return;
+  const { error } = await supabaseClient.from('transactions').update({ status: 'disputed' }).eq('id', txnId);
+  if(error){
+    alert('Could not file dispute: ' + error.message);
+    return;
+  }
+  window.location.reload();
+}
+
+async function markShipped(txnId, btn){
+  btn.disabled = true;
+  btn.textContent = 'UPDATING…';
+  const { error } = await supabaseClient
+    .from('transactions')
+    .update({ status: 'shipped' })
+    .eq('id', txnId);
+  if(error){
+    alert('Could not update: ' + error.message);
+    btn.disabled = false;
+    btn.textContent = 'Confirm Handoff';
+    return;
+  }
+  window.location.reload();
+}
+
+async function releaseFunds(txnId, dealId, btn){
+  btn.disabled = true;
+  btn.textContent = 'RELEASING…';
+  const { error } = await supabaseClient
+    .from('transactions')
+    .update({ status: 'released' })
+    .eq('id', txnId);
+  if(error){
+    alert('Could not update: ' + error.message);
+    btn.disabled = false;
+    btn.textContent = 'Confirm Receipt & Release Funds';
+    return;
+  }
+  if(dealId){
+    await supabaseClient.from('deals').update({ status: 'sold' }).eq('id', dealId);
+  }
+  window.location.reload();
+}
+
+function buildCodeBox(txn){
+  if(!txn.release_code) return '';
+  return `
+    <div class="code-box">
+      <div class="code-box-label">Your Release Code</div>
+      <div class="code-digits">${txn.release_code}</div>
+      <div class="code-warning">Only share this in person, after you've both confirmed the item and are satisfied with the trade. Entering it releases your funds immediately.</div>
+    </div>`;
+}
+
+function buildCodeEntry(txn){
+  if(!txn.release_code) return '';
+  return `
+    <div class="or-divider">or, for in-person trades</div>
+    <div class="code-entry">
+      <div class="code-entry-label">Enter the seller's release code</div>
+      <input type="text" id="codeInput" maxlength="6" inputmode="numeric" placeholder="000000">
+      <button id="codeSubmitBtn">Release Funds Now</button>
+      <div class="code-error hidden" id="codeError">That code doesn't match. Double-check with the seller.</div>
+    </div>`;
+}
+
+function setupCodeEntry(txn){
+  const btn = document.getElementById('codeSubmitBtn');
+  if(!btn) return;
+  btn.addEventListener('click', function(){
+    const entered = document.getElementById('codeInput').value.trim();
+    const errorEl = document.getElementById('codeError');
+    if(entered === txn.release_code){
+      errorEl.classList.add('hidden');
+      releaseFunds(txn.id, txn.deal_id, btn);
+    } else {
+      errorEl.classList.remove('hidden');
+    }
+  });
+}
+
+function renderActionArea(txn, isBuyer, isSeller){
+  const area = document.getElementById('actionArea');
+  const status = txn.status;
+  const disputeLink = document.getElementById('disputeLink');
+
+  if(status === 'disputed'){
+    disputeLink.classList.add('hidden');
+    area.innerHTML = `
+      <div class="dispute-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="width:16px;height:16px;flex-shrink:0;"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+        <span>This trade has been flagged for review. Funds remain held in escrow until it's resolved. Our team will follow up with both parties.</span>
+      </div>`;
+    return;
+  }
+
+  if(status === 'released'){
+    disputeLink.classList.add('hidden');
+  } else if(isBuyer || isSeller){
+    disputeLink.classList.remove('hidden');
+    disputeLink.onclick = function(){ fileDispute(txn.id); };
+  }
+
+  if(status === 'funded'){
+    if(isSeller){
+      area.innerHTML = `<button class="action-btn" id="shipBtn">Confirm Handoff</button>` + buildCodeBox(txn);
+      document.getElementById('shipBtn').addEventListener('click', function(){ markShipped(txn.id, this); });
+    } else if(isBuyer){
+      area.innerHTML = `
+        <div class="waiting-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+          <span>Your funds are secured in escrow. Waiting for the seller to confirm the handoff.</span>
+        </div>` + buildCodeEntry(txn);
+      setupCodeEntry(txn);
+    } else {
+      area.innerHTML = `<div class="waiting-note"><span>Funds are secured in escrow, awaiting shipment.</span></div>`;
+    }
+  } else if(status === 'shipped'){
+    if(isBuyer){
+      area.innerHTML = `<button class="action-btn" id="releaseBtn">Confirm Receipt & Release Funds</button>` + buildCodeEntry(txn);
+      document.getElementById('releaseBtn').addEventListener('click', function(){ releaseFunds(txn.id, txn.deal_id, this); });
+      setupCodeEntry(txn);
+    } else if(isSeller){
+      area.innerHTML = `
+        <div class="waiting-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+          <span>Item marked as shipped. Waiting for the buyer to confirm receipt and release funds.</span>
+        </div>` + buildCodeBox(txn);
+    } else {
+      area.innerHTML = `<div class="waiting-note"><span>Item shipped, awaiting buyer confirmation.</span></div>`;
+    }
+  } else if(status === 'released'){
+    area.innerHTML = `
+      <div class="complete-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M20 6L9 17l-5-5"/></svg>
+        <span>Trade complete. Funds have been released to the seller.</span>
+      </div>`;
+  }
+}
+
+let selectedStars = 0;
+
+function setupStarPicker(){
+  const buttons = document.querySelectorAll('#starPicker button');
+  buttons.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      selectedStars = Number(btn.dataset.star);
+      buttons.forEach(function(b){
+        b.classList.toggle('filled', Number(b.dataset.star) <= selectedStars);
+      });
+    });
+  });
+}
+
+async function checkAndShowReviewBox(txn, isBuyer){
+  if(txn.status !== 'released' || !isBuyer) return;
+
+  // Has this buyer already reviewed this transaction?
+  const { data: existing } = await supabaseClient
+    .from('reviews')
+    .select('id')
+    .eq('transaction_id', txn.id)
+    .maybeSingle();
+
+  if(existing) return; // already reviewed, don't show the form again
+
+  const box = document.getElementById('reviewBox');
+  box.classList.remove('hidden');
+  setupStarPicker();
+
+  document.getElementById('submitReview').addEventListener('click', async function(){
+    if(selectedStars === 0){
+      alert('Please select a star rating.');
+      return;
+    }
+    const btn = this;
+    btn.disabled = true;
+    btn.textContent = 'SUBMITTING…';
+
+    const comment = document.getElementById('reviewComment').value.trim();
+
+    const { error } = await supabaseClient.from('reviews').insert([{
+      transaction_id: txn.id,
+      seller_id: txn.seller_id,
+      buyer_id: txn.buyer_id,
+      rating: selectedStars,
+      comment: comment || null
+    }]);
+
+    if(error){
+      alert('Could not submit review: ' + error.message);
+      btn.disabled = false;
+      btn.textContent = 'Submit Review';
+      return;
+    }
+
+    document.getElementById('starPicker').classList.add('hidden');
+    document.getElementById('reviewComment').classList.add('hidden');
+    btn.classList.add('hidden');
+    document.getElementById('reviewDone').classList.remove('hidden');
+  });
+}
+
+async function loadTransaction(){
+  const loadingEl = document.getElementById('loadingState');
+  const errorEl = document.getElementById('errorState');
+  const contentEl = document.getElementById('txnContent');
+
+  const id = getIdFromUrl();
+  if(!id){
+    loadingEl.classList.add('hidden');
+    document.getElementById('errorMsg').textContent = 'No transaction specified.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  try{
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const session = sessionData && sessionData.session;
+    if(!session){
+      loadingEl.classList.add('hidden');
+      document.getElementById('errorTitle').textContent = 'Sign in required';
+      document.getElementById('errorMsg').textContent = 'Please sign in to view this transaction.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+
+    const { data: txn, error } = await supabaseClient
+      .from('transactions')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if(error || !txn){
+      loadingEl.classList.add('hidden');
+      document.getElementById('errorMsg').textContent = error ? error.message : 'Transaction not found.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+
+    const userId = session.user.id;
+    const isBuyer = txn.buyer_id === userId;
+    const isSeller = txn.seller_id === userId;
+
+    document.getElementById('itemName').textContent = txn.item_name || 'Untitled item';
+    document.getElementById('roleTag').textContent = isBuyer ? 'You are the buyer' : (isSeller ? 'You are the seller' : 'Viewing as observer');
+
+    updateStepper(txn.status);
+
+    const headlines = {
+      funded: 'Funds secured in escrow.',
+      shipped: 'Item confirmed and on its way to release.',
+      released: 'Trade complete.',
+      disputed: 'Under review.'
+    };
+    const descs = {
+      funded: 'The buyer\'s payment is held safely. Nothing moves until the item is verified — in person or on arrival — and the buyer confirms.',
+      shipped: 'The seller has confirmed the handoff. The buyer will release funds once the item is verified and as described.',
+      released: 'Funds have been released to the seller. This trade is complete and archived.',
+      disputed: 'This trade has been flagged and paused for manual review.'
+    };
+    document.getElementById('statusHeadline').textContent = headlines[txn.status] || txn.status;
+    document.getElementById('statusDesc').textContent = descs[txn.status] || '';
+
+    document.getElementById('amtPrice').textContent = formatMoney(txn.price || 0);
+    document.getElementById('amtFee').textContent = formatMoney(txn.fee || 0);
+    document.getElementById('amtTotal').textContent = formatMoney(txn.total || 0);
+
+    renderActionArea(txn, isBuyer, isSeller);
+    checkAndShowReviewBox(txn, isBuyer);
+
+    loadingEl.classList.add('hidden');
+    contentEl.classList.remove('hidden');
+
+  } catch(err){
+    loadingEl.classList.add('hidden');
+    document.getElementById('errorMsg').textContent = err.message || String(err);
+    errorEl.classList.remove('hidden');
+  }
+}
+
+loadTransaction();
+</script>
+
+</body>
+</html>

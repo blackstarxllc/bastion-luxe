@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0b0d12">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Bastion">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bastion — Marketplace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,450;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0B0D;
+    --ink-soft:#101216;
+    --surface:#15171B;
+    --field:#1B1E23;
+    --field-border:#2A2D33;
+    --ivory:#F1ECE1;
+    --stone:#8D8F94;
+    --stone-dim:#5B5D62;
+    --brass:#C7A268;
+    --brass-dim:#8C6F44;
+    --brass-ink:#171308;
+    --emerald:#2C5C4F;
+    --rust:#B5453D;
+    --hairline:rgba(241,236,225,0.08);
+    --radius:2px;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+
+  html,body{
+    min-height:100%;
+    background:var(--ink);
+    color:var(--ivory);
+    font-family:'Inter', -apple-system, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---------- NAV ---------- */
+  .nav{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 24px;
+    border-bottom:1px solid var(--hairline);
+    position:sticky; top:0;
+    background:var(--ink);
+    z-index:10;
+  }
+  @media(min-width:900px){ .nav{ padding:22px 56px; } }
+
+  .wordmark{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-size:22px;
+    color:var(--ivory);
+    text-decoration:none;
+  }
+  .wordmark em{ font-style:italic; font-weight:400; color:var(--brass); }
+
+  .nav-right{ display:flex; align-items:center; gap:14px; }
+
+  .nav-btn{
+    background:none; border:1px solid var(--field-border);
+    color:var(--ivory);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    padding:9px 16px;
+    border-radius:var(--radius);
+    cursor:pointer;
+    text-decoration:none;
+    display:inline-flex;
+    align-items:center;
+    transition:border-color 0.2s ease, color 0.2s ease;
+  }
+  .nav-btn:hover{ border-color:var(--brass); }
+  .nav-btn.primary{
+    background:var(--brass);
+    color:var(--brass-ink);
+    border-color:var(--brass);
+  }
+  .nav-btn.primary:hover{ background:#D4B27E; }
+
+  /* ---------- HEADER ---------- */
+  .page-head{
+    max-width:1180px;
+    margin:0 auto;
+    padding:48px 24px 8px;
+  }
+  @media(min-width:900px){ .page-head{ padding:64px 56px 8px; } }
+
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--brass);
+    margin-bottom:16px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:16px; height:1px;
+    background:var(--brass);
+    display:inline-block;
+  }
+
+  .page-title{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-style:italic;
+    font-size:34px;
+    color:var(--ivory);
+    line-height:1.2;
+  }
+  .page-title span{ color:var(--brass); }
+
+  .page-sub{
+    font-size:13.5px;
+    color:var(--stone);
+    margin-top:10px;
+    max-width:460px;
+    line-height:1.6;
+  }
+
+.search-wrap{
+    max-width:1180px;
+    margin:0 auto;
+    padding:0 24px;
+  }
+  @media(min-width:900px){ .search-wrap{ padding:0 56px; } }
+
+  .search-input{
+    width:100%;
+    max-width:420px;
+    background:var(--field);
+    border:1px solid var(--field-border);
+    border-radius:var(--radius);
+    color:var(--ivory);
+    font-family:'Inter', sans-serif;
+    font-size:14px;
+    padding:12px 14px;
+    outline:none;
+    transition:border-color 0.2s ease, background 0.2s ease;
+  }
+  .search-input::placeholder{ color:var(--stone-dim); }
+  .search-input:focus{ border-color:var(--brass); background:#1E2126; }
+
+  /* ---------- FILTER BAR ---------- */
+  .filter-bar{
+    max-width:1180px;
+    margin:32px auto 0;
+    padding:0 24px;
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  @media(min-width:900px){ .filter-bar{ padding:0 56px; } }
+
+  .chip{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:var(--stone);
+    border:1px solid var(--hairline);
+    border-radius:2px;
+    padding:9px 14px;
+    cursor:pointer;
+    background:none;
+    transition:border-color 0.2s ease, color 0.2s ease;
+  }
+  .chip:hover{ border-color:var(--brass-dim); color:var(--ivory); }
+  .chip.active{
+    border-color:var(--brass);
+    color:var(--brass);
+  }
+
+  /* ---------- GRID ---------- */
+  .grid-wrap{
+    max-width:1180px;
+    margin:0 auto;
+    padding:32px 24px 100px;
+  }
+  @media(min-width:900px){ .grid-wrap{ padding:32px 56px 120px; } }
+
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(1, 1fr);
+    gap:1px;
+    background:var(--hairline);
+    border:1px solid var(--hairline);
+  }
+  @media(min-width:640px){ .grid{ grid-template-columns:repeat(2, 1fr); } }
+  @media(min-width:1000px){ .grid{ grid-template-columns:repeat(3, 1fr); } }
+
+  .card{
+    background:var(--ink);
+    padding:22px;
+    cursor:pointer;
+    transition:background 0.2s ease;
+    display:flex;
+    flex-direction:column;
+    min-height:220px;
+  }
+  .card:hover{ background:var(--ink-soft); }
+
+  .card-photo{
+    aspect-ratio:4/3;
+    background:var(--ink);
+    border:1px solid var(--hairline);
+    margin:-22px -22px 16px;
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden;
+    position:relative;
+  }
+  .fav-btn{
+    position:absolute; top:10px; right:10px;
+    width:32px; height:32px;
+    background:rgba(10,11,13,0.7);
+    border:1px solid var(--hairline);
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    z-index:2;
+    transition:border-color 0.2s ease;
+  }
+  .fav-btn:hover{ border-color:var(--brass); }
+  .fav-btn svg{ width:16px; height:16px; stroke:var(--ivory); fill:none; transition:fill 0.2s ease, stroke 0.2s ease; }
+  .fav-btn.active svg{ fill:var(--brass); stroke:var(--brass); }
+  .card-photo img{ width:100%; height:100%; object-fit:cover; }
+  .card-photo .mini-seal{
+    width:36px; height:36px;
+    border:1px solid var(--brass-dim);
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces', serif;
+    font-size:17px;
+    color:var(--brass-dim);
+  }
+
+  .card-top{
+    display:flex; justify-content:space-between; align-items:flex-start;
+    margin-bottom:14px;
+  }
+
+  .card-cat{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9.5px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--brass-dim);
+    border:1px solid var(--hairline);
+    padding:4px 8px;
+    border-radius:2px;
+  }
+
+  .card-status{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9.5px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--stone-dim);
+  }
+  .card-status.live{ color:var(--emerald); }
+  .card-status.pending{ color:#D9B36B; }
+  .card-status.sold{ color:var(--stone-dim); }
+
+  .trusted-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:var(--brass);
+    margin-left:8px;
+  }
+  .trusted-badge svg{ width:11px; height:11px; }
+
+  .card-name{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-size:19px;
+    color:var(--ivory);
+    line-height:1.3;
+  }
+
+  .card-desc{
+    font-size:12.5px;
+    color:var(--stone);
+    line-height:1.6;
+    margin-top:8px;
+    flex:1;
+    overflow:hidden;
+    display:-webkit-box;
+    -webkit-line-clamp:3;
+    -webkit-box-orient:vertical;
+  }
+
+  .card-foot{
+    display:flex; align-items:baseline; justify-content:space-between;
+    margin-top:18px;
+    padding-top:16px;
+    border-top:1px solid var(--hairline);
+  }
+
+  .card-price{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-size:22px;
+    color:var(--brass);
+  }
+
+  .card-fee{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    color:var(--stone-dim);
+  }
+
+  /* ---------- EMPTY / LOADING ---------- */
+  .state-block{
+    grid-column:1 / -1;
+    text-align:center;
+    padding:80px 24px;
+    color:var(--stone);
+  }
+  .state-block .icon{
+    font-family:'Fraunces', serif;
+    font-size:40px;
+    color:var(--brass-dim);
+    margin-bottom:18px;
+  }
+  .state-block h3{
+    font-family:'Fraunces', serif;
+    font-style:italic;
+    font-weight:450;
+    font-size:20px;
+    color:var(--ivory);
+    margin-bottom:10px;
+  }
+  .state-block p{
+    font-size:13px;
+    max-width:340px;
+    margin:0 auto;
+    line-height:1.6;
+  }
+  .state-block.error h3{ color:var(--rust); }
+
+  .spinner{
+    width:22px; height:22px;
+    border:2px solid var(--field-border);
+    border-top-color:var(--brass);
+    border-radius:50%;
+    margin:0 auto 18px;
+    animation:spin 0.8s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .install-btn{
+    position:fixed;
+    bottom:20px;
+    left:50%;
+    transform:translateX(-50%);
+    display:none;
+    align-items:center;
+    gap:10px;
+    background:var(--brass);
+    color:var(--brass-ink);
+    border:none;
+    border-radius:999px;
+    padding:12px 20px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    font-weight:500;
+    cursor:pointer;
+    box-shadow:0 6px 24px rgba(0,0,0,0.45);
+    z-index:500;
+  }
+  .install-btn.show{ display:flex; }
+  .install-btn svg{ width:15px; height:15px; }
+
+  .ios-install-sheet{
+    display:none;
+    position:fixed; inset:0;
+    background:rgba(10,11,13,0.92);
+    z-index:600;
+    align-items:flex-end;
+    justify-content:center;
+  }
+  .ios-install-sheet.show{ display:flex; }
+  .ios-install-card{
+    background:var(--surface);
+    border:1px solid var(--hairline);
+    border-radius:12px 12px 0 0;
+    padding:24px 22px 32px;
+    max-width:420px;
+    width:100%;
+  }
+  .ios-install-title{
+    font-family:'Fraunces', serif;
+    font-size:19px;
+    color:var(--ivory);
+    margin-bottom:14px;
+  }
+  .ios-install-step{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    font-size:13.5px;
+    color:var(--stone);
+    margin-bottom:10px;
+    line-height:1.5;
+  }
+  .ios-install-step b{ color:var(--brass); }
+  .ios-install-close{
+    margin-top:14px;
+    width:100%;
+    background:none;
+    border:1px solid var(--hairline);
+    color:var(--stone);
+    padding:11px;
+    border-radius:6px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    cursor:pointer;
+  }
+</style>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("/service-worker.js").catch(function(){});
+      });
+    }
+  </script>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="bastion-auth.html" class="wordmark">Bast<em>ion</em></a>
+  <div class="nav-right">
+    <a href="bastion-my-account.html" class="nav-btn">My Account</a>
+    <a href="bastion-create-listing.html" class="nav-btn">List an Item</a>
+    <a href="bastion-auth.html" class="nav-btn primary">Dashboard</a>
+  </div>
+</nav>
+
+<div class="page-head">
+  <div class="eyebrow">Verified Escrow Exchange</div>
+  <h1 class="page-title">The <span>Marketplace</span></h1>
+  <p class="page-sub">Every listing here can be bought through Bastion's escrow — funds held until the item is verified and both sides confirm.</p>
+</div>
+
+<div class="search-wrap">
+  <input type="text" class="search-input" id="searchInput" placeholder="Search listings by name…">
+</div>
+
+<div class="filter-bar" id="filterBar">
+  <button class="chip active" data-cat="all">All</button>
+  <button class="chip" data-cat="Watches">Watches</button>
+  <button class="chip" data-cat="Vehicles">Vehicles</button>
+  <button class="chip" data-cat="Sneakers">Sneakers</button>
+  <button class="chip" data-cat="Jewelry">Fine Jewelry</button>
+  <button class="chip" data-cat="Cards">Trading Cards</button>
+</div>
+
+<div class="grid-wrap">
+  <div class="grid" id="grid">
+    <div class="state-block" id="stateBlock">
+      <div class="spinner"></div>
+      <h3>Loading listings…</h3>
+      <p>Pulling the latest items from the vault.</p>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = 'https://xokyqobttfhugdponfpg.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_nb18Wk7poF2HR0ZjpiJFnQ_tvv4wl0o';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// The table we're reading from. Change this one line if your table has a different name.
+const TABLE_NAME = 'deals';
+
+let allDeals = [];
+let activeCategory = 'all';
+let searchQuery = '';
+let favoriteIds = new Set();
+let currentUserId = null;
+
+async function loadFavorites(){
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  const session = sessionData && sessionData.session;
+  if(!session) return;
+  currentUserId = session.user.id;
+
+  const { data, error } = await supabaseClient
+    .from('favorites')
+    .select('deal_id')
+    .eq('user_id', currentUserId);
+
+  if(!error && data){
+    favoriteIds = new Set(data.map(f => String(f.deal_id)));
+  }
+}
+
+async function toggleFavorite(dealId, btn){
+  if(!currentUserId){
+    alert('Please sign in to save items.');
+    window.location.href = 'bastion-auth.html';
+    return;
+  }
+
+  const isActive = btn.classList.contains('active');
+
+  if(isActive){
+    const { error } = await supabaseClient
+      .from('favorites')
+      .delete()
+      .eq('user_id', currentUserId)
+      .eq('deal_id', dealId);
+    if(!error){
+      btn.classList.remove('active');
+      favoriteIds.delete(String(dealId));
+    }
+  } else {
+    const { error } = await supabaseClient
+      .from('favorites')
+      .insert([{ user_id: currentUserId, deal_id: dealId }]);
+    if(!error){
+      btn.classList.add('active');
+      favoriteIds.add(String(dealId));
+    }
+  }
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+function formatPrice(value){
+  const n = Number(value);
+  if(isNaN(n)) return escapeHtml(value);
+  return '$' + n.toLocaleString('en-US');
+}
+
+function feeForPrice(value){
+  const n = Number(value);
+  if(isNaN(n)) return '';
+  let rate;
+  if(n < 2000) rate = 0.08;
+  else if(n < 10000) rate = 0.06;
+  else if(n < 50000) rate = 0.045;
+  else rate = 0.03;
+  return 'Protection fee ~' + (rate*100).toFixed(1) + '%';
+}
+
+function renderGrid(){
+  const grid = document.getElementById('grid');
+  let filtered = activeCategory === 'all'
+    ? allDeals
+    : allDeals.filter(d => (d.category || '').toLowerCase() === activeCategory.toLowerCase());
+
+  if(searchQuery.trim() !== ''){
+    const q = searchQuery.trim().toLowerCase();
+    filtered = filtered.filter(d => {
+      const name = (d.item_name || d.name || d.title || '').toLowerCase();
+      const desc = (d.description || '').toLowerCase();
+      return name.includes(q) || desc.includes(q);
+    });
+  }
+
+  if(filtered.length === 0){
+    grid.innerHTML = `
+      <div class="state-block">
+        <div class="icon">B</div>
+        <h3>Nothing here yet.</h3>
+        <p>When someone lists an item in this category, it will appear here. Be the first — list your own item to open this category.</p>
+      </div>`;
+    return;
+  }
+
+  grid.innerHTML = filtered.map(deal => {
+    const name = escapeHtml(deal.item_name || deal.name || deal.title || 'Untitled item');
+    const desc = escapeHtml(deal.description || 'No description provided.');
+    const cat = escapeHtml(deal.category || 'Uncategorized');
+    const price = deal.price != null ? formatPrice(deal.price) : '—';
+    const fee = deal.price != null ? feeForPrice(deal.price) : '';
+    const id = deal.id != null ? deal.id : '';
+    const photo = deal.image_url
+      ? '<img src="' + escapeHtml(deal.image_url) + '" alt="' + name + '">'
+      : '<div class="mini-seal">B</div>';
+    const isFav = favoriteIds.has(String(id));
+    const status = deal.status || 'active';
+    const statusLabel = status === 'sold' ? 'Sold' : status === 'pending' ? 'Pending' : 'Live';
+    const statusClass = status === 'sold' ? 'sold' : status === 'pending' ? 'pending' : 'live';
+    const statusDot = status === 'active' || !deal.status ? '● ' : '';
+    return `
+      <div class="card">
+        <div class="card-photo" onclick="window.location.href='bastion-deal-detail.html?id=${encodeURIComponent(id)}'">
+          ${photo}
+          <button class="fav-btn ${isFav ? 'active' : ''}" onclick="event.stopPropagation(); toggleFavorite('${id}', this)">
+            <svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M12 21s-7-4.5-9.5-9C.5 8 2 4 6 4c2 0 3.5 1.2 4 3 .5-1.8 2-3 4-3 4 0 5.5 4 3.5 8-2.5 4.5-9.5 9-9.5 9z"/></svg>
+          </button>
+        </div>
+        <div class="card-top" onclick="window.location.href='bastion-deal-detail.html?id=${encodeURIComponent(id)}'" style="cursor:pointer;">
+          <span class="card-cat">${cat}</span>
+          <span class="card-status ${statusClass}">${statusDot}${statusLabel}</span>
+        </div>
+        <div class="card-name">${name}</div>
+        <div class="card-desc">${desc}</div>
+        <div class="card-foot">
+          <span class="card-price">${price}</span>
+          <span class="card-fee">${fee}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function loadDeals(){
+  const grid = document.getElementById('grid');
+  await loadFavorites();
+  try{
+    const { data, error } = await supabaseClient
+      .from(TABLE_NAME)
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if(error){
+      grid.innerHTML = `
+        <div class="state-block error">
+          <h3>Couldn't load listings</h3>
+          <p>${escapeHtml(error.message)}</p>
+        </div>`;
+      return;
+    }
+
+    allDeals = data || [];
+    renderGrid();
+  } catch(err){
+    grid.innerHTML = `
+      <div class="state-block error">
+        <h3>Connection error</h3>
+        <p>${escapeHtml(err.message || String(err))}</p>
+      </div>`;
+  }
+}
+
+document.getElementById('searchInput').addEventListener('input', function(e){
+  searchQuery = e.target.value;
+  renderGrid();
+});
+
+document.getElementById('filterBar').addEventListener('click', function(e){
+  const btn = e.target.closest('.chip');
+  if(!btn) return;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  activeCategory = btn.dataset.cat;
+  renderGrid();
+});
+
+loadDeals();
+</script>
+
+<button type="button" class="install-btn" id="installBtn">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
+  Install App
+</button>
+
+<div class="ios-install-sheet" id="iosInstallSheet">
+  <div class="ios-install-card">
+    <div class="ios-install-title">Add Bastion to your Home Screen</div>
+    <div class="ios-install-step">1. Tap the <b>Share</b> button in Safari's toolbar</div>
+    <div class="ios-install-step">2. Scroll down and tap <b>Add to Home Screen</b></div>
+    <div class="ios-install-step">3. Tap <b>Add</b> — Bastion now opens like a real app</div>
+    <button type="button" class="ios-install-close" id="iosInstallClose">Got it</button>
+  </div>
+</div>
+
+<script>
+  // ---- Install App button (works with Chrome/Android's real prompt, or shows manual iOS steps) ----
+  let deferredInstallPrompt = null;
+  const installBtn = document.getElementById('installBtn');
+  const iosSheet = document.getElementById('iosInstallSheet');
+
+  function isStandalone(){
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  }
+  function isIOS(){
+    return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+  }
+
+  if(!isStandalone()){
+    if(isIOS()){
+      // iOS never fires beforeinstallprompt — just show the button with manual instructions.
+      installBtn.classList.add('show');
+    } else {
+      window.addEventListener('beforeinstallprompt', function(e){
+        e.preventDefault();
+        deferredInstallPrompt = e;
+        installBtn.classList.add('show');
+      });
+    }
+  }
+
+  installBtn.addEventListener('click', async function(){
+    if(isIOS()){
+      iosSheet.classList.add('show');
+      return;
+    }
+    if(!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    const choice = await deferredInstallPrompt.userChoice;
+    if(choice.outcome === 'accepted'){
+      installBtn.classList.remove('show');
+    }
+    deferredInstallPrompt = null;
+  });
+
+  document.getElementById('iosInstallClose').addEventListener('click', function(){
+    iosSheet.classList.remove('show');
+  });
+
+  window.addEventListener('appinstalled', function(){
+    installBtn.classList.remove('show');
+  });
+</script>
+
+</body>
+</html>

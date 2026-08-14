@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0b0d12">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Bastion">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bastion — Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,450;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0b0d12; --ink-soft:#12151c; --hairline:#22262f;
+    --brass:#d4b27e; --brass-ink:#1a1408;
+    --ivory:#f2ede1; --stone:#b9bcc4; --stone-dim:#7d818c;
+    --radius:3px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--ink); color:var(--ivory);
+    font-family:'Inter', sans-serif;
+  }
+  header{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:20px 24px; border-bottom:1px solid var(--hairline);
+  }
+  .wordmark{ font-family:'Fraunces', serif; font-size:22px; }
+  .wordmark em{ color:var(--brass); font-style:italic; }
+  nav a{
+    color:var(--stone); text-decoration:none;
+    font-family:'IBM Plex Mono', monospace; font-size:12px;
+    letter-spacing:0.06em; text-transform:uppercase; margin-left:20px;
+  }
+  main{ padding:24px; max-width:960px; margin:0 auto; }
+  h1{ font-family:'Fraunces', serif; font-weight:400; font-size:30px; margin:0 0 4px; }
+  h1 em{ color:var(--brass); font-style:italic; }
+  .sub{ color:var(--stone-dim); font-size:13px; margin-bottom:32px; }
+  .section-title{
+    font-family:'IBM Plex Mono', monospace; font-size:11px;
+    letter-spacing:0.12em; text-transform:uppercase; color:var(--brass);
+    margin:36px 0 14px;
+  }
+  .empty-note{
+    color:var(--stone-dim); font-size:13px; padding:16px 0;
+  }
+  .row{
+    border:1px solid var(--hairline); background:var(--ink-soft);
+    padding:16px 18px; margin-bottom:10px; border-radius:var(--radius);
+  }
+  .row-top{
+    display:flex; justify-content:space-between; align-items:flex-start;
+    gap:12px; flex-wrap:wrap;
+  }
+  .row-title{ font-family:'Fraunces', serif; font-size:17px; }
+  .row-meta{
+    font-family:'IBM Plex Mono', monospace; font-size:11px;
+    color:var(--stone-dim); margin-top:4px; line-height:1.6;
+  }
+  .row-price{ font-family:'Fraunces', serif; color:var(--brass); font-size:16px; white-space:nowrap; }
+  .row-actions{ display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+  .btn{
+    font-family:'IBM Plex Mono', monospace; font-size:10.5px;
+    letter-spacing:0.06em; text-transform:uppercase;
+    padding:8px 14px; border-radius:var(--radius); cursor:pointer;
+    border:1px solid var(--hairline); background:transparent; color:var(--stone);
+  }
+  .btn:hover{ border-color:var(--brass); color:var(--brass); }
+  .btn.primary{ background:var(--brass); color:var(--brass-ink); border-color:var(--brass); }
+  .btn.primary:hover{ background:#D4B27E; opacity:0.9; }
+  .btn.danger:hover{ border-color:#8C3F37; color:#E0958D; }
+  .btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .badge{
+    font-family:'IBM Plex Mono', monospace; font-size:9.5px;
+    letter-spacing:0.08em; text-transform:uppercase;
+    padding:3px 8px; border-radius:var(--radius);
+    border:1px solid var(--hairline); color:var(--stone-dim);
+  }
+  .badge.disputed{ color:#E0958D; border-color:#8C3F37; }
+  .gate-msg{
+    text-align:center; padding:80px 20px; color:var(--stone-dim);
+    font-family:'IBM Plex Mono', monospace; font-size:12px;
+  }
+  .search-input{
+    width:100%; background:var(--ink-soft); border:1px solid var(--hairline);
+    color:var(--ivory); padding:12px 14px; border-radius:var(--radius);
+    font-family:'Inter', sans-serif; font-size:14px; margin-bottom:14px;
+  }
+  .search-input:focus{ outline:none; border-color:var(--brass); }
+  .badge.admin{ color:var(--brass); border-color:var(--brass); }
+  .badge.banned{ color:#E0958D; border-color:#8C3F37; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">Bast<em>ion</em></div>
+  <nav>
+    <a href="/bastion-my-account.html">My Account</a>
+    <a href="/bastion-marketplace.html">Marketplace</a>
+  </nav>
+</header>
+
+<main id="gate">
+  <div class="gate-msg">Checking access…</div>
+</main>
+
+<main id="content" style="display:none;">
+  <h1>Admin <em>Panel</em></h1>
+  <div class="sub">Resolve disputes, moderate listings, and manage users without touching the database directly.</div>
+
+  <div class="section-title">Users</div>
+  <input id="userSearch" type="text" placeholder="Search by handle…" class="search-input">
+  <div id="usersList"></div>
+
+  <div class="section-title">Disputed Transactions</div>
+  <div id="disputesList"></div>
+
+  <div class="section-title">All Listings</div>
+  <div id="listingsList"></div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://xokyqobttfhugdponfpg.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_nb18Wk7poF2HR0ZjpiJFnQ_tvv4wl0o';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+function money(n){
+  return '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+async function checkAdminAccess(){
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  const session = sessionData && sessionData.session;
+  if(!session){
+    window.location.href = '/bastion-auth.html';
+    return false;
+  }
+  const { data: profile, error } = await supabaseClient
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', session.user.id)
+    .single();
+
+  if(error || !profile || !profile.is_admin){
+    document.getElementById('gate').innerHTML = '<div class="gate-msg">You don\'t have access to this page.</div>';
+    return false;
+  }
+  return true;
+}
+
+async function loadUsers(searchTerm){
+  const list = document.getElementById('usersList');
+  let query = supabaseClient.from('profiles').select('*').order('created_at', { ascending: false }).limit(50);
+  if(searchTerm){
+    query = supabaseClient.from('profiles').select('*').ilike('handle', '%' + searchTerm + '%').limit(50);
+  }
+  const { data, error } = await query;
+
+  if(error){
+    list.innerHTML = '<div class="empty-note">Could not load users: ' + escapeHtml(error.message) + '</div>';
+    return;
+  }
+  if(!data || data.length === 0){
+    list.innerHTML = '<div class="empty-note">No users found.</div>';
+    return;
+  }
+
+  list.innerHTML = data.map(function(u){
+    const badges = (u.is_admin ? '<span class="badge admin">Admin</span> ' : '') +
+                   (u.is_banned ? '<span class="badge banned">Banned</span>' : '');
+    return `
+      <div class="row" data-user-id="${escapeHtml(u.id)}">
+        <div class="row-top">
+          <div>
+            <div class="row-title">@${escapeHtml(u.handle || '(no handle)')}</div>
+            <div class="row-meta">${escapeHtml(u.id)}</div>
+          </div>
+          <div>${badges}</div>
+        </div>
+        <div class="row-actions">
+          <button class="btn" onclick="editHandle('${u.id}', '${escapeHtml(u.handle || '')}')">Edit handle</button>
+          ${u.is_banned
+            ? `<button class="btn" onclick="setBanStatus('${u.id}', false, null, this)">Unban</button>`
+            : `<button class="btn danger" onclick="banUser('${u.id}', this)">Ban user</button>`
+          }
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function editHandle(userId, currentHandle){
+  const newHandle = prompt('New handle for this user:', currentHandle);
+  if(newHandle === null || newHandle.trim() === '' || newHandle === currentHandle) return;
+  const { error } = await supabaseClient.from('profiles').update({ handle: newHandle.trim() }).eq('id', userId);
+  if(error){ alert('Could not update handle: ' + error.message); return; }
+  loadUsers(document.getElementById('userSearch').value.trim());
+}
+
+async function banUser(userId, btn){
+  const reason = prompt('Reason for banning this user (shown to them when they try to sign in):');
+  if(reason === null) return; // cancelled
+  await setBanStatus(userId, true, reason || null, btn);
+}
+
+async function setBanStatus(userId, banned, reason, btn){
+  if(btn) btn.disabled = true;
+  const { error } = await supabaseClient
+    .from('profiles')
+    .update({ is_banned: banned, ban_reason: banned ? reason : null })
+    .eq('id', userId);
+  if(error){
+    alert('Could not update ban status: ' + error.message);
+    if(btn) btn.disabled = false;
+    return;
+  }
+  loadUsers(document.getElementById('userSearch').value.trim());
+}
+
+document.getElementById('userSearch').addEventListener('input', function(){
+  const term = this.value.trim();
+  clearTimeout(window._userSearchDebounce);
+  window._userSearchDebounce = setTimeout(function(){ loadUsers(term); }, 300);
+});
+
+async function loadDisputes(){
+  const list = document.getElementById('disputesList');
+  const { data, error } = await supabaseClient
+    .from('transactions')
+    .select('*')
+    .eq('status', 'disputed')
+    .order('created_at', { ascending: false });
+
+  if(error){
+    list.innerHTML = '<div class="empty-note">Could not load disputes: ' + escapeHtml(error.message) + '</div>';
+    return;
+  }
+  if(!data || data.length === 0){
+    list.innerHTML = '<div class="empty-note">No disputed trades right now.</div>';
+    return;
+  }
+
+  list.innerHTML = data.map(function(txn){
+    return `
+      <div class="row" data-txn-id="${escapeHtml(txn.id)}">
+        <div class="row-top">
+          <div>
+            <div class="row-title">${escapeHtml(txn.item_name || 'Untitled item')}</div>
+            <div class="row-meta">
+              Transaction ID: ${escapeHtml(txn.id)}<br>
+              Buyer: ${escapeHtml(txn.buyer_id)}<br>
+              Seller: ${escapeHtml(txn.seller_id)}
+            </div>
+          </div>
+          <div class="row-price">${money(txn.total)}</div>
+        </div>
+        <div class="row-actions">
+          <button class="btn primary" onclick="resolveDispute('${txn.id}', '${txn.deal_id || ''}', 'release', this)">Release funds to seller</button>
+          <button class="btn danger" onclick="resolveDispute('${txn.id}', '${txn.deal_id || ''}', 'refund', this)">Refund buyer / cancel deal</button>
+          <button class="btn" onclick="resolveDispute('${txn.id}', '${txn.deal_id || ''}', 'reopen', this)">Reopen (back to shipped)</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function resolveDispute(txnId, dealId, action, btn){
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = 'WORKING…';
+
+  let newTxnStatus, newDealStatus;
+  if(action === 'release'){ newTxnStatus = 'released'; newDealStatus = 'sold'; }
+  else if(action === 'refund'){ newTxnStatus = 'cancelled'; newDealStatus = 'active'; }
+  else { newTxnStatus = 'shipped'; newDealStatus = null; }
+
+  const { error } = await supabaseClient.from('transactions').update({ status: newTxnStatus }).eq('id', txnId);
+  if(error){
+    alert('Could not resolve: ' + error.message);
+    btn.disabled = false;
+    btn.textContent = original;
+    return;
+  }
+  if(dealId && newDealStatus){
+    await supabaseClient.from('deals').update({ status: newDealStatus }).eq('id', dealId);
+  }
+  loadDisputes();
+}
+
+async function loadListings(){
+  const list = document.getElementById('listingsList');
+  const { data, error } = await supabaseClient
+    .from('deals')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if(error){
+    list.innerHTML = '<div class="empty-note">Could not load listings: ' + escapeHtml(error.message) + '</div>';
+    return;
+  }
+  if(!data || data.length === 0){
+    list.innerHTML = '<div class="empty-note">No listings yet.</div>';
+    return;
+  }
+
+  list.innerHTML = data.map(function(deal){
+    const badgeClass = deal.status === 'sold' ? '' : (deal.status === 'pending' ? '' : '');
+    return `
+      <div class="row" data-deal-id="${escapeHtml(deal.id)}">
+        <div class="row-top">
+          <div>
+            <div class="row-title">${escapeHtml(deal.item_name || 'Untitled item')}</div>
+            <div class="row-meta">${escapeHtml(deal.category || '')} · seller: ${escapeHtml(deal.seller_id)}</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="row-price">${money(deal.price)}</div>
+            <span class="badge ${badgeClass}">${escapeHtml(deal.status || 'active')}</span>
+          </div>
+        </div>
+        <div class="row-actions">
+          <a class="btn" href="/bastion-deal-detail.html?id=${encodeURIComponent(deal.id)}" target="_blank">View</a>
+          <a class="btn" href="/bastion-create-listing.html?id=${encodeURIComponent(deal.id)}" target="_blank">Edit</a>
+          <button class="btn danger" onclick="removeListing('${deal.id}', this)">Remove listing</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function removeListing(dealId, btn){
+  if(!confirm('Permanently remove this listing? This cannot be undone.')) return;
+  btn.disabled = true;
+  const { error } = await supabaseClient.from('deals').delete().eq('id', dealId);
+  if(error){
+    alert('Could not remove: ' + error.message);
+    btn.disabled = false;
+    return;
+  }
+  loadListings();
+}
+
+(async function init(){
+  const ok = await checkAdminAccess();
+  if(!ok) return;
+  document.getElementById('gate').style.display = 'none';
+  document.getElementById('content').style.display = 'block';
+  loadUsers();
+  loadDisputes();
+  loadListings();
+})();
+</script>
+
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("/service-worker.js").catch(function(){});
+    });
+  }
+</script>
+</body>
+</html>

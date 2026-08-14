@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0b0d12">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Bastion">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bastion — Seller Profile</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,450;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0B0D;
+    --ink-soft:#101216;
+    --surface:#15171B;
+    --field:#1B1E23;
+    --field-border:#2A2D33;
+    --ivory:#F1ECE1;
+    --stone:#8D8F94;
+    --stone-dim:#5B5D62;
+    --brass:#C7A268;
+    --brass-dim:#8C6F44;
+    --brass-ink:#171308;
+    --emerald:#2C5C4F;
+    --rust:#B5453D;
+    --hairline:rgba(241,236,225,0.08);
+    --radius:2px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{
+    min-height:100%;
+    background:var(--ink);
+    color:var(--ivory);
+    font-family:'Inter', -apple-system, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .nav{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 24px;
+    border-bottom:1px solid var(--hairline);
+    position:sticky; top:0;
+    background:var(--ink);
+    z-index:10;
+  }
+  @media(min-width:900px){ .nav{ padding:22px 56px; } }
+  .wordmark{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-size:22px;
+    color:var(--ivory);
+    text-decoration:none;
+  }
+  .wordmark em{ font-style:italic; font-weight:400; color:var(--brass); }
+  .back-link{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--stone);
+    text-decoration:none;
+    transition:color 0.2s ease;
+  }
+  .back-link:hover{ color:var(--brass); }
+
+  .wrap{
+    max-width:880px;
+    margin:0 auto;
+    padding:48px 24px 100px;
+  }
+  @media(min-width:900px){ .wrap{ padding:64px 56px 120px; } }
+
+  .profile-header{
+    display:flex;
+    align-items:center;
+    gap:20px;
+    padding-bottom:32px;
+    border-bottom:1px solid var(--hairline);
+  }
+  .avatar-seal{
+    width:64px; height:64px;
+    border-radius:50%;
+    border:1px solid var(--brass-dim);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces', serif;
+    font-size:28px;
+    color:var(--brass);
+    flex-shrink:0;
+  }
+  .profile-name{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-style:italic;
+    font-size:26px;
+    color:var(--ivory);
+  }
+  .profile-meta{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--stone);
+    margin-top:6px;
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  }
+
+  .trusted-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9.5px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:var(--brass);
+    border:1px solid var(--brass-dim);
+    padding:3px 8px;
+    border-radius:2px;
+  }
+  .trusted-badge svg{ width:11px; height:11px; }
+
+  .stats-row{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:1px;
+    background:var(--hairline);
+    border:1px solid var(--hairline);
+    margin-top:32px;
+  }
+  .stat{ background:var(--ink); padding:20px; text-align:center; }
+  .stat-value{
+    font-family:'Fraunces', serif;
+    font-weight:450;
+    font-size:28px;
+    color:var(--brass);
+  }
+  .stat-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9.5px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--stone-dim);
+    margin-top:6px;
+  }
+
+  .section{ margin-top:52px; }
+  .section-title{
+    font-family:'Fraunces', serif;
+    font-style:italic;
+    font-weight:450;
+    font-size:20px;
+    color:var(--ivory);
+    margin-bottom:20px;
+  }
+
+  .listings-grid{
+    display:grid;
+    grid-template-columns:repeat(1,1fr);
+    gap:1px;
+    background:var(--hairline);
+    border:1px solid var(--hairline);
+  }
+  @media(min-width:640px){ .listings-grid{ grid-template-columns:repeat(2,1fr); } }
+
+  .mini-card{
+    background:var(--ink);
+    padding:16px;
+    cursor:pointer;
+    display:flex;
+    gap:14px;
+    align-items:center;
+    transition:background 0.2s ease;
+  }
+  .mini-card:hover{ background:var(--ink-soft); }
+  .mini-photo{
+    width:60px; height:60px;
+    flex-shrink:0;
+    background:var(--ink-soft);
+    border:1px solid var(--hairline);
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden;
+  }
+  .mini-photo img{ width:100%; height:100%; object-fit:cover; }
+  .mini-photo .seal-tiny{ font-family:'Fraunces', serif; color:var(--brass-dim); font-size:16px; }
+  .mini-name{ font-family:'Fraunces', serif; font-size:14px; color:var(--ivory); line-height:1.3; }
+  .mini-price{ font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--brass); margin-top:4px; }
+
+  .review-item{
+    padding:18px 0;
+    border-bottom:1px solid var(--hairline);
+  }
+  .review-item:last-child{ border-bottom:none; }
+  .review-stars{ color:var(--brass); font-size:14px; letter-spacing:2px; }
+  .review-comment{
+    font-size:13px;
+    color:var(--stone);
+    line-height:1.6;
+    margin-top:8px;
+  }
+  .review-date{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    color:var(--stone-dim);
+    margin-top:8px;
+  }
+
+  .empty-note{
+    color:var(--stone);
+    font-size:13px;
+    padding:20px 0;
+  }
+
+  .state-block{
+    text-align:center;
+    padding:100px 24px;
+    color:var(--stone);
+  }
+  .state-block h3{
+    font-family:'Fraunces', serif;
+    font-style:italic;
+    font-weight:450;
+    font-size:20px;
+    color:var(--ivory);
+    margin-bottom:10px;
+  }
+  .spinner{
+    width:22px; height:22px;
+    border:2px solid var(--field-border);
+    border-top-color:var(--brass);
+    border-radius:50%;
+    margin:0 auto 18px;
+    animation:spin 0.8s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .hidden{ display:none !important; }
+</style>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("/service-worker.js").catch(function(){});
+      });
+    }
+  </script>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="bastion-auth.html" class="wordmark">Bast<em>ion</em></a>
+  <a href="bastion-marketplace.html" class="back-link">← Back to Marketplace</a>
+</nav>
+
+<div id="loadingState" class="state-block">
+  <div class="spinner"></div>
+  <h3>Loading seller profile…</h3>
+</div>
+
+<div class="wrap hidden" id="profileContent">
+
+  <div class="profile-header">
+    <div class="avatar-seal">B</div>
+    <div>
+      <div class="profile-name" id="sellerName"></div>
+      <div class="profile-meta" id="sellerMeta"></div>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat">
+      <div class="stat-value" id="statListings">0</div>
+      <div class="stat-label">Active Listings</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" id="statTrades">0</div>
+      <div class="stat-label">Completed Trades</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" id="statRating">—</div>
+      <div class="stat-label">Average Rating</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Active Listings</div>
+    <div class="listings-grid" id="listingsGrid"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Buyer Reviews</div>
+    <div id="reviewsList"></div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = 'https://xokyqobttfhugdponfpg.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_nb18Wk7poF2HR0ZjpiJFnQ_tvv4wl0o';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+function formatMoney(n){
+  const num = Number(n);
+  if(isNaN(num)) return '—';
+  return '$' + num.toLocaleString('en-US');
+}
+function shortId(id){
+  return String(id).replace(/-/g, '').slice(0, 6).toUpperCase();
+}
+function renderStars(rating){
+  const rounded = Math.round(rating);
+  return '★'.repeat(rounded) + '☆'.repeat(5 - rounded);
+}
+
+async function loadSellerProfile(){
+  const sellerId = new URLSearchParams(window.location.search).get('id');
+  const loadingEl = document.getElementById('loadingState');
+  const contentEl = document.getElementById('profileContent');
+
+  if(!sellerId){
+    loadingEl.innerHTML = '<h3>No seller specified</h3>';
+    return;
+  }
+
+  try{
+    const [listingsRes, tradesRes, reviewsRes, profileRes] = await Promise.all([
+      supabaseClient.from('deals').select('*').eq('seller_id', sellerId).order('created_at', { ascending: false }),
+      supabaseClient.from('transactions').select('*', { count: 'exact', head: true }).eq('seller_id', sellerId).eq('status', 'released'),
+      supabaseClient.from('reviews').select('*').eq('seller_id', sellerId).order('created_at', { ascending: false }),
+      supabaseClient.from('profiles').select('handle').eq('id', sellerId).maybeSingle()
+    ]);
+
+    const listings = listingsRes.data || [];
+    const tradeCount = tradesRes.count || 0;
+    const reviews = reviewsRes.data || [];
+    const avgRating = reviews.length > 0 ? reviews.reduce((s,r) => s + r.rating, 0) / reviews.length : null;
+    const isTrusted = tradeCount >= 5;
+    const sellerLabel = (profileRes.data && profileRes.data.handle) ? '@' + profileRes.data.handle : 'Seller ' + shortId(sellerId);
+
+    document.getElementById('sellerName').textContent = sellerLabel;
+    document.getElementById('sellerMeta').innerHTML = isTrusted
+      ? '<span class="trusted-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>Trusted Seller</span>'
+      : 'Member of Bastion';
+
+    document.getElementById('statListings').textContent = listings.length;
+    document.getElementById('statTrades').textContent = tradeCount;
+    document.getElementById('statRating').textContent = avgRating != null ? avgRating.toFixed(1) : '—';
+
+    const grid = document.getElementById('listingsGrid');
+    if(listings.length === 0){
+      grid.innerHTML = '<div class="empty-note">No active listings right now.</div>';
+    } else {
+      grid.innerHTML = listings.map(function(d){
+        const name = escapeHtml(d.item_name || 'Untitled item');
+        const photo = d.image_url ? '<img src="'+escapeHtml(d.image_url)+'" alt="'+name+'">' : '<span class="seal-tiny">B</span>';
+        return `
+          <div class="mini-card" onclick="window.location.href='bastion-deal-detail.html?id=${encodeURIComponent(d.id)}'">
+            <div class="mini-photo">${photo}</div>
+            <div>
+              <div class="mini-name">${name}</div>
+              <div class="mini-price">${formatMoney(d.price)}</div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    const reviewsList = document.getElementById('reviewsList');
+    if(reviews.length === 0){
+      reviewsList.innerHTML = '<div class="empty-note">No reviews yet.</div>';
+    } else {
+      reviewsList.innerHTML = reviews.map(function(r){
+        const date = r.created_at ? new Date(r.created_at).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' }) : '';
+        const comment = r.comment ? '<div class="review-comment">' + escapeHtml(r.comment) + '</div>' : '';
+        return `
+          <div class="review-item">
+            <div class="review-stars">${renderStars(r.rating)}</div>
+            ${comment}
+            <div class="review-date">${date}</div>
+          </div>`;
+      }).join('');
+    }
+
+    loadingEl.classList.add('hidden');
+    contentEl.classList.remove('hidden');
+
+  } catch(err){
+    loadingEl.innerHTML = '<h3>Could not load this profile</h3><p style="font-size:13px;margin-top:8px;">' + escapeHtml(err.message || String(err)) + '</p>';
+  }
+}
+
+loadSellerProfile();
+</script>
+
+</body>
+</html>

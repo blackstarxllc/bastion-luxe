@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0A0B0D">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bastion">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bastion — Privacy Policy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,450;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0B0D; --ink-soft:#101216; --surface:#15171B;
+    --ivory:#F1ECE1; --stone:#8D8F94; --stone-dim:#5B5D62;
+    --brass:#C7A268; --brass-ink:#171308;
+    --hairline:rgba(241,236,225,0.08);
+    --radius:2px;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--ink); color:var(--ivory); font-family:'Inter', sans-serif; }
+  header{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:20px 24px; border-bottom:1px solid var(--hairline);
+  }
+  .wordmark{ font-family:'Fraunces', serif; font-size:22px; }
+  .wordmark em{ color:var(--brass); font-style:italic; }
+  header a{
+    color:var(--stone); text-decoration:none;
+    font-family:'IBM Plex Mono', monospace; font-size:11.5px;
+    letter-spacing:0.06em; text-transform:uppercase;
+  }
+  main{ max-width:720px; margin:0 auto; padding:48px 24px 80px; }
+  h1{ font-family:'Fraunces', serif; font-weight:400; font-size:34px; margin:0 0 6px; }
+  .updated{
+    font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--stone-dim);
+    letter-spacing:0.06em; text-transform:uppercase; margin-bottom:40px;
+  }
+  h2{
+    font-family:'Fraunces', serif; font-weight:500; font-size:19px;
+    color:var(--brass); margin:36px 0 12px;
+  }
+  p, li{ font-size:14.5px; line-height:1.75; color:#D8D3C6; }
+  ul{ padding-left:20px; }
+  li{ margin-bottom:8px; }
+  strong{ color:var(--ivory); }
+  .note{
+    background:var(--surface); border:1px solid var(--hairline);
+    border-radius:var(--radius); padding:16px 18px; margin-top:48px;
+    font-size:12.5px; color:var(--stone); line-height:1.7;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">Bast<em>ion</em></div>
+  <a href="/bastion-auth.html">Back to Bastion</a>
+</header>
+
+<main>
+  <h1>Privacy Policy</h1>
+  <div class="updated">Last updated: August 2026</div>
+
+  <p>This Privacy Policy describes what information Bastion collects, how it's used, and the choices you have. By using Bastion, you agree to the practices described here.</p>
+
+  <h2>1. Information We Collect</h2>
+  <ul>
+    <li><strong>Account information:</strong> your name, email address, and password (stored securely and never visible to other users).</li>
+    <li><strong>Public profile information:</strong> the handle you choose, which is shown on your listings and reviews.</li>
+    <li><strong>Listing and transaction data:</strong> item details, photos you upload, prices, and transaction history.</li>
+    <li><strong>Communications:</strong> any messages you send to Bastion support.</li>
+  </ul>
+
+  <h2>2. How We Use Your Information</h2>
+  <ul>
+    <li>To create and maintain your account and public profile.</li>
+    <li>To process listings, transactions, and escrow releases.</li>
+    <li>To communicate with you about your account or a transaction (such as confirming your email or notifying you of a status change).</li>
+    <li>To investigate disputes, fraud, or violations of our Terms of Service.</li>
+  </ul>
+
+  <h2>3. What We Never Show Publicly</h2>
+  <p>Your real name and email address are never displayed to other users. Other users see only your public handle and, where applicable, your review history and Trusted Seller status.</p>
+
+  <h2>4. How We Store Your Information</h2>
+  <p>Your data is stored with Supabase, a third-party database provider, using industry-standard security practices including row-level access controls that restrict who can read or modify your data.</p>
+
+  <h2>5. Third Parties</h2>
+  <p>Bastion does not sell your personal information. Limited information is shared with payment and escrow processors solely as needed to complete a transaction you initiate.</p>
+
+  <h2>6. Your Choices</h2>
+  <ul>
+    <li>You can update your public handle at any time from your account page.</li>
+    <li>You can request that your account and associated data be deleted by contacting Bastion support.</li>
+  </ul>
+
+  <h2>7. Children's Privacy</h2>
+  <p>Bastion is not intended for use by anyone under 18. We do not knowingly collect information from minors.</p>
+
+  <h2>8. Changes to This Policy</h2>
+  <p>Bastion may update this Privacy Policy from time to time. Continued use of the Platform after changes are posted constitutes acceptance of the revised policy.</p>
+
+  <h2>9. Contact</h2>
+  <p>Questions about this policy can be sent to the contact address listed on the Platform.</p>
+
+</main>
+
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("/service-worker.js").catch(function(){});
+    });
+  }
+</script>
+</body>
+</html>

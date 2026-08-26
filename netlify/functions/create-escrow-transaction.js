@@ -29,6 +29,12 @@ exports.handler = async (event) => {
     const ESCROW_API_KEY = process.env.ESCROW_SANDBOX_API_KEY;
 
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !ESCROW_EMAIL || !ESCROW_API_KEY) {
+      console.error('create-escrow-transaction: missing env vars', {
+        hasSupabaseUrl: !!SUPABASE_URL,
+        hasServiceRole: !!SUPABASE_SERVICE_ROLE_KEY,
+        hasEscrowEmail: !!ESCROW_EMAIL,
+        hasEscrowKey: !!ESCROW_API_KEY,
+      });
       return { statusCode: 500, body: JSON.stringify({ error: 'Server is missing required environment variables' }) };
     }
 
@@ -117,6 +123,10 @@ exports.handler = async (event) => {
     const escrowData = await createRes.json();
 
     if (!createRes.ok) {
+      console.error('create-escrow-transaction: Escrow.com rejected the request', {
+        status: createRes.status,
+        escrowResponse: escrowData,
+      });
       return {
         statusCode: 502,
         body: JSON.stringify({ error: 'Escrow.com rejected the transaction', details: escrowData }),
@@ -143,6 +153,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({ escrow_transaction_id: escrowData.id, status: escrowData.status }),
     };
   } catch (err) {
+    console.error('create-escrow-transaction fatal error:', err);
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
 };

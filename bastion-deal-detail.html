@@ -1217,6 +1217,19 @@ async function loadDeal(){
         // Mark the listing as pending so nobody else can buy it mid-transaction.
         await supabaseClient.from(TABLE_NAME).update({ status: 'pending' }).eq('id', data.id);
 
+        // Open the real Escrow.com transaction in the background. If this
+        // fails, we still let the buyer continue — the transaction page can
+        // retry it, and we don't want a hiccup here to block the whole flow.
+        try {
+          await fetch('/.netlify/functions/create-escrow-transaction', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transactionId: txn.id })
+          });
+        } catch (escrowErr) {
+          console.error('Escrow.com transaction creation failed:', escrowErr);
+        }
+
         window.location.href = 'bastion-transaction.html?id=' + encodeURIComponent(txn.id);
 
       } catch(err){

@@ -814,6 +814,31 @@ async function markShipped(txnId, btn){
 async function releaseFunds(txnId, dealId, btn){
   btn.disabled = true;
   btn.textContent = 'RELEASING…';
+
+  // Tell Escrow.com to actually release the real money first. If this
+  // fails, we stop here and show the real reason — we never want Bastion's
+  // own status to say "released" while the real funds are still sitting
+  // in escrow untouched.
+  try {
+    const res = await fetch('/.netlify/functions/release-escrow-transaction', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transactionId: txnId })
+    });
+    if(!res.ok){
+      const data = await res.json().catch(() => ({}));
+      alert('Could not release funds on Escrow.com: ' + (data.error || res.status));
+      btn.disabled = false;
+      btn.textContent = 'Confirm Receipt & Release Funds';
+      return;
+    }
+  } catch (escrowErr) {
+    alert('Could not reach the payment system. Please try again.');
+    btn.disabled = false;
+    btn.textContent = 'Confirm Receipt & Release Funds';
+    return;
+  }
+
   const { error } = await supabaseClient
     .from('transactions')
     .update({ status: 'released' })
@@ -828,6 +853,13 @@ async function releaseFunds(txnId, dealId, btn){
     await supabaseClient.from('deals').update({ status: 'sold' }).eq('id', dealId);
   }
   window.location.reload();
+}
+
+function buildPayoutNote(){
+  return `
+    <div class="payout-note" style="margin-top:14px;padding:12px 14px;border:1px solid var(--line,#333);border-radius:8px;font-size:13px;line-height:1.5;opacity:0.85;">
+      <strong>How payout works:</strong> The moment funds are released, you'll see it confirmed right here instantly — that's the point money leaves escrow. Actual arrival in your bank follows normal payout speeds (typically same or next business day for wire/ACH; longer for checks or international transfers). You choose how you get paid directly in your Escrow.com account.
+    </div>`;
 }
 
 function buildCodeBox(txn){
@@ -893,7 +925,7 @@ function renderActionArea(txn, isBuyer, isSeller){
 
   if(status === 'funded'){
     if(isSeller){
-      area.innerHTML = `<button class="action-btn" id="shipBtn">Confirm Handoff</button>` + buildCodeBox(txn);
+      area.innerHTML = `<button class="action-btn" id="shipBtn">Confirm Handoff</button>` + buildCodeBox(txn) + buildPayoutNote();
       document.getElementById('shipBtn').addEventListener('click', function(){ markShipped(txn.id, this); });
     } else if(isBuyer){
       area.innerHTML = `
@@ -915,7 +947,7 @@ function renderActionArea(txn, isBuyer, isSeller){
         <div class="waiting-note">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
           <span>Item marked as shipped. Waiting for the buyer to confirm receipt and release funds.</span>
-        </div>` + buildCodeBox(txn);
+        </div>` + buildCodeBox(txn) + buildPayoutNote();
     } else {
       area.innerHTML = `<div class="waiting-note"><span>Item shipped, awaiting buyer confirmation.</span></div>`;
     }
@@ -924,7 +956,7 @@ function renderActionArea(txn, isBuyer, isSeller){
       <div class="complete-note">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M20 6L9 17l-5-5"/></svg>
         <span>Trade complete. Funds have been released to the seller.</span>
-      </div>`;
+      </div>` + (isSeller ? buildPayoutNote() : '');
   }
 }
 

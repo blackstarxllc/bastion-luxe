@@ -145,6 +145,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         escrow_transaction_id: escrowData.id,
         escrow_status: escrowData.status || 'created',
+        escrow_item_id: escrowData.items && escrowData.items[0] ? escrowData.items[0].id : null,
       }),
     });
 

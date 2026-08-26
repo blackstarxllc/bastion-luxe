@@ -1221,9 +1221,13 @@ async function loadDeal(){
         // fails, we still let the buyer continue — the transaction page can
         // retry it, and we don't want a hiccup here to block the whole flow.
         try {
+          const sessionRes = await supabaseClient.auth.getSession();
           await fetch('/.netlify/functions/create-escrow-transaction', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + sessionRes.data.session.access_token
+            },
             body: JSON.stringify({ transactionId: txn.id })
           });
         } catch (escrowErr) {

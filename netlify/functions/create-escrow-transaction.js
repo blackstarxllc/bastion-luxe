@@ -23,6 +23,12 @@ exports.handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ error: 'transactionId is required' }) };
     }
 
+    const authHeaderIn = event.headers.authorization || event.headers.Authorization;
+    if (!authHeaderIn || !authHeaderIn.startsWith('Bearer ')) {
+      return { statusCode: 401, body: JSON.stringify({ error: 'Missing auth token' }) };
+    }
+    const callerToken = authHeaderIn.slice('Bearer '.length);
+
     const SUPABASE_URL = process.env.SUPABASE_URL;
     const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const ESCROW_EMAIL = process.env.ESCROW_SANDBOX_EMAIL;
@@ -37,6 +43,18 @@ exports.handler = async (event) => {
       });
       return { statusCode: 500, body: JSON.stringify({ error: 'Server is missing required environment variables' }) };
     }
+
+    // Verify the caller's token is real and find out who they actually are.
+    const whoRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${callerToken}`,
+      },
+    });
+    if (!whoRes.ok) {
+      return { statusCode: 401, body: JSON.stringify({ error: 'Invalid or expired session' }) };
+    }
+    const callerUser = await whoRes.json();
 
     // 1. Fetch the Bastion transaction row using the SERVICE ROLE key
     //    (bypasses RLS — safe because this only ever runs on the server,
@@ -55,6 +73,18 @@ exports.handler = async (event) => {
     if (!txn) {
       return { statusCode: 404, body: JSON.stringify({ error: 'Transaction not found' }) };
     }
+
+    // Only the real buyer on THIS transaction may open a real escrow
+    // transaction for it — never anyone else, even if they know or guess
+    // the transaction ID.
+    if (callerUser.id !== txn.buyer_id) {
+      console.error('create-escrow-transaction: caller is not the buyer', {
+        callerId: callerUser.id,
+        buyerId: txn.buyer_id,
+      });
+      return { statusCode: 403, body: JSON.stringify({ error: 'Only the buyer on this transaction can start escrow' }) };
+    }
+
     if (txn.escrow_transaction_id) {
       // Already created — don't create a duplicate on Escrow.com
       return { statusCode: 200, body: JSON.stringify({ escrow_transaction_id: txn.escrow_transaction_id, already_existed: true }) };

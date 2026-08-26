@@ -822,7 +822,10 @@ async function releaseFunds(txnId, dealId, btn){
   try {
     const res = await fetch('/.netlify/functions/release-escrow-transaction', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + (await supabaseClient.auth.getSession()).data.session.access_token
+      },
       body: JSON.stringify({ transactionId: txnId })
     });
     if(!res.ok){

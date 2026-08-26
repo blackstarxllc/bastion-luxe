@@ -25,6 +25,12 @@ exports.handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ error: 'transactionId is required' }) };
     }
 
+    const authHeaderIn = event.headers.authorization || event.headers.Authorization;
+    if (!authHeaderIn || !authHeaderIn.startsWith('Bearer ')) {
+      return { statusCode: 401, body: JSON.stringify({ error: 'Missing auth token' }) };
+    }
+    const callerToken = authHeaderIn.slice('Bearer '.length);
+
     const SUPABASE_URL = process.env.SUPABASE_URL;
     const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const ESCROW_EMAIL = process.env.ESCROW_SANDBOX_EMAIL;
@@ -39,6 +45,18 @@ exports.handler = async (event) => {
       });
       return { statusCode: 500, body: JSON.stringify({ error: 'Server is missing required environment variables' }) };
     }
+
+    // Verify the caller's token is real and find out who they actually are.
+    const whoRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${callerToken}`,
+      },
+    });
+    if (!whoRes.ok) {
+      return { statusCode: 401, body: JSON.stringify({ error: 'Invalid or expired session' }) };
+    }
+    const callerUser = await whoRes.json();
 
     // 1. Look up the Bastion transaction row to get the linked Escrow.com IDs
     const getRes = await fetch(
@@ -55,6 +73,18 @@ exports.handler = async (event) => {
     if (!txn) {
       return { statusCode: 404, body: JSON.stringify({ error: 'Transaction not found' }) };
     }
+
+    // The security check that was missing: only the real buyer on THIS
+    // transaction may trigger a release — never anyone else, even if they
+    // know or guess the transaction ID from the URL.
+    if (callerUser.id !== txn.buyer_id) {
+      console.error('release-escrow-transaction: caller is not the buyer', {
+        callerId: callerUser.id,
+        buyerId: txn.buyer_id,
+      });
+      return { statusCode: 403, body: JSON.stringify({ error: 'Only the buyer on this transaction can release funds' }) };
+    }
+
     if (!txn.escrow_transaction_id || !txn.escrow_item_id) {
       console.error('release-escrow-transaction: missing escrow IDs on transaction', {
         id: transactionId,

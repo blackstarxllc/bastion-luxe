@@ -767,9 +767,9 @@ function formatMoney(n){
 }
 
 function feeRateForPrice(n){
-  if(n < 2000) return 0.06;
-  if(n < 10000) return 0.05;
-  if(n < 50000) return 0.045;
+  if(n < 1000) return 0.01;
+  if(n < 10000) return 0.04;
+  if(n < 50000) return 0.035;
   return 0.03;
 }
 

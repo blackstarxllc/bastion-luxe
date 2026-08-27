@@ -710,6 +710,10 @@ function updateStepper(status){
     document.querySelectorAll('.step').forEach(function(el){ el.classList.remove('done', 'active'); });
     return;
   }
+  if(status === 'pending_payment'){
+    document.querySelectorAll('.step').forEach(function(el){ el.classList.remove('done', 'active'); });
+    return;
+  }
   const currentIndex = order.indexOf(status);
   const ids = { funded: 'stepFunded', shipped: 'stepShipped', released: 'stepReleased' };
 
@@ -906,6 +910,19 @@ function renderActionArea(txn, isBuyer, isSeller){
   const area = document.getElementById('actionArea');
   const status = txn.status;
   const disputeLink = document.getElementById('disputeLink');
+
+  if(status === 'pending_payment'){
+    disputeLink.classList.add('hidden');
+    document.getElementById('disputeForm').classList.add('hidden');
+    area.innerHTML = `
+      <div class="waiting-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        <span>${isSeller
+          ? "The buyer has started this purchase, but the payment hasn't been confirmed as received yet. We'll update this the moment it's verified — please don't hand off the item until this shows as funded."
+          : "We're confirming your payment now. This can take anywhere from a few minutes to a few business days depending on your payment method. You'll see this update automatically once it's confirmed."}</span>
+      </div>`;
+    return;
+  }
 
   if(status === 'disputed'){
     disputeLink.classList.add('hidden');

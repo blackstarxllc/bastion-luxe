@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0A0B0D">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bastion">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bastion — Built on Trust</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,450;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0B0D; --ink-soft:#101216; --surface:#15171B;
+    --ivory:#F1ECE1; --stone:#8D8F94; --stone-dim:#5B5D62;
+    --brass:#C7A268; --brass-ink:#171308;
+    --hairline:rgba(241,236,225,0.08);
+    --radius:2px;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--ink); color:var(--ivory); font-family:'Inter', sans-serif; }
+  header{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:20px 24px; border-bottom:1px solid var(--hairline);
+  }
+  .wordmark{ font-family:'Fraunces', serif; font-size:22px; }
+  .wordmark em{ color:var(--brass); font-style:italic; }
+  header a{
+    color:var(--stone); text-decoration:none;
+    font-family:'IBM Plex Mono', monospace; font-size:11.5px;
+    letter-spacing:0.06em; text-transform:uppercase;
+  }
+  main{ max-width:720px; margin:0 auto; padding:48px 24px 80px; }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--brass);
+    letter-spacing:0.12em; text-transform:uppercase; margin-bottom:14px;
+  }
+  h1{ font-family:'Fraunces', serif; font-weight:400; font-size:36px; margin:0 0 28px; line-height:1.2; }
+  h2{
+    font-family:'Fraunces', serif; font-weight:500; font-size:20px;
+    color:var(--brass); margin:44px 0 12px;
+  }
+  p, li{ font-size:15px; line-height:1.8; color:#D8D3C6; }
+  ul{ padding-left:20px; }
+  li{ margin-bottom:10px; }
+  strong{ color:var(--ivory); }
+  .pull{
+    font-family:'Fraunces', serif; font-style:italic; font-size:19px;
+    color:var(--ivory); border-left:2px solid var(--brass); padding-left:20px;
+    margin:36px 0; line-height:1.6;
+  }
+  .cta{
+    margin-top:52px; padding:24px; background:var(--surface); border:1px solid var(--hairline);
+    border-radius:var(--radius); text-align:center;
+  }
+  .cta a{
+    display:inline-block; margin-top:12px; color:var(--brass-ink); background:var(--brass);
+    text-decoration:none; padding:10px 22px; border-radius:var(--radius);
+    font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.06em; text-transform:uppercase;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">Bast<em>ion</em></div>
+  <a href="/bastion-marketplace.html">Back to Marketplace</a>
+</header>
+
+<main>
+  <div class="eyebrow">Built on Trust</div>
+  <h1>Peer-to-peer trading shouldn't mean trusting a stranger's word.</h1>
+
+  <p>Every day, people trade valuable things — watches, cars, sneakers, cards, jewelry — directly with strangers they found on Facebook Marketplace, Craigslist, or a subreddit. Most of the time, it goes fine. But when it doesn't, there's no recourse: no chargeback, no dispute process, no way to undo a wire sent to someone who never had the item to begin with.</p>
+
+  <p>And because so much of this trading happens face to face, the risk isn't only financial. Meeting a stranger to hand over cash or a valuable item carries its own dangers — robbery, counterfeit cash, a cashier's check that bounces after the trade is already done, or simply a meetup that goes wrong in a way no amount of careful texting beforehand could have predicted.</p>
+
+  <p>We built Bastion because that shouldn't be the price of trading peer-to-peer.</p>
+
+  <h2>The problem with most P2P marketplaces</h2>
+  <p>Traditional peer-to-peer trading asks one party to go first — the buyer sends money and hopes the item shows up, or the seller ships the item and hopes payment follows. Whoever moves first is exposed. Scammers count on exactly that moment of trust.</p>
+  <ul>
+    <li><strong>Fake payment screenshots</strong> — a buyer claims they sent a wire that never actually arrives.</li>
+    <li><strong>Non-delivery</strong> — a seller takes payment and never ships, or ships something else entirely.</li>
+    <li><strong>Counterfeit or misrepresented items</strong> — what arrives isn't what was listed.</li>
+    <li><strong>No neutral third party</strong> — when something goes wrong, it's your word against theirs.</li>
+    <li><strong>Face-to-face risk</strong> — meetups arranged with no real safeguards, where a trade can turn into a robbery, a bad check, or worse, with the meetup itself used as the setup.</li>
+  </ul>
+
+  <div class="pull">Bastion exists so neither party ever has to go first.</div>
+
+  <h2>How we actually protect both sides</h2>
+  <p>Bastion isn't a payment processor — we partner with <strong>Escrow.com</strong>, a licensed money transmitter that's held funds securely for over two decades. When a buyer pays, the money goes into a real, regulated escrow account — not to the seller, not to Bastion. It only moves once both sides are protected:</p>
+  <ul>
+    <li>The buyer's payment must be <strong>verified as actually received</strong> — not just claimed — before a seller is ever told to hand off the item.</li>
+    <li>The seller only releases the item once real funds are confirmed secured.</li>
+    <li>The buyer inspects (in person or on arrival) before releasing funds to the seller.</li>
+    <li>Every account is identity-verified by Escrow.com before it can send or receive money — a real compliance step, not a formality.</li>
+    <li>If something goes wrong, a real dispute process exists — funds stay held until it's resolved, instead of just disappearing.</li>
+  </ul>
+
+  <h2>What this means for you</h2>
+  <p>Whether you're buying or selling, the moment you see funded on Bastion, that's not a promise — it's a confirmed fact, verified by a licensed third party holding real money. That's the whole point: the safety net is real, not just a badge on a website.</p>
+
+  <p>We still believe trading should feel as direct and immediate as it always has — meeting someone local, agreeing on a price, walking away with what you came for. Bastion doesn't get in the way of that. It just makes sure nobody has to take a leap of faith to get there.</p>
+
+  <div class="cta">
+    <div>Want to understand exactly how escrow protects a trade, step by step?</div>
+    <a href="/bastion-faq.html">Read the FAQ</a>
+  </div>
+</main>
+
+</body>
+</html>

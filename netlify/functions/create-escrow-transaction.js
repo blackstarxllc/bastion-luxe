@@ -117,11 +117,23 @@ exports.handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ error: 'Could not look up buyer or seller email' }) };
     }
 
-    // 2. Create the real transaction on Escrow.com
+    const itemPrice = Number(txn.price || 0);
+    const bastionFee = Number(txn.fee || 0);
+    if (itemPrice <= 0 || bastionFee < 0) {
+      return { statusCode: 400, body: JSON.stringify({ error: 'Transaction is missing a valid price/fee' }) };
+    }
+
+    // 2. Create the real transaction on Escrow.com — with the payout SPLIT
+    // between the seller (item price) and Bastion itself (the protection
+    // fee), instead of sending the seller the buyer's entire payment.
+    // Bastion joins the transaction as a "broker" party using the same
+    // account that authenticates these API calls (ESCROW_EMAIL), so its
+    // cut lands directly in Bastion's own Escrow.com account.
     const escrowPayload = {
       parties: [
         { role: 'buyer', customer: buyerEmail },
         { role: 'seller', customer: sellerEmail, agreed: true },
+        { role: 'broker', customer: ESCROW_EMAIL, agreed: true },
       ],
       currency: 'usd',
       description: txn.item_name || 'Bastion marketplace item',
@@ -133,7 +145,8 @@ exports.handler = async (event) => {
           inspection_period: 259200, // 3 days, in seconds — buyer's window to inspect before funds auto-release
           quantity: 1,
           schedule: [
-            { amount: Number(txn.total || txn.price || 0), payer_customer: buyerEmail, beneficiary_customer: sellerEmail },
+            { amount: itemPrice, payer_customer: buyerEmail, beneficiary_customer: sellerEmail },
+            { amount: bastionFee, payer_customer: buyerEmail, beneficiary_customer: ESCROW_EMAIL },
           ],
         },
       ],

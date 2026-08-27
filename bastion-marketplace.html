@@ -755,15 +755,35 @@ function formatPrice(value){
   return '$' + n.toLocaleString('en-US');
 }
 
+function estimateEscrowFee(amount){
+  const tiers = [
+    { max: 5000,        rate: 0.026,  min: 50 },
+    { max: 50000,       rate: 0.024,  min: 130 },
+    { max: 200000,      rate: 0.019,  min: 1200 },
+    { max: 500000,      rate: 0.015,  min: 3800 },
+    { max: 1000000,     rate: 0.012,  min: 7500 },
+    { max: 3000000,     rate: 0.010,  min: 12000 },
+    { max: 5000000,     rate: 0.0095, min: 30000 },
+    { max: 10000000,    rate: 0.009,  min: 47500 },
+    { max: Infinity,    rate: 0.007,  min: 0 }
+  ];
+  const tier = tiers.find(function(t){ return amount <= t.max; }) || tiers[tiers.length - 1];
+  return Math.max(amount * tier.rate, tier.min);
+}
+
 function feeForPrice(value){
   const n = Number(value);
   if(isNaN(n)) return '';
   let rate;
-  if(n < 2000) rate = 0.08;
-  else if(n < 10000) rate = 0.06;
-  else if(n < 50000) rate = 0.045;
+  if(n < 1000) rate = 0.01;
+  else if(n < 10000) rate = 0.04;
+  else if(n < 50000) rate = 0.035;
   else rate = 0.03;
-  return 'Protection fee ~' + (rate*100).toFixed(1) + '%';
+  const bastionFee = n * rate;
+  const total = n + bastionFee;
+  const escrowFee = estimateEscrowFee(total);
+  const combinedRate = n > 0 ? ((bastionFee + escrowFee) / n) : 0;
+  return 'Protection fee ~' + (combinedRate*100).toFixed(1) + '%';
 }
 
 function renderGrid(){

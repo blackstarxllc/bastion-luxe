@@ -146,8 +146,8 @@ exports.handler = async (event) => {
           quantity: 1,
           schedule: [
             { amount: itemPrice, payer_customer: buyerEmail, beneficiary_customer: sellerEmail },
-            { amount: bastionFee, payer_customer: buyerEmail, beneficiary_customer: ESCROW_EMAIL },
           ],
+          commission: { payer_customer: buyerEmail, beneficiary_customer: ESCROW_EMAIL, amount: bastionFee },
         },
       ],
     };

@@ -168,7 +168,8 @@ exports.handler = async (event) => {
     if (!createRes.ok) {
       console.error('create-escrow-transaction: Escrow.com rejected the request', {
         status: createRes.status,
-        escrowResponse: escrowData,
+        escrowResponse: JSON.stringify(escrowData),
+        sentPayload: JSON.stringify(escrowPayload),
       });
       return {
         statusCode: 502,

@@ -145,9 +145,9 @@ exports.handler = async (event) => {
           inspection_period: 259200, // 3 days, in seconds — buyer's window to inspect before funds auto-release
           quantity: 1,
           schedule: [
-            { amount: itemPrice, payer_customer: buyerEmail, beneficiary_customer: sellerEmail },
+            { reference: 'sale-item', amount: itemPrice, payer_customer: buyerEmail, beneficiary_customer: sellerEmail },
+            { parent_reference: 'sale-item', amount: bastionFee, payer_customer: buyerEmail, beneficiary_customer: ESCROW_EMAIL },
           ],
-          commission: { payer_customer: buyerEmail, beneficiary_customer: ESCROW_EMAIL, amount: bastionFee },
         },
       ],
     };

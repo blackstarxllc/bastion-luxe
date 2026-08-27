@@ -767,10 +767,32 @@ function formatMoney(n){
 }
 
 function feeRateForPrice(n){
-  if(n < 2000) return 0.08;
-  if(n < 10000) return 0.06;
+  if(n < 2000) return 0.06;
+  if(n < 10000) return 0.05;
   if(n < 50000) return 0.045;
   return 0.03;
+}
+
+// Escrow.com's own published Standard-tier fee schedule (escrow.com/fee-calculator).
+// This is what Escrow.com itself charges on top of everything Bastion charges —
+// shown here so buyers see the real total before checkout, instead of being
+// surprised by a different number once they reach Escrow.com's own payment page.
+// Wire transfer has no extra processing fee; credit card/PayPal add 3.05% on top
+// (not included here, since wire is the default payment path).
+function estimateEscrowFee(amount){
+  const tiers = [
+    { max: 5000,        rate: 0.026,  min: 50 },
+    { max: 50000,       rate: 0.024,  min: 130 },
+    { max: 200000,      rate: 0.019,  min: 1200 },
+    { max: 500000,      rate: 0.015,  min: 3800 },
+    { max: 1000000,     rate: 0.012,  min: 7500 },
+    { max: 3000000,     rate: 0.010,  min: 12000 },
+    { max: 5000000,     rate: 0.0095, min: 30000 },
+    { max: 10000000,    rate: 0.009,  min: 47500 },
+    { max: Infinity,    rate: 0.007,  min: 0 }
+  ];
+  const tier = tiers.find(function(t){ return amount <= t.max; }) || tiers[tiers.length - 1];
+  return Math.max(amount * tier.rate, tier.min);
 }
 
 function renderStars(rating){
@@ -1126,8 +1148,11 @@ async function loadDeal(){
     const cat = data.category || 'Uncategorized';
     const price = Number(data.price) || 0;
     const rate = feeRateForPrice(price);
-    const fee = price * rate;
-    const total = price + fee;
+    const fee = price * rate; // Bastion's own cut — this is the only fee actually sent to Escrow.com as part of the held amount
+    const total = price + fee; // real amount held/moved — never includes Escrow.com's own fee
+    const escrowFeeEstimate = estimateEscrowFee(total); // Escrow.com's own fee, charged separately by them at checkout
+    const displayedFee = fee + escrowFeeEstimate; // shown to the buyer as one combined "Protection fee" line
+    const displayedRate = price > 0 ? (displayedFee / price) : 0;
 
     document.getElementById('itemName').textContent = name;
     document.getElementById('itemCat').textContent = cat;
@@ -1137,8 +1162,8 @@ async function loadDeal(){
     }
     document.getElementById('itemDesc').textContent = desc;
     document.getElementById('itemPrice').textContent = formatMoney(price);
-    document.getElementById('feeAmount').textContent = formatMoney(fee) + ' (' + (rate*100).toFixed(1) + '%)';
-    document.getElementById('totalAmount').textContent = formatMoney(total);
+    document.getElementById('feeAmount').textContent = formatMoney(displayedFee) + ' (' + (displayedRate*100).toFixed(1) + '%)';
+    document.getElementById('totalAmount').textContent = formatMoney(price + displayedFee);
     document.title = 'Bastion — ' + name;
 
     renderPhoto(data.image_url, data.details);

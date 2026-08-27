@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0A0B0D">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bastion">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bastion — Safety Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,450;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0B0D; --ink-soft:#101216; --surface:#15171B;
+    --ivory:#F1ECE1; --stone:#8D8F94; --stone-dim:#5B5D62;
+    --brass:#C7A268; --brass-ink:#171308; --danger:#C9776B;
+    --hairline:rgba(241,236,225,0.08);
+    --radius:2px;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--ink); color:var(--ivory); font-family:'Inter', sans-serif; }
+  header{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:20px 24px; border-bottom:1px solid var(--hairline);
+  }
+  .wordmark{ font-family:'Fraunces', serif; font-size:22px; }
+  .wordmark em{ color:var(--brass); font-style:italic; }
+  header a{
+    color:var(--stone); text-decoration:none;
+    font-family:'IBM Plex Mono', monospace; font-size:11.5px;
+    letter-spacing:0.06em; text-transform:uppercase;
+  }
+  main{ max-width:720px; margin:0 auto; padding:48px 24px 80px; }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--brass);
+    letter-spacing:0.12em; text-transform:uppercase; margin-bottom:14px;
+  }
+  h1{ font-family:'Fraunces', serif; font-weight:400; font-size:34px; margin:0 0 28px; }
+  h2{
+    font-family:'Fraunces', serif; font-weight:500; font-size:19px;
+    color:var(--brass); margin:40px 0 16px;
+  }
+  p, li{ font-size:14.5px; line-height:1.75; color:#D8D3C6; }
+  ul{ padding-left:0; list-style:none; }
+  .card{
+    background:var(--surface); border:1px solid var(--hairline); border-radius:var(--radius);
+    padding:16px 18px; margin-bottom:10px;
+  }
+  .card strong{ color:var(--ivory); display:block; margin-bottom:4px; font-size:14.5px; }
+  .card p{ margin:0; font-size:13.5px; color:var(--stone); }
+  .warn{
+    display:flex; gap:12px; background:rgba(201,119,107,0.08); border:1px solid rgba(201,119,107,0.3);
+    border-radius:var(--radius); padding:16px 18px; margin:36px 0;
+  }
+  .warn svg{ width:18px; height:18px; flex-shrink:0; color:var(--danger); margin-top:2px; }
+  .warn p{ margin:0; color:var(--ivory); font-size:14px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">Bast<em>ion</em></div>
+  <a href="/bastion-marketplace.html">Back to Marketplace</a>
+</header>
+
+<main>
+  <div class="eyebrow">Safety Center</div>
+  <h1>Bastion's protections go a long way — but a little awareness goes further.</h1>
+  <p>Escrow protects the money. It's still worth knowing what scammers actually try, so nothing catches you off guard.</p>
+
+  <div class="warn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+    <p><strong>Golden rule:</strong> never release funds until you've personally confirmed the item — in person or in hand — matches the listing exactly.</p>
+  </div>
+
+  <h2>For buyers</h2>
+  <div class="card">
+    <strong>Never pay outside of Bastion/Escrow.com</strong>
+    <p>If a seller asks you to pay them directly, via a separate app, or "to save on fees" — that's the single most common trick to get you outside of any protection. Decline every time.</p>
+  </div>
+  <div class="card">
+    <strong>Inspect before you release</strong>
+    <p>Whether meeting in person or receiving a shipment, check the item matches the listing (condition, authenticity, serial numbers) before confirming receipt. Once released, funds can't be pulled back.</p>
+  </div>
+  <div class="card">
+    <strong>Be wary of urgency or pressure</strong>
+    <p>"I need this released right now" or "I have another buyer waiting" are pressure tactics. A legitimate seller will never rush you past a genuine inspection.</p>
+  </div>
+  <div class="card">
+    <strong>Check seller history</strong>
+    <p>Look for a Trusted Seller badge, completed trade count, and real reviews on their profile before buying from someone new.</p>
+  </div>
+
+  <h2>For sellers</h2>
+  <div class="card">
+    <strong>Wait for real confirmation before handing off the item</strong>
+    <p>A buyer claiming "I already sent the wire" means nothing until Bastion shows the transaction as genuinely funded. Never ship or hand off an item before that.</p>
+  </div>
+  <div class="card">
+    <strong>Use tracked shipping</strong>
+    <p>Always ship with tracking to the address Escrow.com provides. It protects you if there's ever a dispute about delivery.</p>
+  </div>
+  <div class="card">
+    <strong>Don't share your release code early</strong>
+    <p>For in-person trades, your release code should only ever be given to the buyer once they're standing in front of you and you're both satisfied with the trade — never before.</p>
+  </div>
+
+  <h2>For in-person meetups</h2>
+  <div class="card">
+    <strong>Meet in public, well-lit places</strong>
+    <p>Bank lobbies and designated police department "safe exchange zones" are ideal — both are available as one-tap suggestions on the transaction page.</p>
+  </div>
+  <div class="card">
+    <strong>Bring a friend if the item is high-value</strong>
+    <p>There's no downside to having a second person present for a large transaction.</p>
+  </div>
+
+  <h2>If something feels wrong</h2>
+  <p>Use "Report a problem with this trade" on the transaction page immediately — this freezes the funds in escrow and brings in a real review, instead of the situation being only your word against theirs.</p>
+</main>
+
+</body>
+</html>

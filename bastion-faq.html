@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0A0B0D">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bastion">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bastion — FAQ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,450;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0B0D; --ink-soft:#101216; --surface:#15171B;
+    --ivory:#F1ECE1; --stone:#8D8F94; --stone-dim:#5B5D62;
+    --brass:#C7A268; --brass-ink:#171308;
+    --hairline:rgba(241,236,225,0.08);
+    --radius:2px;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--ink); color:var(--ivory); font-family:'Inter', sans-serif; }
+  header{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:20px 24px; border-bottom:1px solid var(--hairline);
+  }
+  .wordmark{ font-family:'Fraunces', serif; font-size:22px; }
+  .wordmark em{ color:var(--brass); font-style:italic; }
+  header a{
+    color:var(--stone); text-decoration:none;
+    font-family:'IBM Plex Mono', monospace; font-size:11.5px;
+    letter-spacing:0.06em; text-transform:uppercase;
+  }
+  main{ max-width:720px; margin:0 auto; padding:48px 24px 80px; }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--brass);
+    letter-spacing:0.12em; text-transform:uppercase; margin-bottom:14px;
+  }
+  h1{ font-family:'Fraunces', serif; font-weight:400; font-size:34px; margin:0 0 8px; }
+  .sub{ color:var(--stone); font-size:14px; margin-bottom:44px; }
+  h2{
+    font-family:'Fraunces', serif; font-weight:500; font-size:15px;
+    color:var(--brass); text-transform:none; margin:0 0 22px; padding-top:32px;
+    border-top:1px solid var(--hairline); letter-spacing:0.02em;
+  }
+  h2:first-of-type{ border-top:none; padding-top:0; }
+  details{
+    margin-bottom:2px; border-bottom:1px solid var(--hairline);
+  }
+  summary{
+    font-family:'Inter', sans-serif; font-weight:600; font-size:15px; color:var(--ivory);
+    padding:16px 0; cursor:pointer; list-style:none; display:flex; justify-content:space-between; gap:16px;
+  }
+  summary::-webkit-details-marker{ display:none; }
+  summary::after{
+    content:'+'; color:var(--brass); font-size:18px; flex-shrink:0;
+  }
+  details[open] summary::after{ content:'–'; }
+  .answer{ font-size:14.5px; line-height:1.75; color:#D8D3C6; padding:0 0 20px; }
+  .answer strong{ color:var(--ivory); }
+  .answer ul{ padding-left:20px; margin:8px 0; }
+  .answer li{ margin-bottom:6px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">Bast<em>ion</em></div>
+  <a href="/bastion-marketplace.html">Back to Marketplace</a>
+</header>
+
+<main>
+  <div class="eyebrow">Frequently Asked Questions</div>
+  <h1>How Bastion actually works</h1>
+  <div class="sub">Plain answers, no jargon. If something's still unclear after this, message us.</div>
+
+  <h2>The basics</h2>
+
+  <details>
+    <summary>What is escrow?</summary>
+    <div class="answer">Escrow is a neutral third party that holds a buyer's money securely until both sides agree the trade went as promised — then releases it to the seller. Neither the buyer nor the seller ever controls the money directly during the trade. It's the same basic idea used in real estate closings, just applied to peer-to-peer trading.</div>
+  </details>
+
+  <details>
+    <summary>Who actually holds the money — Bastion, or someone else?</summary>
+    <div class="answer">Not Bastion. Your payment is held by <strong>Escrow.com</strong>, a licensed, regulated money transmitter that's operated for over two decades. Bastion is the marketplace and the interface — Escrow.com is the one legally licensed to hold and move real money. This keeps your funds separate from Bastion entirely.</div>
+  </details>
+
+  <details>
+    <summary>Why do I have to verify my identity to use Bastion?</summary>
+    <div class="answer">That verification happens with Escrow.com, not Bastion — it's a legal requirement for any licensed money transmitter (the same reason banks ask for ID). It protects everyone: it makes it much harder for someone to scam another user and disappear, since every account sending or receiving real money has a verified identity behind it.</div>
+  </details>
+
+  <h2>Payment & timing</h2>
+
+  <details>
+    <summary>I paid — why doesn't it show as "funded" right away?</summary>
+    <div class="answer">Bastion only marks something "funded" once Escrow.com actually confirms your money has arrived in their secure account — not the moment you send it. This protects sellers from someone falsely claiming they paid. Depending on your payment method, this can take anywhere from a few minutes to a few business days:
+      <ul>
+        <li><strong>Wire transfer:</strong> typically same-day to a few business days</li>
+        <li><strong>ACH / bank transfer:</strong> a few business days</li>
+        <li><strong>Credit card / PayPal:</strong> often faster, subject to standard holds</li>
+      </ul>
+    </div>
+  </details>
+
+  <details>
+    <summary>Once funds are released, how fast does the seller actually get paid?</summary>
+    <div class="answer">The <strong>release itself is instant</strong> — the moment a buyer confirms receipt (or both parties confirm an in-person handoff), Bastion tells Escrow.com to release the funds immediately, no manual steps or waiting on our end. From there, how fast it lands in the seller's bank follows normal banking speed for whichever payout method they chose (similar to the timing above) — that part isn't something any marketplace can make instant, since it's real interbank transfer time.</div>
+  </details>
+
+  <h2>Safety & disputes</h2>
+
+  <details>
+    <summary>What stops a seller from taking my money and not sending the item?</summary>
+    <div class="answer">Your money never reaches the seller until you personally confirm you received the item and it matches the listing. If they never ship or hand it off, you simply never release the funds — they stay safely in escrow the entire time.</div>
+  </details>
+
+  <details>
+    <summary>What if the item doesn't match the listing, or something feels wrong?</summary>
+    <div class="answer">Don't release the funds. Use the "Report a problem with this trade" option on the transaction page — this flags it for review and freezes the funds in escrow until it's resolved. Never let anyone pressure you into releasing funds before you're satisfied.</div>
+  </details>
+
+  <details>
+    <summary>Is it safer to meet in person, or ship the item?</summary>
+    <div class="answer">Both are supported and both are protected the same way. For in-person trades, Bastion generates a private release code only the seller sees — the buyer enters it once they've inspected the item in person, releasing funds on the spot. For shipped items, the buyer has an inspection window to confirm the item before releasing funds.</div>
+  </details>
+
+</main>
+
+</body>
+</html>

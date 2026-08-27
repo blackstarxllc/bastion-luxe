@@ -188,6 +188,7 @@
     color:var(--stone);
   }
   .status-badge.funded{ color:#D9B36B; border-color:var(--brass-dim); }
+  .status-badge.pending_payment{ color:#B08FD9; border-color:#5C3F8C; }
   .status-badge.shipped{ color:#8FB3D9; border-color:#3F5C8C; }
   .status-badge.released{ color:#8FBBAC; border-color:var(--emerald); }
 
@@ -395,6 +396,17 @@
 
   <div class="section">
     <div class="section-head">
+      <div class="section-title">Trust &amp; Safety</div>
+    </div>
+    <div style="padding:20px; background:var(--ink-soft); border:1px solid var(--hairline); display:flex; flex-direction:column; gap:10px;">
+      <a href="/bastion-about.html" style="color:var(--ivory); font-size:13px; text-decoration:none;">→ Built on Trust — why Bastion exists</a>
+      <a href="/bastion-faq.html" style="color:var(--ivory); font-size:13px; text-decoration:none;">→ Frequently Asked Questions</a>
+      <a href="/bastion-safety.html" style="color:var(--ivory); font-size:13px; text-decoration:none;">→ Safety Center</a>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
       <div class="section-title" style="color:#E0958D;">Danger Zone</div>
     </div>
     <div style="padding:20px; background:var(--ink-soft); border:1px solid var(--rust);">
@@ -502,6 +514,7 @@ function renderTransactions(txns, userId){
     const name = escapeHtml(t.item_name || 'Untitled item');
     const role = t.buyer_id === userId ? 'Buying' : (t.seller_id === userId ? 'Selling' : '');
     const status = escapeHtml(t.status || 'funded');
+    const statusLabel = status === 'pending_payment' ? 'Confirming payment' : status;
     return `
       <div class="row" onclick="window.location.href='bastion-transaction.html?id=${encodeURIComponent(t.id)}'">
         <div class="row-left">
@@ -510,7 +523,7 @@ function renderTransactions(txns, userId){
         </div>
         <div class="row-right">
           <span class="row-price">${formatMoney(t.total)}</span>
-          <span class="status-badge ${status}">${status}</span>
+          <span class="status-badge ${status}">${statusLabel}</span>
         </div>
       </div>`;
   }).join('');

@@ -847,14 +847,14 @@ function renderGrid(){
     const statusClass = status === 'sold' ? 'sold' : status === 'pending' ? 'pending' : 'live';
     const statusDot = status === 'active' || !deal.status ? '● ' : '';
     return `
-      <div class="card">
-        <div class="card-photo" onclick="window.location.href='bastion-deal-detail.html?id=${encodeURIComponent(id)}'">
+      <div class="card" onclick="window.location.href='bastion-deal-detail.html?id=${encodeURIComponent(id)}'" style="cursor:pointer;">
+        <div class="card-photo">
           ${photo}
           <button class="fav-btn ${isFav ? 'active' : ''}" onclick="event.stopPropagation(); toggleFavorite('${id}', this)">
             <svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M12 21s-7-4.5-9.5-9C.5 8 2 4 6 4c2 0 3.5 1.2 4 3 .5-1.8 2-3 4-3 4 0 5.5 4 3.5 8-2.5 4.5-9.5 9-9.5 9z"/></svg>
           </button>
         </div>
-        <div class="card-top" onclick="window.location.href='bastion-deal-detail.html?id=${encodeURIComponent(id)}'" style="cursor:pointer;">
+        <div class="card-top">
           <span class="card-cat">${cat}</span>
           <span class="card-status ${statusClass}">${statusDot}${statusLabel}</span>
         </div>
@@ -1058,6 +1058,10 @@ loadDeals();
   });
 
   loadNotifications();
+
+  // Check for new activity automatically every 30 seconds while the page
+  // is open, so the badge updates without needing a manual refresh.
+  setInterval(loadNotifications, 30000);
 })();
 </script>
 

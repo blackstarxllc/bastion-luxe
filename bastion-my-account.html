@@ -538,30 +538,61 @@ function renderTransactions(txns, userId){
 }
 
 async function loadHandle(userId){
-  const { data } = await supabaseClient.from('profiles').select('handle').eq('id', userId).maybeSingle();
+  const { data } = await supabaseClient.from('profiles').select('handle, handle_changed_count').eq('id', userId).maybeSingle();
   const display = document.getElementById('handleDisplay');
   const input = document.getElementById('handleEditInput');
-  if(data && data.handle){
+  const saveBtn = document.getElementById('saveHandleEditBtn');
+  const statusEl = document.getElementById('handleEditStatus');
+  const changesUsed = (data && data.handle_changed_count) || 0;
+  const hasExistingHandle = !!(data && data.handle);
+
+  if(hasExistingHandle){
     display.textContent = '@' + data.handle;
     input.value = data.handle;
   } else {
     display.textContent = 'Not set yet';
   }
 
-  document.getElementById('saveHandleEditBtn').addEventListener('click', async function(){
+  // Only setting a handle for the very first time is free. After that,
+  // exactly one change is allowed, ever.
+  if(hasExistingHandle && changesUsed >= 1){
+    input.disabled = true;
+    saveBtn.disabled = true;
+    saveBtn.style.opacity = '0.5';
+    saveBtn.style.cursor = 'not-allowed';
+    statusEl.textContent = "You've already used your one allowed handle change.";
+    return;
+  }
+
+  saveBtn.addEventListener('click', async function(){
     const handle = input.value.trim();
-    const statusEl = document.getElementById('handleEditStatus');
     if(!/^[a-zA-Z0-9_]{3,20}$/.test(handle)){
       statusEl.textContent = 'Use 3-20 letters, numbers, or underscores.';
       return;
     }
-    const { error } = await supabaseClient.from('profiles').upsert({ id: userId, handle: handle });
+
+    // Saving the exact same handle you already have isn't a real change —
+    // don't burn your one allowed change on a no-op.
+    const isRealChange = hasExistingHandle && handle !== data.handle;
+
+    const updatePayload = { id: userId, handle: handle };
+    if(isRealChange) updatePayload.handle_changed_count = changesUsed + 1;
+
+    const { error } = await supabaseClient.from('profiles').upsert(updatePayload);
     if(error){
       statusEl.textContent = error.message.includes('duplicate') ? 'That handle is already taken.' : error.message;
       return;
     }
     display.textContent = '@' + handle;
     statusEl.textContent = 'Saved.';
+
+    if(isRealChange){
+      input.disabled = true;
+      saveBtn.disabled = true;
+      saveBtn.style.opacity = '0.5';
+      saveBtn.style.cursor = 'not-allowed';
+      statusEl.textContent = "Saved. You've now used your one allowed handle change.";
+    }
   });
 }
 
@@ -836,6 +867,10 @@ loadAccount();
   });
 
   loadNotifications();
+
+  // Check for new activity automatically every 30 seconds while the page
+  // is open, so the badge updates without needing a manual refresh.
+  setInterval(loadNotifications, 30000);
 })();
 </script>
 

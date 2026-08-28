@@ -62,9 +62,11 @@
     color:var(--ivory);
     text-decoration:none;
   }
-  .wordmark:visited{ color:var(--ivory); }
+  .wordmark:link{ color:var(--ivory) !important; }
+  .wordmark:visited{ color:var(--ivory) !important; }
   .wordmark em{ font-style:italic; font-weight:400; color:var(--brass); }
-  .wordmark:visited em{ color:var(--brass); }
+  .wordmark:link em{ color:var(--brass) !important; }
+  .wordmark:visited em{ color:var(--brass) !important; }
 
   .nav-right{ display:flex; align-items:center; gap:10px; }
   .nav-btn{
@@ -215,12 +217,15 @@
   }
   .convo-item{
     font-family:'IBM Plex Mono', monospace; font-size:10px;
-    color:var(--brass-dim); margin-top:3px;
+    color:var(--stone-dim); margin-top:3px;
   }
   .convo-snippet{
+    display:flex; align-items:center; gap:5px;
     font-size:12.5px; color:var(--stone); margin-top:4px;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; overflow:hidden;
   }
+  .convo-snippet span{ overflow:hidden; text-overflow:ellipsis; }
+  .convo-snippet svg{ width:12px; height:12px; flex-shrink:0; color:var(--stone-dim); }
   .convo-snippet.unread{ color:var(--ivory); font-weight:600; }
   .unread-dot{ width:7px; height:7px; border-radius:50%; background:var(--brass); flex-shrink:0; }
   .empty-row{ padding:28px 20px; text-align:center; color:var(--stone); font-size:13px; }
@@ -613,7 +618,10 @@ async function loadInbox(){
     const itemName = c.deals ? c.deals.item_name : null;
     const snippet = snippetMap[c.id];
     const isUnread = unreadSet.has(c.id);
-    const snippetText = snippet ? (snippet.body ? escapeHtml(snippet.body) : (snippet.image_url ? '📷 Photo' : '')) : 'No messages yet.';
+    const cameraIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/></svg>';
+    const snippetText = snippet
+      ? (snippet.body ? '<span>' + escapeHtml(snippet.body) + '</span>' : (snippet.image_url ? cameraIcon + '<span>Photo</span>' : ''))
+      : '<span>No messages yet.</span>';
 
     return '' +
       '<div class="convo-row' + (String(c.id) === String(conversationId) ? ' active' : '') + '" data-convo-id="' + escapeHtml(String(c.id)) + '">' +

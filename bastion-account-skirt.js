@@ -102,10 +102,6 @@
             '<span class="skirt-nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9l1-5h14l1 5"/><path d="M4 9h16v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9z"/><path d="M9 21v-6h6v6"/></svg></span>' +
             '<span class="skirt-nav-label">Marketplace</span><span class="skirt-nav-arrow">→</span>' +
           '</a>' +
-          '<button class="skirt-nav-link" id="skirtLogoutTop" type="button">' +
-            '<span class="skirt-nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg></span>' +
-            '<span class="skirt-nav-label">Log Out</span><span class="skirt-nav-arrow">→</span>' +
-          '</button>' +
         '</div>' +
         '<div class="skirt-divider"></div>' +
         '<div id="skirtSettings">' +
@@ -299,7 +295,6 @@
       btn.innerHTML = original;
     }
   }
-  document.getElementById('skirtLogoutTop').addEventListener('click', function(){ easyLogout(this); });
   document.getElementById('skirtLogoutBottom').addEventListener('click', function(){ easyLogout(this); });
 
   document.getElementById('logoutAllBtn').addEventListener('click', async function(){

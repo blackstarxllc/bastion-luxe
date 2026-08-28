@@ -161,27 +161,38 @@
   }
 
   .trust-strip{
-    display:flex; flex-wrap:wrap; gap:10px;
-    margin-top:28px;
+    display:flex; flex-wrap:wrap; gap:28px;
+    margin-top:32px;
   }
   .trust-pill{
-    display:inline-flex; align-items:center; gap:7px;
-    border:1px solid var(--hairline);
-    border-radius:var(--radius-pill);
-    padding:8px 14px;
+    display:inline-flex; align-items:center; gap:10px;
     font-family:'IBM Plex Mono', monospace;
-    font-size:10px; letter-spacing:0.05em; text-transform:uppercase;
+    font-size:10px; letter-spacing:0.06em; text-transform:uppercase;
     color:var(--stone);
-    background:rgba(255,255,255,0.02);
   }
-  .trust-pill svg{ width:12px; height:12px; color:var(--brass); flex-shrink:0; }
+  .trust-pill .pill-icon{
+    width:30px; height:30px; flex-shrink:0;
+    border-radius:50%;
+    border:1px solid rgba(199,162,104,0.32);
+    background:rgba(199,162,104,0.06);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .trust-pill svg{ width:13px; height:13px; color:var(--brass); flex-shrink:0; }
 
-.search-wrap{
+.toolbar{
     max-width:1180px;
-    margin:0 auto;
+    margin:40px auto 0;
     padding:0 24px;
   }
-  @media(min-width:900px){ .search-wrap{ padding:0 56px; } }
+  @media(min-width:900px){ .toolbar{ padding:0 56px; } }
+
+  .toolbar-panel{
+    background:var(--surface);
+    border:1px solid var(--hairline);
+    border-radius:16px;
+    padding:22px 24px;
+    box-shadow:0 1px 2px rgba(0,0,0,0.25), 0 20px 44px -20px rgba(0,0,0,0.55);
+  }
 
   .search-input-wrap{ position:relative; max-width:440px; }
   .search-input-wrap svg{
@@ -206,89 +217,95 @@
 
   /* ---------- FILTER BAR ---------- */
   .filter-bar{
-    max-width:1180px;
-    margin:36px auto 0;
-    padding:0 24px;
     display:flex;
     gap:8px;
     flex-wrap:wrap;
+    margin-top:20px;
+    padding-top:20px;
+    border-top:1px solid var(--hairline);
   }
-  @media(min-width:900px){ .filter-bar{ padding:0 56px; } }
 
   .chip{
+    display:inline-flex; align-items:center; gap:7px;
     font-family:'IBM Plex Mono', monospace;
     font-size:11px;
     letter-spacing:0.06em;
     text-transform:uppercase;
     color:var(--stone);
-    border:1px solid var(--hairline);
+    border:1px solid transparent;
     border-radius:var(--radius-pill);
     padding:9px 16px;
     cursor:pointer;
     background:rgba(255,255,255,0.02);
     transition:border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
   }
-  .chip:hover{ border-color:var(--brass-dim); color:var(--ivory); }
+  .chip svg{ width:13px; height:13px; flex-shrink:0; }
+  .chip:hover{ color:var(--ivory); background:rgba(255,255,255,0.05); }
   .chip.active{
-    border-color:var(--brass);
+    border-color:rgba(199,162,104,0.4);
     color:var(--brass);
     background:rgba(199,162,104,0.12);
   }
 
   .filter-row2{
-    max-width:1180px;
-    margin:18px auto 0;
-    padding:16px 24px;
     display:flex;
     gap:22px;
     flex-wrap:wrap;
     align-items:center;
+    margin-top:18px;
+    padding-top:18px;
     border-top:1px solid var(--hairline);
-    border-bottom:1px solid var(--hairline);
   }
-  @media(min-width:900px){ .filter-row2{ padding:16px 56px; margin-left:56px; margin-right:56px; max-width:none; } }
 
   .price-range{
     display:flex;
     align-items:center;
     gap:8px;
+    background:var(--field);
+    border:1px solid var(--field-border);
+    border-radius:var(--radius-pill);
+    padding:6px 8px 6px 14px;
+    transition:border-color 0.2s ease;
   }
+  .price-range:focus-within{ border-color:var(--brass); }
   .price-range-label{
     font-family:'IBM Plex Mono', monospace;
-    font-size:10.5px;
+    font-size:10px;
     letter-spacing:0.08em;
     text-transform:uppercase;
     color:var(--stone-dim);
   }
   .price-range input{
-    width:96px;
-    background:var(--field);
-    border:1px solid var(--field-border);
-    border-radius:8px;
+    width:74px;
+    background:none;
+    border:none;
     color:var(--ivory);
     font-family:'Inter', sans-serif;
     font-size:13px;
-    padding:8px 10px;
+    padding:6px 4px;
     outline:none;
-    transition:border-color 0.2s ease;
   }
-  .price-range input:focus{ border-color:var(--brass); }
   .price-range span{ color:var(--stone-dim); }
 
-  .sort-wrap{ display:flex; align-items:center; gap:8px; }
-  .sort-select{
+  .sort-wrap{
+    display:flex; align-items:center; gap:8px;
     background:var(--field);
     border:1px solid var(--field-border);
-    border-radius:8px;
+    border-radius:var(--radius-pill);
+    padding:6px 14px 6px 16px;
+    transition:border-color 0.2s ease;
+  }
+  .sort-wrap:focus-within{ border-color:var(--brass); }
+  .sort-select{
+    background:none;
+    border:none;
     color:var(--ivory);
     font-family:'Inter', sans-serif;
     font-size:13px;
-    padding:8px 10px;
+    padding:6px 4px;
     outline:none;
     cursor:pointer;
-    transition:border-color 0.2s ease;
   }
-  .sort-select:focus{ border-color:var(--brass); }
 
   .condition-bar{ display:flex; gap:8px; flex-wrap:wrap; }
 
@@ -301,8 +318,8 @@
     background:none;
     border:none;
     cursor:pointer;
-    text-decoration:underline;
-    text-underline-offset:3px;
+    margin-left:auto;
+    transition:color 0.2s ease;
   }
   .clear-filters:hover{ color:var(--brass); }
 
@@ -634,7 +651,7 @@
 <body>
 
 <nav class="nav">
-  <a href="bastion-auth.html" class="wordmark">Bast<em>ion</em></a>
+  <a href="bastion-marketplace.html" class="wordmark">Bast<em>ion</em></a>
   <div class="nav-right">
     <div class="notif-wrap">
       <button class="notif-bell" id="notifBellBtn" type="button" aria-label="Notifications">
@@ -663,53 +680,55 @@
   <h1 class="page-title">The <span>Marketplace</span></h1>
   <p class="page-sub">Every listing here can be bought through Bastion's escrow — funds held until the item is verified and both sides confirm.</p>
   <div class="trust-strip">
-    <span class="trust-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l7 4v6c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6z"/></svg>Licensed Escrow Partner</span>
-    <span class="trust-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 5-6 8-6s6.5 2 8 6"/></svg>In-Person Verified</span>
-    <span class="trust-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="10" width="18" height="10" rx="1.5"/><path d="M7 10V7a5 5 0 0 1 10 0v3"/></svg>Funds Held Until Confirmed</span>
+    <span class="trust-pill"><span class="pill-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l7 4v6c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6z"/></svg></span>Licensed Escrow Partner</span>
+    <span class="trust-pill"><span class="pill-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 5-6 8-6s6.5 2 8 6"/></svg></span>In-Person Verified</span>
+    <span class="trust-pill"><span class="pill-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="10" width="18" height="10" rx="1.5"/><path d="M7 10V7a5 5 0 0 1 10 0v3"/></svg></span>Funds Held Until Confirmed</span>
   </div>
 </div>
 
-<div class="search-wrap">
-  <div class="search-input-wrap">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-    <input type="text" class="search-input" id="searchInput" placeholder="Search listings by name…">
-  </div>
-</div>
+<div class="toolbar">
+  <div class="toolbar-panel">
+    <div class="search-input-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input type="text" class="search-input" id="searchInput" placeholder="Search listings by name…">
+    </div>
 
-<div class="filter-bar" id="filterBar">
-  <button class="chip active" data-cat="all">All</button>
-  <button class="chip" data-cat="Watches">Watches</button>
-  <button class="chip" data-cat="Vehicles">Vehicles</button>
-  <button class="chip" data-cat="Sneakers">Sneakers</button>
-  <button class="chip" data-cat="Jewelry">Fine Jewelry</button>
-  <button class="chip" data-cat="Cards">Trading Cards</button>
-</div>
+    <div class="filter-bar" id="filterBar">
+      <button class="chip active" data-cat="all">All</button>
+      <button class="chip" data-cat="Watches"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="7.5"/><path d="M12 8v4l2.5 2.5"/><path d="M9.5 2h5M9.5 22h5"/></svg>Watches</button>
+      <button class="chip" data-cat="Vehicles"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 13l1.6-4.8A2 2 0 0 1 6.5 7h11a2 2 0 0 1 1.9 1.2L21 13"/><rect x="2.5" y="13" width="19" height="5" rx="1.5"/><circle cx="7" cy="18.5" r="1.6"/><circle cx="17" cy="18.5" r="1.6"/></svg>Vehicles</button>
+      <button class="chip" data-cat="Sneakers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 17c0-2 1.5-2.5 3-3.5s2.5-2.5 3.5-2.5 1 1 2.5 1 3-2 4.5-2 1.5 1.5 3 2 3.5.5 3.5 3v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/></svg>Sneakers</button>
+      <button class="chip" data-cat="Jewelry"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M8 3l4 6 4-6M12 9l-3 12M12 9l3 12"/></svg>Fine Jewelry</button>
+      <button class="chip" data-cat="Cards"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="13" height="17" rx="1.5" transform="rotate(-8 9.5 13.5)"/><rect x="8" y="3" width="13" height="17" rx="1.5"/></svg>Trading Cards</button>
+    </div>
 
-<div class="filter-row2">
-  <div class="price-range">
-    <span class="price-range-label">Price</span>
-    <input type="number" min="0" step="1" id="priceMin" placeholder="Min">
-    <span>–</span>
-    <input type="number" min="0" step="1" id="priceMax" placeholder="Max">
+    <div class="filter-row2">
+      <div class="price-range">
+        <span class="price-range-label">$</span>
+        <input type="number" min="0" step="1" id="priceMin" placeholder="Min">
+        <span>–</span>
+        <input type="number" min="0" step="1" id="priceMax" placeholder="Max">
+      </div>
+      <div class="condition-bar" id="conditionBar">
+        <button class="chip active" data-cond="all">Any Condition</button>
+        <button class="chip" data-cond="New">New</button>
+        <button class="chip" data-cond="Like New">Like New</button>
+        <button class="chip" data-cond="Excellent">Excellent</button>
+        <button class="chip" data-cond="Good">Good</button>
+        <button class="chip" data-cond="Fair">Fair</button>
+        <button class="chip" data-cond="For Parts">For Parts</button>
+      </div>
+      <div class="sort-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13" style="color:var(--stone-dim); flex-shrink:0;"><path d="M3 7h11M3 12h7M3 17h4"/><path d="M17 4v16M17 4l-3 3M17 4l3 3"/></svg>
+        <select id="sortSelect" class="sort-select">
+          <option value="newest">Newest First</option>
+          <option value="price_asc">Price: Low to High</option>
+          <option value="price_desc">Price: High to Low</option>
+        </select>
+      </div>
+      <button class="clear-filters" id="clearFiltersBtn">Clear filters</button>
+    </div>
   </div>
-  <div class="condition-bar" id="conditionBar">
-    <button class="chip active" data-cond="all">Any Condition</button>
-    <button class="chip" data-cond="New">New</button>
-    <button class="chip" data-cond="Like New">Like New</button>
-    <button class="chip" data-cond="Excellent">Excellent</button>
-    <button class="chip" data-cond="Good">Good</button>
-    <button class="chip" data-cond="Fair">Fair</button>
-    <button class="chip" data-cond="For Parts">For Parts</button>
-  </div>
-  <div class="sort-wrap">
-    <span class="price-range-label">Sort</span>
-    <select id="sortSelect" class="sort-select">
-      <option value="newest">Newest First</option>
-      <option value="price_asc">Price: Low to High</option>
-      <option value="price_desc">Price: High to Low</option>
-    </select>
-  </div>
-  <button class="clear-filters" id="clearFiltersBtn">Clear filters</button>
 </div>
 
 <div class="grid-wrap">
@@ -723,7 +742,7 @@
 </div>
 
 <footer style="max-width:1180px;margin:0 auto;padding:40px 24px 48px;border-top:1px solid rgba(241,236,225,0.08);display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center;justify-content:space-between;">
-  <div style="font-family:'Fraunces', serif; font-size:16px; color:var(--stone-dim);">Bast<em style="font-style:italic; color:var(--brass-dim);">ion</em></div>
+  <a href="bastion-marketplace.html" style="font-family:'Fraunces', serif; font-size:16px; color:var(--stone-dim); text-decoration:none;">Bast<em style="font-style:italic; color:var(--brass-dim);">ion</em></a>
   <div style="display:flex; flex-wrap:wrap; gap:24px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase;">
     <a href="/bastion-about.html" style="color:var(--stone); text-decoration:none;">Built on Trust</a>
     <a href="/bastion-faq.html" style="color:var(--stone); text-decoration:none;">FAQ</a>

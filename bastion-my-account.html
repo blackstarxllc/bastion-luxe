@@ -373,39 +373,6 @@
   </div>
 
   <div class="section">
-    <div class="section-head">
-      <div class="section-title">Your Data</div>
-    </div>
-    <div style="padding:20px; background:var(--ink-soft); border:1px solid var(--hairline);">
-      <p style="font-size:12.5px; color:var(--stone); line-height:1.6; margin-bottom:14px;">Download a copy of your Bastion data — profile, listings, transactions, reviews, messages, and more — as a JSON file.</p>
-      <button id="downloadDataBtn" style="background:var(--brass); color:var(--brass-ink); border:none; border-radius:2px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; padding:11px 18px; cursor:pointer;">Download my data</button>
-      <div id="downloadDataStatus" style="font-size:11.5px; color:var(--stone); margin-top:10px;"></div>
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="section-head">
-      <div class="section-title">Security</div>
-    </div>
-    <div style="padding:20px; background:var(--ink-soft); border:1px solid var(--hairline);">
-      <p style="font-size:12.5px; color:var(--stone); line-height:1.6; margin-bottom:14px;">Sign out of Bastion everywhere — this phone, other browsers, any device currently signed in.</p>
-      <button id="logoutAllBtn" style="background:none; color:var(--ivory); border:1px solid var(--field-border); border-radius:2px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; padding:11px 18px; cursor:pointer;">Log out of all devices</button>
-      <div id="logoutAllStatus" style="font-size:11.5px; color:var(--stone); margin-top:10px;"></div>
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="section-head">
-      <div class="section-title">Trust &amp; Safety</div>
-    </div>
-    <div style="padding:20px; background:var(--ink-soft); border:1px solid var(--hairline); display:flex; flex-direction:column; gap:10px;">
-      <a href="/bastion-about.html" style="color:var(--ivory); font-size:13px; text-decoration:none;">→ Built on Trust — why Bastion exists</a>
-      <a href="/bastion-faq.html" style="color:var(--ivory); font-size:13px; text-decoration:none;">→ Frequently Asked Questions</a>
-      <a href="/bastion-safety.html" style="color:var(--ivory); font-size:13px; text-decoration:none;">→ Safety Center</a>
-    </div>
-  </div>
-
-  <div class="section">
     <div style="padding-top:24px; border-top:1px solid var(--hairline);">
       <button id="deleteAccountRevealBtn" style="background:none; color:var(--stone-dim); border:none; padding:0; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer;">Delete my account</button>
       <div id="deleteAccountConfirmBox" class="hidden" style="margin-top:16px; padding-top:16px; border-top:1px solid var(--hairline); max-width:420px;">
@@ -428,6 +395,8 @@
     </div>
   </div>
 </div>
+
+<script src="bastion-account-skirt.js"></script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
@@ -658,72 +627,6 @@ async function loadAccount(){
   }
 }
 
-document.getElementById('downloadDataBtn').addEventListener('click', async function(){
-  const btn = this;
-  const statusEl = document.getElementById('downloadDataStatus');
-  const originalText = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'PREPARING…';
-  statusEl.textContent = '';
-
-  try{
-    const { data, error } = await supabaseClient.rpc('get_my_data');
-    if(error){
-      statusEl.textContent = 'Could not download your data: ' + error.message;
-      btn.disabled = false;
-      btn.textContent = originalText;
-      return;
-    }
-
-    const json = JSON.stringify(data, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const dateStr = new Date().toISOString().slice(0, 10);
-
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'bastion-my-data-' + dateStr + '.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    statusEl.textContent = 'Downloaded.';
-  } catch(err){
-    statusEl.textContent = 'Could not download your data: ' + (err.message || String(err));
-  } finally {
-    btn.disabled = false;
-    btn.textContent = originalText;
-  }
-});
-
-document.getElementById('logoutAllBtn').addEventListener('click', async function(){
-  const confirmed = confirm('This will sign you out of Bastion on every device, including this one. Continue?');
-  if(!confirmed) return;
-
-  const btn = this;
-  const statusEl = document.getElementById('logoutAllStatus');
-  const originalText = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'SIGNING OUT…';
-  statusEl.textContent = '';
-
-  try{
-    const { error } = await supabaseClient.auth.signOut({ scope: 'global' });
-    if(error){
-      statusEl.textContent = 'Could not sign out everywhere: ' + error.message;
-      btn.disabled = false;
-      btn.textContent = originalText;
-      return;
-    }
-    window.location.href = 'bastion-auth.html';
-  } catch(err){
-    statusEl.textContent = 'Could not sign out everywhere: ' + (err.message || String(err));
-    btn.disabled = false;
-    btn.textContent = originalText;
-  }
-});
-
 let currentUserEmail = '';
 
 document.getElementById('deleteAccountRevealBtn').addEventListener('click', function(){
@@ -857,6 +760,7 @@ document.getElementById('deleteAccountBtn').addEventListener('click', async func
 });
 
 loadAccount();
+
 
 (async function checkUnreadMessages(){
   const dot = document.getElementById('navMsgDot');

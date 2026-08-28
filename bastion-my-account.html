@@ -410,7 +410,15 @@
       <button id="deleteAccountRevealBtn" style="background:none; color:var(--stone-dim); border:none; padding:0; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer;">Delete my account</button>
       <div id="deleteAccountConfirmBox" class="hidden" style="margin-top:16px; padding-top:16px; border-top:1px solid var(--hairline); max-width:420px;">
         <p style="font-size:12.5px; color:var(--stone); line-height:1.6; margin-bottom:10px;">This permanently deletes your account and cannot be undone. Type <strong>DELETE</strong> below to confirm.</p>
-        <input type="text" id="deleteAccountConfirmInput" autocomplete="off" style="width:100%; max-width:220px; background:var(--ink); border:1px solid var(--field-border); border-radius:2px; color:var(--ivory); padding:9px 12px; font-family:'IBM Plex Mono',monospace; font-size:12px; margin-bottom:12px;">
+        <input type="text" id="deleteAccountConfirmInput" autocomplete="off" style="width:100%; max-width:220px; background:var(--ink); border:1px solid var(--field-border); border-radius:2px; color:var(--ivory); padding:9px 12px; font-family:'IBM Plex Mono',monospace; font-size:12px; margin-bottom:16px;">
+
+        <p style="font-size:12.5px; color:var(--stone); line-height:1.6; margin-bottom:10px;">Then confirm it's you with a code sent to your email.</p>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
+          <button id="sendCodeBtn" type="button" style="background:none; color:var(--stone); border:1px solid var(--field-border); border-radius:2px; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.08em; text-transform:uppercase; padding:9px 14px; cursor:pointer;">Send code</button>
+          <input type="text" id="deleteEmailCodeInput" disabled autocomplete="one-time-code" inputmode="numeric" maxlength="6" placeholder="······" style="width:120px; background:var(--ink); border:1px solid var(--field-border); border-radius:2px; color:var(--ivory); padding:9px 12px; font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:0.3em; opacity:0.5;">
+        </div>
+        <div id="codeStatus" style="font-size:11.5px; color:var(--stone); margin-bottom:16px; min-height:14px;"></div>
+
         <div>
           <button id="deleteAccountBtn" disabled style="background:none; color:#5B5D62; border:1px solid var(--field-border); border-radius:2px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; padding:11px 18px; cursor:not-allowed;">Permanently delete account</button>
           <button id="deleteAccountCancelBtn" style="background:none; color:var(--stone); border:1px solid var(--field-border); border-radius:2px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; padding:11px 18px; cursor:pointer; margin-left:8px;">Cancel</button>
@@ -607,6 +615,7 @@ async function loadAccount(){
   }
 
   const userId = session.user.id;
+  currentUserEmail = session.user.email || '';
   loadHandle(userId);
 
   try{
@@ -715,6 +724,8 @@ document.getElementById('logoutAllBtn').addEventListener('click', async function
   }
 });
 
+let currentUserEmail = '';
+
 document.getElementById('deleteAccountRevealBtn').addEventListener('click', function(){
   document.getElementById('deleteAccountConfirmBox').classList.remove('hidden');
   this.classList.add('hidden');
@@ -724,30 +735,110 @@ document.getElementById('deleteAccountCancelBtn').addEventListener('click', func
   document.getElementById('deleteAccountConfirmBox').classList.add('hidden');
   document.getElementById('deleteAccountConfirmInput').value = '';
   document.getElementById('deleteAccountRevealBtn').classList.remove('hidden');
+
+  const codeInput = document.getElementById('deleteEmailCodeInput');
+  codeInput.value = '';
+  codeInput.disabled = true;
+  codeInput.style.opacity = '0.5';
+  const sendBtn = document.getElementById('sendCodeBtn');
+  sendBtn.disabled = false;
+  sendBtn.textContent = 'Send code';
+  clearInterval(window._bastionCodeCooldown);
+  document.getElementById('codeStatus').textContent = '';
+
   const delBtn = document.getElementById('deleteAccountBtn');
   delBtn.disabled = true;
   delBtn.style.color = '#5B5D62';
   delBtn.style.cursor = 'not-allowed';
 });
 
-document.getElementById('deleteAccountConfirmInput').addEventListener('input', function(){
+function updateDeleteButtonState(){
+  const typedOk = document.getElementById('deleteAccountConfirmInput').value.trim() === 'DELETE';
+  const codeOk = document.getElementById('deleteEmailCodeInput').value.trim().length === 6;
   const delBtn = document.getElementById('deleteAccountBtn');
-  const matches = this.value.trim() === 'DELETE';
-  delBtn.disabled = !matches;
-  delBtn.style.color = matches ? '#E0958D' : '#5B5D62';
-  delBtn.style.cursor = matches ? 'pointer' : 'not-allowed';
+  const armed = typedOk && codeOk;
+  delBtn.disabled = !armed;
+  delBtn.style.color = armed ? '#E0958D' : '#5B5D62';
+  delBtn.style.cursor = armed ? 'pointer' : 'not-allowed';
+}
+
+document.getElementById('deleteAccountConfirmInput').addEventListener('input', updateDeleteButtonState);
+document.getElementById('deleteEmailCodeInput').addEventListener('input', function(){
+  this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);
+  updateDeleteButtonState();
+});
+
+document.getElementById('sendCodeBtn').addEventListener('click', async function(){
+  const btn = this;
+  const codeStatus = document.getElementById('codeStatus');
+  const codeInput = document.getElementById('deleteEmailCodeInput');
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  codeStatus.textContent = '';
+  codeStatus.style.color = 'var(--stone)';
+
+  try{
+    const { error } = await supabaseClient.auth.reauthenticate();
+    if(error){
+      codeStatus.style.color = '#E0958D';
+      codeStatus.textContent = 'Could not send code: ' + error.message;
+      btn.disabled = false;
+      btn.textContent = 'Send code';
+      return;
+    }
+    codeInput.disabled = false;
+    codeInput.style.opacity = '1';
+    codeInput.focus();
+    const masked = currentUserEmail ? currentUserEmail.replace(/^(.{2}).*(@.*)$/, '$1***$2') : 'your inbox';
+    codeStatus.style.color = 'var(--stone)';
+    codeStatus.textContent = 'Code sent to ' + masked + '.';
+
+    let secondsLeft = 30;
+    btn.textContent = 'Resend (' + secondsLeft + 's)';
+    clearInterval(window._bastionCodeCooldown);
+    window._bastionCodeCooldown = setInterval(function(){
+      secondsLeft -= 1;
+      if(secondsLeft <= 0){
+        clearInterval(window._bastionCodeCooldown);
+        btn.disabled = false;
+        btn.textContent = 'Resend code';
+      } else {
+        btn.textContent = 'Resend (' + secondsLeft + 's)';
+      }
+    }, 1000);
+  } catch(err){
+    codeStatus.style.color = '#E0958D';
+    codeStatus.textContent = 'Could not send code: ' + (err.message || String(err));
+    btn.disabled = false;
+    btn.textContent = 'Send code';
+  }
 });
 
 document.getElementById('deleteAccountBtn').addEventListener('click', async function(){
   if(this.disabled) return;
   const btn = this;
   const statusEl = document.getElementById('deleteAccountStatus');
+  const codeStatus = document.getElementById('codeStatus');
+  const code = document.getElementById('deleteEmailCodeInput').value.trim();
   const originalText = btn.textContent;
   btn.disabled = true;
-  btn.textContent = 'SUBMITTING…';
+  btn.textContent = 'VERIFYING…';
   statusEl.textContent = '';
 
   try{
+    const { error: nonceError } = await supabaseClient.auth.updateUser(
+      { data: { _deletion_reauth_at: Date.now() } },
+      { nonce: code }
+    );
+    if(nonceError){
+      codeStatus.style.color = '#E0958D';
+      codeStatus.textContent = 'That code is incorrect or expired: ' + nonceError.message;
+      btn.disabled = false;
+      btn.textContent = originalText;
+      return;
+    }
+
+    btn.textContent = 'SUBMITTING…';
     const { error } = await supabaseClient.rpc('request_account_deletion');
     if(error){
       statusEl.textContent = 'Could not submit deletion request: ' + error.message;

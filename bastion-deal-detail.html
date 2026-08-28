@@ -29,13 +29,16 @@
     --rust:#B5453D;
     --hairline:rgba(241,236,225,0.08);
     --radius:2px;
+    --radius-pill:999px;
   }
 
   *{box-sizing:border-box; margin:0; padding:0;}
 
   html,body{
     min-height:100%;
-    background:var(--ink);
+    background:
+      radial-gradient(1100px 550px at 10% -10%, rgba(199,162,104,0.05), transparent 60%),
+      var(--ink);
     color:var(--ivory);
     font-family:'Inter', -apple-system, sans-serif;
     -webkit-font-smoothing:antialiased;
@@ -43,13 +46,14 @@
 
   .nav{
     display:flex; align-items:center; justify-content:space-between;
-    padding:20px 24px;
+    padding:18px 24px;
     border-bottom:1px solid var(--hairline);
     position:sticky; top:0;
-    background:var(--ink);
+    background:rgba(10,11,13,0.82);
+    -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
     z-index:10;
   }
-  @media(min-width:900px){ .nav{ padding:22px 56px; } }
+  @media(min-width:900px){ .nav{ padding:18px 56px; } }
 
   .wordmark{
     font-family:'Fraunces', serif;
@@ -62,24 +66,26 @@
 
   .back-link{
     font-family:'IBM Plex Mono', monospace;
-    font-size:11px;
-    letter-spacing:0.08em;
+    font-size:10.5px;
+    letter-spacing:0.1em;
     text-transform:uppercase;
     color:var(--stone);
     text-decoration:none;
     display:inline-flex;
     align-items:center;
     gap:8px;
-    transition:color 0.2s ease;
+    padding:10px 16px;
+    border-radius:var(--radius-pill);
+    transition:color 0.2s ease, background 0.2s ease;
   }
-  .back-link:hover{ color:var(--brass); }
+  .back-link:hover{ color:var(--ivory); background:rgba(255,255,255,0.04); }
 
   .wrap{
-    max-width:920px;
+    max-width:960px;
     margin:0 auto;
-    padding:48px 24px 100px;
+    padding:56px 24px 120px;
   }
-  @media(min-width:900px){ .wrap{ padding:64px 56px 120px; } }
+  @media(min-width:900px){ .wrap{ padding:72px 56px 140px; } }
 
   .eyebrow{
     font-family:'IBM Plex Mono', monospace;
@@ -102,9 +108,9 @@
   .photo-panel{
     width:100%;
     aspect-ratio:4/3;
-    background:var(--ink-soft);
-    border:1px solid var(--hairline);
-    margin-bottom:28px;
+    background:linear-gradient(150deg, #17191d, #0d0e10);
+    border-radius:10px;
+    margin-bottom:20px;
     display:flex; align-items:center; justify-content:center;
     overflow:hidden;
   }
@@ -121,14 +127,17 @@
 
   .extra-photos{
     display:flex; gap:10px;
-    margin-bottom:28px;
+    margin-bottom:32px;
     flex-wrap:wrap;
   }
   .extra-photos img{
-    width:90px; height:90px;
+    width:76px; height:76px;
     object-fit:cover;
-    border:1px solid var(--hairline);
+    border-radius:8px;
+    opacity:0.75;
+    transition:opacity 0.2s ease, transform 0.2s ease;
   }
+  .extra-photos img:hover{ opacity:1; transform:translateY(-2px); }
 
   .spec-title{
     font-family:'IBM Plex Mono', monospace;
@@ -161,35 +170,37 @@
   .spec-val{ color:var(--ivory); text-align:right; }
 
   .related-section{
-    margin-top:64px;
-    padding-top:36px;
+    margin-top:72px;
+    padding-top:40px;
     border-top:1px solid var(--hairline);
   }
   .related-title{
     font-family:'Fraunces', serif;
     font-style:italic;
     font-weight:450;
-    font-size:20px;
+    font-size:22px;
     color:var(--ivory);
-    margin-bottom:20px;
+    margin-bottom:26px;
   }
   .related-scroll{
     display:flex;
-    gap:16px;
+    gap:28px;
     overflow-x:auto;
     padding-bottom:8px;
   }
   .related-card{
-    flex:0 0 180px;
-    border:1px solid var(--hairline);
+    flex:0 0 190px;
     cursor:pointer;
   }
   .related-photo{
     aspect-ratio:1;
-    background:var(--ink-soft);
+    background:linear-gradient(150deg, #17191d, #0d0e10);
+    border-radius:8px;
     display:flex; align-items:center; justify-content:center;
     overflow:hidden;
+    transition:transform 0.3s ease;
   }
+  .related-card:hover .related-photo{ transform:translateY(-3px); }
   .related-photo img{ width:100%; height:100%; object-fit:cover; }
   .related-photo .mini-seal{
     width:32px; height:32px;
@@ -200,10 +211,10 @@
     font-size:15px;
     color:var(--brass-dim);
   }
-  .related-info{ padding:12px; }
+  .related-info{ padding:12px 2px 0; }
   .related-name{
     font-family:'Fraunces', serif;
-    font-size:12.5px;
+    font-size:13px;
     color:var(--ivory);
     line-height:1.4;
   }
@@ -254,9 +265,9 @@
     text-transform:uppercase;
     color:var(--brass);
     margin-left:8px;
-    border:1px solid var(--brass-dim);
-    padding:3px 8px;
-    border-radius:2px;
+    background:rgba(199,162,104,0.12);
+    padding:4px 9px;
+    border-radius:var(--radius-pill);
   }
   .trusted-badge svg{ width:11px; height:11px; }
 
@@ -272,22 +283,24 @@
     font-family:'Fraunces', serif;
     font-weight:450;
     font-style:italic;
-    font-size:36px;
+    font-size:40px;
     color:var(--ivory);
-    line-height:1.2;
+    line-height:1.15;
+    letter-spacing:-0.01em;
   }
 
   .item-cat{
-    display:inline-block;
-    margin-top:14px;
+    display:inline-flex;
+    align-items:center;
+    margin-top:16px;
     font-family:'IBM Plex Mono', monospace;
-    font-size:10px;
+    font-size:9.5px;
     letter-spacing:0.1em;
     text-transform:uppercase;
-    color:var(--brass-dim);
-    border:1px solid var(--hairline);
-    padding:5px 10px;
-    border-radius:2px;
+    color:var(--brass);
+    background:rgba(199,162,104,0.1);
+    padding:6px 12px;
+    border-radius:var(--radius-pill);
   }
 
   .item-desc{
@@ -301,15 +314,24 @@
   .divider{
     height:1px;
     background:var(--hairline);
-    margin:36px 0;
+    margin:40px 0;
   }
 
   .process{
     display:flex;
-    gap:24px;
+    gap:28px;
     flex-wrap:wrap;
   }
-  .process-step{ flex:1; min-width:130px; }
+  .process-step{ flex:1; min-width:150px; }
+  .process-step .step-icon{
+    width:34px; height:34px;
+    border-radius:50%;
+    border:1px solid rgba(199,162,104,0.35);
+    display:flex; align-items:center; justify-content:center;
+    color:var(--brass);
+    margin-bottom:12px;
+  }
+  .process-step .step-icon svg{ width:15px; height:15px; }
   .process-step .n{
     font-family:'IBM Plex Mono', monospace;
     font-size:10px;
@@ -319,18 +341,20 @@
   .process-step .label{
     font-size:12.5px;
     color:var(--stone);
-    margin-top:5px;
-    line-height:1.5;
+    margin-top:6px;
+    line-height:1.55;
   }
 
   /* ---------- RIGHT: transaction card ---------- */
   .deal-card{
     background:var(--ink-soft);
     border:1px solid var(--hairline);
-    padding:28px;
+    border-radius:14px;
+    padding:32px;
     height:fit-content;
     position:sticky;
     top:100px;
+    box-shadow:0 1px 2px rgba(0,0,0,0.3), 0 24px 48px -18px rgba(0,0,0,0.6);
   }
 
   .price-label{
@@ -344,9 +368,10 @@
   .price-value{
     font-family:'Fraunces', serif;
     font-weight:450;
-    font-size:42px;
+    font-size:44px;
     color:var(--brass);
     margin-top:8px;
+    letter-spacing:-0.01em;
   }
 
   .fee-line{
@@ -384,15 +409,15 @@
     background:var(--brass);
     color:var(--brass-ink);
     border:none;
-    border-radius:var(--radius);
+    border-radius:8px;
     font-family:'IBM Plex Mono', monospace;
     font-size:11.5px;
     letter-spacing:0.14em;
     text-transform:uppercase;
     font-weight:500;
-    padding:16px;
+    padding:17px;
     cursor:pointer;
-    margin-top:26px;
+    margin-top:28px;
     transition:background 0.2s ease, transform 0.1s ease;
   }
   .submit-secondary{
@@ -400,12 +425,12 @@
     background:none;
     color:var(--ivory);
     border:1px solid var(--field-border);
-    border-radius:var(--radius);
+    border-radius:8px;
     font-family:'IBM Plex Mono', monospace;
     font-size:11px;
     letter-spacing:0.1em;
     text-transform:uppercase;
-    padding:13px;
+    padding:14px;
     cursor:pointer;
     margin-top:10px;
     transition:border-color 0.2s ease, color 0.2s ease;
@@ -454,7 +479,7 @@
     width:100%;
     background:var(--field);
     border:1px solid var(--field-border);
-    border-radius:var(--radius);
+    border-radius:8px;
     color:var(--ivory);
     font-family:'Inter', sans-serif;
     font-size:13px;
@@ -466,7 +491,7 @@
   .report-textarea{ min-height:64px; resize:vertical; }
   .report-submit{
     background:var(--brass); color:var(--brass-ink); border:none;
-    border-radius:var(--radius); padding:10px 16px;
+    border-radius:8px; padding:10px 16px;
     font-family:'IBM Plex Mono', monospace; font-size:10.5px;
     letter-spacing:0.08em; text-transform:uppercase; cursor:pointer;
   }
@@ -682,14 +707,17 @@
 
         <div class="process">
           <div class="process-step">
+            <div class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="10" width="18" height="10" rx="1.5"/><path d="M7 10V7a5 5 0 0 1 10 0v3"/></svg></div>
             <div class="n">01 — FUND</div>
             <div class="label">Your payment is secured in escrow the moment you buy.</div>
           </div>
           <div class="process-step">
+            <div class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg></div>
             <div class="n">02 — VERIFY</div>
             <div class="label">Meet safely in person, or have it shipped — you check it before funds move.</div>
           </div>
           <div class="process-step">
+            <div class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 6L9 17l-5-5"/></svg></div>
             <div class="n">03 — RELEASE</div>
             <div class="label">Funds release to the seller once you confirm.</div>
           </div>
@@ -747,6 +775,17 @@
   </div>
 
 </div>
+
+<footer style="max-width:1180px;margin:0 auto;padding:40px 24px 48px;border-top:1px solid rgba(241,236,225,0.08);display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center;justify-content:space-between;">
+  <div style="font-family:'Fraunces', serif; font-size:16px; color:var(--stone-dim);">Bast<em style="font-style:italic; color:var(--brass-dim);">ion</em></div>
+  <div style="display:flex; flex-wrap:wrap; gap:24px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase;">
+    <a href="/bastion-about.html" style="color:var(--stone); text-decoration:none;">Built on Trust</a>
+    <a href="/bastion-faq.html" style="color:var(--stone); text-decoration:none;">FAQ</a>
+    <a href="/bastion-safety.html" style="color:var(--stone); text-decoration:none;">Safety Center</a>
+    <a href="/bastion-terms.html" style="color:var(--stone); text-decoration:none;">Terms</a>
+    <a href="/bastion-privacy.html" style="color:var(--stone); text-decoration:none;">Privacy</a>
+  </div>
+</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="bastion-account-skirt.js"></script>

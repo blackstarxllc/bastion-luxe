@@ -37,6 +37,10 @@
     '.skirt-divider{height:1px;background:rgba(199,162,104,.22);margin:16px 0 4px;}' +
     '.skirt-accordion.search-hidden{display:none;}' +
     '.skirt-search-empty{font-size:12px;color:var(--stone-dim);padding:14px 4px;text-shadow:0 1px 8px rgba(0,0,0,.5);}' +
+    '.skirt-logout-section{margin-top:10px;padding-top:18px;border-top:1px solid rgba(199,162,104,.22);}' +
+    '.skirt-logout-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:9px;background:rgba(181,69,61,.08);border:1px solid rgba(181,69,61,.35);color:#E0958D;border-radius:999px;padding:12px;font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:background .2s ease,border-color .2s ease;}' +
+    '.skirt-logout-btn svg{width:15px;height:15px;flex-shrink:0;}' +
+    '.skirt-logout-btn:hover{background:rgba(181,69,61,.16);border-color:rgba(181,69,61,.6);}' +
     '.skirt-accordion{border-top:1px solid rgba(199,162,104,.22);}' +
     '.skirt-accordion:last-child{border-bottom:1px solid rgba(199,162,104,.22);}' +
     '.skirt-accordion-header{width:100%;display:flex;justify-content:space-between;align-items:center;background:none;border:none;padding:18px 2px;cursor:pointer;text-align:left;font-family:"Fraunces",serif;font-size:15px;color:var(--ivory);text-shadow:0 1px 10px rgba(0,0,0,.55);}' +
@@ -98,6 +102,10 @@
             '<span class="skirt-nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9l1-5h14l1 5"/><path d="M4 9h16v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9z"/><path d="M9 21v-6h6v6"/></svg></span>' +
             '<span class="skirt-nav-label">Marketplace</span><span class="skirt-nav-arrow">→</span>' +
           '</a>' +
+          '<button class="skirt-nav-link" id="skirtLogoutTop" type="button">' +
+            '<span class="skirt-nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg></span>' +
+            '<span class="skirt-nav-label">Log Out</span><span class="skirt-nav-arrow">→</span>' +
+          '</button>' +
         '</div>' +
         '<div class="skirt-divider"></div>' +
         '<div id="skirtSettings">' +
@@ -128,6 +136,12 @@
             '</div></div>' +
           '</div>' +
           '<div class="skirt-search-empty hidden" id="skirtSearchEmpty">No settings match "<span id="skirtSearchEmptyTerm"></span>".</div>' +
+        '</div>' +
+        '<div class="skirt-logout-section">' +
+          '<button class="skirt-logout-btn" id="skirtLogoutBottom" type="button">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>' +
+            '<span>Log Out</span>' +
+          '</button>' +
         '</div>' +
       '</div>' +
     '</aside>';
@@ -263,6 +277,30 @@
       btn.textContent = originalText;
     }
   });
+
+  // Easy, single-click sign out (this device only) — available from two spots
+  // in the panel since the nuclear "log out everywhere" option lives inside
+  // the Security accordion and shouldn't be the only way to just log out.
+  async function easyLogout(btn){
+    var original = btn.innerHTML;
+    btn.disabled = true;
+    try{
+      var res = await supabaseClient.auth.signOut();
+      if(res.error){
+        alert('Could not log out: ' + res.error.message);
+        btn.disabled = false;
+        btn.innerHTML = original;
+        return;
+      }
+      window.location.href = 'bastion-auth.html';
+    } catch(err){
+      alert('Could not log out: ' + (err.message || String(err)));
+      btn.disabled = false;
+      btn.innerHTML = original;
+    }
+  }
+  document.getElementById('skirtLogoutTop').addEventListener('click', function(){ easyLogout(this); });
+  document.getElementById('skirtLogoutBottom').addEventListener('click', function(){ easyLogout(this); });
 
   document.getElementById('logoutAllBtn').addEventListener('click', async function(){
     var confirmed = confirm('This will sign you out of Bastion on every device, including this one. Continue?');

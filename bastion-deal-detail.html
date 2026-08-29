@@ -174,6 +174,28 @@
   }
   .spec-val{ color:var(--ivory); text-align:right; }
 
+  .verify-box{
+    margin-top:32px; padding:18px 20px;
+    background:rgba(199,162,104,0.06); border:1px solid rgba(199,162,104,0.25);
+    border-radius:12px;
+  }
+  .verify-box-title{
+    display:flex; align-items:center; gap:8px;
+    font-family:'IBM Plex Mono', monospace; font-size:10.5px;
+    letter-spacing:0.1em; text-transform:uppercase; color:var(--brass);
+    margin-bottom:10px;
+  }
+  .verify-box-title svg{ width:14px; height:14px; }
+  .verify-row{ display:flex; justify-content:space-between; padding:6px 0; font-size:13px; }
+  .verify-row .k{ color:var(--stone); }
+  .verify-row .v{ color:var(--ivory); }
+  .verify-link{
+    display:inline-flex; align-items:center; gap:6px; margin-top:8px;
+    color:var(--brass); font-size:12.5px; text-decoration:none;
+  }
+  .verify-link:hover{ text-decoration:underline; }
+  .verify-note{ font-size:11.5px; color:var(--stone-dim); margin-top:8px; line-height:1.5; }
+
   .recent-sales{ margin-top:32px; }
   .recent-sales-title{
     font-family:'IBM Plex Mono', monospace;
@@ -329,6 +351,19 @@
     padding:6px 12px;
     border-radius:var(--radius-pill);
   }
+
+  .item-location{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    margin-top:16px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9.5px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--stone);
+  }
+  .item-location svg{ width:11px; height:11px; color:var(--stone-dim); }
 
   .item-desc{
     font-size:14.5px;
@@ -780,10 +815,13 @@
         </div>
         <span class="item-cat" id="itemCat"></span>
         <span class="item-cat hidden" id="itemCondition" style="margin-left:8px;"></span>
+        <span class="item-location hidden" id="itemLocation" style="margin-left:8px;"></span>
         <p class="item-desc" id="itemDesc"></p>
 
         <div class="spec-title hidden" id="specTitle">Item Details</div>
         <div id="specGrid"></div>
+
+        <div class="verify-box hidden" id="verifyBox"></div>
 
         <div class="recent-sales hidden" id="recentSales">
           <div class="recent-sales-title">Recently Sold in This Category</div>
@@ -1010,7 +1048,7 @@ async function findOrCreateConversation(dealId, sellerId, buyerId){
   return created.id;
 }
 
-async function setupOfferSection(dealId, sellerId, listedPrice, dealStatus){
+async function setupOfferSection(dealId, sellerId, listedPrice, dealStatus, acceptsOffers){
   const btn = document.getElementById('makeOfferBtn');
   const form = document.getElementById('offerForm');
   const threadEl = document.getElementById('offerThread');
@@ -1053,15 +1091,15 @@ async function setupOfferSection(dealId, sellerId, listedPrice, dealStatus){
         '<div class="offer-thread-amount">' + formatMoney(offer.amount) + '</div>' +
         '<div class="offer-thread-note">Message the seller to arrange payment.</div>';
     } else {
-      // declined / withdrawn — let them make a fresh offer
+      // declined / withdrawn — let them make a fresh offer, if the seller still accepts offers
       threadEl.classList.add('hidden');
-      btn.classList.remove('hidden');
+      if(acceptsOffers) btn.classList.remove('hidden');
     }
   }
 
   if(existing){
     renderThread(existing);
-  } else {
+  } else if(acceptsOffers) {
     btn.classList.remove('hidden');
   }
 
@@ -1086,6 +1124,9 @@ async function setupOfferSection(dealId, sellerId, listedPrice, dealStatus){
       statusMsg.textContent = 'Enter a valid amount.';
       return;
     }
+
+    const confirmed = confirm('Send an offer of ' + formatMoney(amount) + ' to the seller? This is a real offer — if they accept it, you\'ll be expected to follow through.');
+    if(!confirmed) return;
 
     this.disabled = true;
     this.textContent = 'SENDING…';
@@ -1229,6 +1270,56 @@ async function setupFavoriteButton(dealId){
 
 function labelize(key){
   return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+async function loadVerification(category, details){
+  const box = document.getElementById('verifyBox');
+  if(!details) return;
+
+  if(category === 'Vehicles' && details.vin){
+    const vin = String(details.vin).trim().toUpperCase();
+    if(vin.length !== 17){
+      box.innerHTML =
+        '<div class="verify-box-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>VIN on File</div>' +
+        '<div class="verify-row"><span class="k">VIN</span><span class="v">' + escapeHtml(vin) + '</span></div>' +
+        '<div class="verify-note">This VIN is not a standard 17 characters, so it couldn\'t be automatically checked against NHTSA\'s database. Verify it in person before purchasing.</div>';
+      box.classList.remove('hidden');
+      return;
+    }
+    try{
+      const res = await fetch('https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/' + encodeURIComponent(vin) + '?format=json');
+      const json = await res.json();
+      const r = json && json.Results && json.Results[0];
+      if(r && r.ErrorCode === '0' && r.Make){
+        box.innerHTML =
+          '<div class="verify-box-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>NHTSA Verified</div>' +
+          '<div class="verify-row"><span class="k">VIN</span><span class="v">' + escapeHtml(vin) + '</span></div>' +
+          (r.Make ? '<div class="verify-row"><span class="k">Make</span><span class="v">' + escapeHtml(r.Make) + '</span></div>' : '') +
+          (r.Model ? '<div class="verify-row"><span class="k">Model</span><span class="v">' + escapeHtml(r.Model) + '</span></div>' : '') +
+          (r.ModelYear ? '<div class="verify-row"><span class="k">Model Year</span><span class="v">' + escapeHtml(r.ModelYear) + '</span></div>' : '') +
+          (r.Trim ? '<div class="verify-row"><span class="k">Trim</span><span class="v">' + escapeHtml(r.Trim) + '</span></div>' : '') +
+          '<div class="verify-note">Decoded live from NHTSA\'s public vehicle database — confirms this VIN is real and matches the described vehicle. This is not a full title or accident history report.</div>';
+      } else {
+        box.innerHTML =
+          '<div class="verify-box-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>VIN on File</div>' +
+          '<div class="verify-row"><span class="k">VIN</span><span class="v">' + escapeHtml(vin) + '</span></div>' +
+          '<div class="verify-note">This VIN could not be verified against NHTSA\'s database. Double-check it in person before purchasing.</div>';
+      }
+      box.classList.remove('hidden');
+    } catch(e){
+      // Network hiccup — don't block the page over a nice-to-have check
+    }
+  }
+
+  if(category === 'Cards' && details.cert_number){
+    const cert = String(details.cert_number).trim();
+    box.innerHTML =
+      '<div class="verify-box-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>Certification on File</div>' +
+      '<div class="verify-row"><span class="k">Cert Number</span><span class="v">' + escapeHtml(cert) + '</span></div>' +
+      '<a class="verify-link" href="https://www.psacard.com/cert/' + encodeURIComponent(cert) + '" target="_blank" rel="noopener">Verify on PSA.com →</a>' +
+      '<div class="verify-note">Opens PSA\'s own public certificate lookup in a new tab — confirm the card details match before purchasing.</div>';
+    box.classList.remove('hidden');
+  }
 }
 
 async function loadRecentSales(category, dealId){
@@ -1429,6 +1520,12 @@ async function loadDeal(){
       document.getElementById('itemCondition').textContent = data.condition;
       document.getElementById('itemCondition').classList.remove('hidden');
     }
+    if(data.city || data.state){
+      const locEl = document.getElementById('itemLocation');
+      const locText = (data.city && data.state) ? (data.city + ', ' + data.state) : (data.city || data.state);
+      locEl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-6-5.5-6-10a6 6 0 0 1 12 0c0 4.5-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg><span>' + escapeHtml(locText) + '</span>';
+      locEl.classList.remove('hidden');
+    }
     document.getElementById('itemDesc').textContent = desc;
     document.getElementById('itemPrice').textContent = formatMoney(price);
     document.getElementById('feeAmount').textContent = formatMoney(displayedFee) + ' (' + (displayedRate*100).toFixed(1) + '%)';
@@ -1439,11 +1536,12 @@ async function loadDeal(){
     supabaseClient.rpc('increment_deal_view', { p_deal_id: data.id }).then(function(){}, function(){});
     renderSpecSheet(data.details, cat);
     loadRecentSales(cat, data.id);
+    loadVerification(cat, data.details);
     renderRelated(cat, data.id);
     renderSellerInfo(data.seller_id, price);
     setupFavoriteButton(data.id);
     setupMessageSellerButton(data.id, data.seller_id);
-    setupOfferSection(data.id, data.seller_id, price, data.status);
+    setupOfferSection(data.id, data.seller_id, price, data.status, data.accepts_offers);
     setupReportButton(data.id, name);
 
     const buyBtn = document.getElementById('buyBtn');
@@ -1481,6 +1579,13 @@ async function loadDeal(){
         const buyerId = session.user.id;
         if(data.seller_id && data.seller_id === buyerId){
           alert("This is your own listing — you can't purchase your own item.");
+          btn.disabled = false;
+          btn.textContent = originalText;
+          return;
+        }
+
+        const confirmed = confirm('Begin a secure escrow purchase of "' + name + '" for ' + formatMoney(price) + ' plus escrow fees? Your payment will be held in escrow until the item is verified and you confirm receipt.');
+        if(!confirmed){
           btn.disabled = false;
           btn.textContent = originalText;
           return;

@@ -539,6 +539,17 @@
       </select>
     </div>
 
+    <div class="detail-row-2" style="margin-bottom:20px;">
+      <div class="field" style="margin-bottom:0;">
+        <label for="itemCity">City</label>
+        <input id="itemCity" type="text" placeholder="e.g. Austin" maxlength="80">
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label for="itemState">State</label>
+        <input id="itemState" type="text" placeholder="e.g. TX" maxlength="2" style="text-transform:uppercase;">
+      </div>
+    </div>
+
     <div class="fee-preview" id="feePreview"></div>
 
     <div class="field">
@@ -616,11 +627,17 @@
         <div class="field"><label for="c-year">Year</label><input id="c-year" type="text" placeholder="e.g. 2003"></div>
       </div>
       <div class="field"><label for="c-set">Set / Card Number</label><input id="c-set" type="text" placeholder="e.g. Topps Chrome #111"></div>
+      <div class="field"><label for="c-cert">Certification Number</label><input id="c-cert" type="text" placeholder="e.g. 82910457 (the number on the slab)"></div>
     </div>
 
     <div class="field">
       <label for="description">Description</label>
       <textarea id="description" placeholder="Condition, box and papers, service history, anything a buyer would want to know before purchasing." required maxlength="1000"></textarea>
+    </div>
+
+    <div class="check-row" style="margin-bottom:26px;">
+      <input type="checkbox" id="acceptsOffersCheckbox" checked>
+      <label for="acceptsOffersCheckbox">Allow buyers to make offers on this listing</label>
     </div>
 
     <button type="submit" class="submit" id="submitBtn">Post Listing</button>
@@ -801,6 +818,9 @@ async function loadForEdit(){
   document.getElementById('price').value = data.price || '';
   document.getElementById('condition').value = data.condition || '';
   document.getElementById('description').value = data.description || '';
+  document.getElementById('itemCity').value = data.city || '';
+  document.getElementById('itemState').value = data.state || '';
+  document.getElementById('acceptsOffersCheckbox').checked = data.accepts_offers !== false;
 
   // Pre-fill existing photos: cover photo (image_url) first, then any additional_photos.
   const existingPhotos = [];
@@ -835,7 +855,7 @@ async function loadForEdit(){
   } else if(data.category === 'Jewelry'){
     setVal('j-material', d.material); setVal('j-carat', d.carat_weight); setVal('j-cert', d.certification);
   } else if(data.category === 'Cards'){
-    setVal('c-grade', d.grade); setVal('c-year', d.year); setVal('c-set', d.set_number);
+    setVal('c-grade', d.grade); setVal('c-year', d.year); setVal('c-set', d.set_number); setVal('c-cert', d.cert_number);
   }
 
   document.querySelector('.page-title').textContent = 'Edit your listing.';
@@ -935,7 +955,8 @@ function collectDetails(category){
     return {
       grade: val('c-grade'),
       year: val('c-year'),
-      set_number: val('c-set')
+      set_number: val('c-set'),
+      cert_number: val('c-cert')
     };
   }
   return {};
@@ -1003,7 +1024,10 @@ document.getElementById('listingForm').addEventListener('submit', async function
       condition,
       description,
       image_url: image_url,
-      details
+      details,
+      accepts_offers: document.getElementById('acceptsOffersCheckbox').checked,
+      city: document.getElementById('itemCity').value.trim() || null,
+      state: document.getElementById('itemState').value.trim().toUpperCase() || null
     };
     // Only stamp seller_id on a brand-new listing — an admin editing someone
     // else's listing must never reassign ownership to their own account.

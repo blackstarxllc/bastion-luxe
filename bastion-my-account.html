@@ -144,6 +144,22 @@
 
   .list{}
 
+  .listings-filter-tabs{
+    display:flex; gap:8px; margin:-8px 0 18px; flex-wrap:wrap;
+  }
+  .listings-tab{
+    font-family:'IBM Plex Mono', monospace; font-size:10.5px;
+    letter-spacing:0.06em; text-transform:uppercase;
+    color:var(--stone-dim);
+    background:rgba(255,255,255,0.02); border:1px solid transparent;
+    border-radius:var(--radius-pill); padding:8px 15px; cursor:pointer;
+    transition:color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+  }
+  .listings-tab:hover{ color:var(--ivory); }
+  .listings-tab.active{
+    color:var(--brass); background:rgba(199,162,104,0.12); border-color:rgba(199,162,104,0.4);
+  }
+
   .transactions-filter{
     display:flex; align-items:center; gap:10px;
     margin:-8px 0 18px;
@@ -401,6 +417,12 @@
       <div class="section-title">My Listings</div>
       <div class="section-count" id="listingsCount"></div>
     </div>
+    <div class="listings-filter-tabs" id="listingsFilterTabs">
+      <button class="listings-tab active" data-status="all" type="button">All</button>
+      <button class="listings-tab" data-status="active" type="button">Active</button>
+      <button class="listings-tab" data-status="pending" type="button">Pending</button>
+      <button class="listings-tab" data-status="sold" type="button">Sold</button>
+    </div>
     <div class="list" id="listingsList"></div>
   </div>
 
@@ -485,12 +507,31 @@ function renderSaved(favDeals){
   }).join('');
 }
 
+let allListings = [];
+let listingsStatusFilter = 'all';
+
 function renderListings(deals){
+  allListings = deals;
+  renderListingRows();
+}
+
+function renderListingRows(){
+  const deals = listingsStatusFilter === 'all'
+    ? allListings
+    : allListings.filter(function(d){ return (d.status || 'active') === listingsStatusFilter; });
+
   const el = document.getElementById('listingsList');
-  document.getElementById('listingsCount').textContent = deals.length + (deals.length === 1 ? ' item' : ' items');
+  document.getElementById('listingsCount').textContent = allListings.length + (allListings.length === 1 ? ' item' : ' items');
+
+  if(allListings.length === 0){
+    el.innerHTML = `<div class="empty-row">You haven't listed anything yet. <a href="bastion-create-listing.html">List your first item →</a></div>`;
+    document.getElementById('listingsFilterTabs').classList.add('hidden');
+    return;
+  }
+  document.getElementById('listingsFilterTabs').classList.remove('hidden');
 
   if(deals.length === 0){
-    el.innerHTML = `<div class="empty-row">You haven't listed anything yet. <a href="bastion-create-listing.html">List your first item →</a></div>`;
+    el.innerHTML = `<div class="empty-row">No listings match this filter.</div>`;
     return;
   }
 
@@ -512,6 +553,15 @@ function renderListings(deals){
   }).join('');
 }
 
+document.getElementById('listingsFilterTabs').addEventListener('click', function(e){
+  const btn = e.target.closest('.listings-tab');
+  if(!btn) return;
+  this.querySelectorAll('.listings-tab').forEach(function(t){ t.classList.remove('active'); });
+  btn.classList.add('active');
+  listingsStatusFilter = btn.dataset.status;
+  renderListingRows();
+});
+
 async function removeListing(id, btn){
   if(!confirm('Remove this listing? This cannot be undone.')) return;
   btn.disabled = true;
@@ -524,6 +574,8 @@ async function removeListing(id, btn){
     return;
   }
   btn.closest('.row').remove();
+  allListings = allListings.filter(function(d){ return d.id !== id; });
+  document.getElementById('listingsCount').textContent = allListings.length + (allListings.length === 1 ? ' item' : ' items');
 }
 
 let allTransactions = [];

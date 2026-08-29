@@ -14,7 +14,7 @@
     '.skirt-overlay.visible{opacity:1;pointer-events:auto;}' +
     '.account-skirt{position:fixed;top:0;right:0;height:100vh;width:min(300px,78vw);z-index:999;transform:translateX(100%);transition:transform .45s cubic-bezier(.22,1,.36,1);}' +
     '.account-skirt.open{transform:translateX(0);}' +
-    '.skirt-handle{position:absolute;top:50%;left:-34px;transform:translateY(-50%);width:68px;height:68px;border-radius:50%;background:rgba(15,13,11,.68);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid rgba(199,162,104,.4);box-shadow:0 8px 28px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transition:border-color .25s ease,box-shadow .25s ease;}' +
+    '.skirt-handle{position:absolute;top:50%;left:-34px;transform:translateY(-50%);width:68px;height:68px;border-radius:50%;background:rgba(15,13,11,.68);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid rgba(199,162,104,.4);box-shadow:0 8px 28px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transition:border-color .25s ease,box-shadow .25s ease;touch-action:none;}' +
     '.skirt-handle:hover{border-color:rgba(199,162,104,.75);box-shadow:0 8px 32px rgba(199,162,104,.18);}' +
     '.skirt-handle-mark{width:44px;height:44px;color:var(--brass);opacity:.55;transition:opacity .25s ease;}' +
     '.skirt-handle:hover .skirt-handle-mark,.account-skirt.open .skirt-handle-mark{opacity:.95;}' +
@@ -165,12 +165,65 @@
     document.body.style.overflow = '';
   }
   handle.addEventListener('click', function(){
+    if(dragOccurred){ dragOccurred = false; return; }
     if(skirt.classList.contains('open')) closeSkirt(); else openSkirt();
   });
   overlay.addEventListener('click', closeSkirt);
   document.addEventListener('keydown', function(e){
     if(e.key === 'Escape' && skirt.classList.contains('open')) closeSkirt();
   });
+
+  // ---- Touch/drag: the handle can also be pulled out or pushed shut
+  // with a finger, not just tapped — makes it feel native on mobile.
+  var dragState = null;
+  var dragOccurred = false;
+
+  handle.addEventListener('pointerdown', function(e){
+    if(e.pointerType === 'mouse' && e.button !== 0) return;
+    dragState = {
+      startX: e.clientX,
+      startedOpen: skirt.classList.contains('open'),
+      lastOffset: 0,
+      panelWidth: skirt.getBoundingClientRect().width
+    };
+    skirt.style.transition = 'none';
+    overlay.style.transition = 'none';
+    try{ handle.setPointerCapture(e.pointerId); }catch(err){}
+  });
+
+  handle.addEventListener('pointermove', function(e){
+    if(!dragState) return;
+    var dx = e.clientX - dragState.startX;
+    if(Math.abs(dx) > 4) dragOccurred = true;
+
+    var baseOffset = dragState.startedOpen ? 0 : dragState.panelWidth;
+    var offset = Math.max(0, Math.min(dragState.panelWidth, baseOffset + dx));
+    dragState.lastOffset = offset;
+
+    skirt.classList.add('open');
+    skirt.style.transform = 'translateX(' + offset + 'px)';
+    overlay.classList.add('visible');
+    overlay.style.opacity = String(1 - offset / dragState.panelWidth);
+  });
+
+  function endDrag(){
+    if(!dragState) return;
+    var panelWidth = dragState.panelWidth;
+    var finalOffset = dragState.lastOffset;
+
+    skirt.style.transition = '';
+    skirt.style.transform = '';
+    overlay.style.transition = '';
+    overlay.style.opacity = '';
+
+    if(dragOccurred){
+      var shouldOpen = finalOffset < panelWidth * 0.6;
+      if(shouldOpen) openSkirt(); else closeSkirt();
+    }
+    dragState = null;
+  }
+  handle.addEventListener('pointerup', endDrag);
+  handle.addEventListener('pointercancel', endDrag);
 
   // Accordions
   document.querySelectorAll('.skirt-accordion-header').forEach(function(header){

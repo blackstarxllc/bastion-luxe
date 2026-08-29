@@ -29,11 +29,14 @@
     --rust:#B5453D;
     --hairline:rgba(241,236,225,0.08);
     --radius:2px;
+    --radius-pill:999px;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   html,body{
     min-height:100%;
-    background:var(--ink);
+    background:
+      radial-gradient(1100px 550px at 10% -10%, rgba(199,162,104,0.05), transparent 60%),
+      var(--ink);
     color:var(--ivory);
     font-family:'Inter', -apple-system, sans-serif;
     -webkit-font-smoothing:antialiased;
@@ -41,13 +44,14 @@
 
   .nav{
     display:flex; align-items:center; justify-content:space-between;
-    padding:20px 24px;
+    padding:18px 24px;
     border-bottom:1px solid var(--hairline);
     position:sticky; top:0;
-    background:var(--ink);
+    background:rgba(10,11,13,0.82);
+    -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
     z-index:10;
   }
-  @media(min-width:900px){ .nav{ padding:22px 56px; } }
+  @media(min-width:900px){ .nav{ padding:18px 56px; } }
   .wordmark{
     font-family:'Fraunces', serif;
     font-weight:450;
@@ -60,38 +64,43 @@
   .wordmark em{ font-style:italic; font-weight:400; color:var(--brass); }
   .wordmark:link em{ color:var(--brass) !important; }
   .wordmark:visited em{ color:var(--brass) !important; }
+  .footer-wordmark:link, .footer-wordmark:visited{ color:var(--stone-dim) !important; }
+  .footer-wordmark:link em, .footer-wordmark:visited em{ color:var(--brass-dim) !important; }
   .back-link{
     font-family:'IBM Plex Mono', monospace;
-    font-size:11px;
-    letter-spacing:0.08em;
+    font-size:10.5px;
+    letter-spacing:0.1em;
     text-transform:uppercase;
     color:var(--stone);
     text-decoration:none;
-    transition:color 0.2s ease;
+    padding:10px 16px;
+    border-radius:var(--radius-pill);
+    transition:color 0.2s ease, background 0.2s ease;
   }
-  .back-link:hover{ color:var(--brass); }
+  .back-link:hover{ color:var(--ivory); background:rgba(255,255,255,0.04); }
 
   .wrap{
     max-width:880px;
     margin:0 auto;
-    padding:48px 24px 100px;
+    padding:56px 24px 120px;
   }
-  @media(min-width:900px){ .wrap{ padding:64px 56px 120px; } }
+  @media(min-width:900px){ .wrap{ padding:72px 56px 140px; } }
 
   .profile-header{
     display:flex;
     align-items:center;
-    gap:20px;
-    padding-bottom:32px;
+    gap:22px;
+    padding-bottom:36px;
     border-bottom:1px solid var(--hairline);
   }
   .avatar-seal{
-    width:64px; height:64px;
+    width:72px; height:72px;
     border-radius:50%;
     border:1px solid var(--brass-dim);
+    background:rgba(199,162,104,0.06);
     display:flex; align-items:center; justify-content:center;
     font-family:'Fraunces', serif;
-    font-size:28px;
+    font-size:30px;
     color:var(--brass);
     flex-shrink:0;
   }
@@ -99,45 +108,46 @@
     font-family:'Fraunces', serif;
     font-weight:450;
     font-style:italic;
-    font-size:26px;
+    font-size:28px;
     color:var(--ivory);
   }
   .profile-meta{
     font-family:'IBM Plex Mono', monospace;
     font-size:11px;
     color:var(--stone);
-    margin-top:6px;
+    margin-top:8px;
     display:flex; align-items:center; gap:10px; flex-wrap:wrap;
   }
 
   .trusted-badge{
     display:inline-flex;
     align-items:center;
-    gap:4px;
+    gap:5px;
     font-family:'IBM Plex Mono', monospace;
     font-size:9.5px;
     letter-spacing:0.06em;
     text-transform:uppercase;
     color:var(--brass);
-    border:1px solid var(--brass-dim);
-    padding:3px 8px;
-    border-radius:2px;
+    background:rgba(199,162,104,0.12);
+    padding:5px 11px;
+    border-radius:var(--radius-pill);
   }
   .trusted-badge svg{ width:11px; height:11px; }
 
   .stats-row{
     display:grid;
     grid-template-columns:repeat(3,1fr);
-    gap:1px;
-    background:var(--hairline);
-    border:1px solid var(--hairline);
-    margin-top:32px;
+    gap:14px;
+    margin-top:36px;
   }
-  .stat{ background:var(--ink); padding:20px; text-align:center; }
+  .stat{
+    background:var(--surface); border:1px solid var(--hairline); border-radius:14px;
+    padding:22px; text-align:center;
+  }
   .stat-value{
     font-family:'Fraunces', serif;
     font-weight:450;
-    font-size:28px;
+    font-size:30px;
     color:var(--brass);
   }
   .stat-label{
@@ -146,33 +156,31 @@
     letter-spacing:0.08em;
     text-transform:uppercase;
     color:var(--stone-dim);
-    margin-top:6px;
+    margin-top:8px;
   }
 
   .report-toggle{
     display:block;
-    margin-top:16px;
+    margin-top:20px;
     background:none; border:none;
     color:var(--stone-dim);
     font-family:'IBM Plex Mono', monospace;
     font-size:10.5px;
     letter-spacing:0.06em;
     text-transform:uppercase;
-    text-decoration:underline;
-    text-underline-offset:3px;
     cursor:pointer;
   }
-  .report-toggle:hover{ color:var(--rust); }
-  .report-form{ margin-top:14px; max-width:420px; }
+  .report-toggle:hover{ color:#E0958D; }
+  .report-form{ margin-top:16px; max-width:420px; }
   .report-select, .report-textarea{
     width:100%;
     background:var(--field);
     border:1px solid var(--field-border);
-    border-radius:var(--radius);
+    border-radius:10px;
     color:var(--ivory);
     font-family:'Inter', sans-serif;
     font-size:13px;
-    padding:10px 12px;
+    padding:10px 14px;
     outline:none;
     margin-bottom:10px;
   }
@@ -180,7 +188,7 @@
   .report-textarea{ min-height:64px; resize:vertical; }
   .report-submit{
     background:var(--brass); color:var(--brass-ink); border:none;
-    border-radius:var(--radius); padding:10px 16px;
+    border-radius:var(--radius-pill); padding:10px 18px;
     font-family:'IBM Plex Mono', monospace; font-size:10.5px;
     letter-spacing:0.08em; text-transform:uppercase; cursor:pointer;
   }
@@ -194,40 +202,40 @@
   .report-cancel:hover{ color:var(--ivory); }
   .report-done{ font-size:12px; color:#8FBBAC; margin-top:8px; }
 
-  .section{ margin-top:52px; }
+  .section{ margin-top:56px; }
   .section-title{
     font-family:'Fraunces', serif;
     font-style:italic;
     font-weight:450;
-    font-size:20px;
+    font-size:21px;
     color:var(--ivory);
-    margin-bottom:20px;
+    margin-bottom:22px;
   }
 
   .listings-grid{
     display:grid;
     grid-template-columns:repeat(1,1fr);
-    gap:1px;
-    background:var(--hairline);
-    border:1px solid var(--hairline);
+    gap:14px;
   }
   @media(min-width:640px){ .listings-grid{ grid-template-columns:repeat(2,1fr); } }
 
   .mini-card{
-    background:var(--ink);
-    padding:16px;
+    background:var(--surface);
+    border:1px solid var(--hairline);
+    border-radius:12px;
+    padding:14px;
     cursor:pointer;
     display:flex;
     gap:14px;
     align-items:center;
-    transition:background 0.2s ease;
+    transition:border-color 0.2s ease, transform 0.2s ease;
   }
-  .mini-card:hover{ background:var(--ink-soft); }
+  .mini-card:hover{ border-color:rgba(199,162,104,0.3); transform:translateY(-2px); }
   .mini-photo{
     width:60px; height:60px;
     flex-shrink:0;
-    background:var(--ink-soft);
-    border:1px solid var(--hairline);
+    border-radius:8px;
+    background:linear-gradient(150deg, #17191d, #0d0e10);
     display:flex; align-items:center; justify-content:center;
     overflow:hidden;
   }
@@ -418,6 +426,15 @@
   </div>
 
 </div>
+
+<footer style="max-width:880px;margin:0 auto;padding:40px 24px 48px;border-top:1px solid rgba(241,236,225,0.08);display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center;justify-content:space-between;">
+  <a href="bastion-marketplace.html" class="footer-wordmark" style="font-family:'Fraunces', serif; font-size:16px; color:var(--stone-dim); text-decoration:none;">Bast<em style="color:var(--brass-dim);">ion</em></a>
+  <div style="display:flex; flex-wrap:wrap; gap:24px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase;">
+    <a href="/bastion-about.html" style="color:var(--stone); text-decoration:none;">Built on Trust</a>
+    <a href="/bastion-faq.html" style="color:var(--stone); text-decoration:none;">FAQ</a>
+    <a href="/bastion-safety.html" style="color:var(--stone); text-decoration:none;">Safety Center</a>
+  </div>
+</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="bastion-account-skirt.js"></script>

@@ -29,13 +29,16 @@
     --rust:#B5453D;
     --hairline:rgba(241,236,225,0.08);
     --radius:2px;
+    --radius-pill:999px;
   }
 
   *{box-sizing:border-box; margin:0; padding:0;}
 
   html,body{
     min-height:100%;
-    background:var(--ink);
+    background:
+      radial-gradient(1100px 550px at 10% -10%, rgba(199,162,104,0.05), transparent 60%),
+      var(--ink);
     color:var(--ivory);
     font-family:'Inter', -apple-system, sans-serif;
     -webkit-font-smoothing:antialiased;
@@ -43,13 +46,14 @@
 
   .nav{
     display:flex; align-items:center; justify-content:space-between;
-    padding:20px 24px;
+    padding:18px 24px;
     border-bottom:1px solid var(--hairline);
     position:sticky; top:0;
-    background:var(--ink);
+    background:rgba(10,11,13,0.82);
+    -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
     z-index:10;
   }
-  @media(min-width:900px){ .nav{ padding:22px 56px; } }
+  @media(min-width:900px){ .nav{ padding:18px 56px; } }
 
   .wordmark{
     font-family:'Fraunces', serif;
@@ -66,21 +70,23 @@
 
   .back-link{
     font-family:'IBM Plex Mono', monospace;
-    font-size:11px;
-    letter-spacing:0.08em;
+    font-size:10.5px;
+    letter-spacing:0.1em;
     text-transform:uppercase;
     color:var(--stone);
     text-decoration:none;
-    transition:color 0.2s ease;
+    padding:10px 16px;
+    border-radius:var(--radius-pill);
+    transition:color 0.2s ease, background 0.2s ease;
   }
-  .back-link:hover{ color:var(--brass); }
+  .back-link:hover{ color:var(--ivory); background:rgba(255,255,255,0.04); }
 
   .wrap{
     max-width:680px;
     margin:0 auto;
-    padding:48px 24px 100px;
+    padding:56px 24px 120px;
   }
-  @media(min-width:900px){ .wrap{ padding:64px 24px 120px; } }
+  @media(min-width:900px){ .wrap{ padding:72px 24px 140px; } }
 
   .eyebrow{
     font-family:'IBM Plex Mono', monospace;
@@ -88,7 +94,7 @@
     letter-spacing:0.18em;
     text-transform:uppercase;
     color:var(--brass);
-    margin-bottom:16px;
+    margin-bottom:18px;
     display:flex;
     align-items:center;
     gap:10px;
@@ -104,22 +110,23 @@
     font-family:'Fraunces', serif;
     font-weight:450;
     font-style:italic;
-    font-size:30px;
+    font-size:34px;
     color:var(--ivory);
     line-height:1.2;
+    letter-spacing:-0.01em;
   }
 
   .role-tag{
     display:inline-block;
-    margin-top:12px;
+    margin-top:14px;
     font-family:'IBM Plex Mono', monospace;
-    font-size:10px;
+    font-size:9.5px;
     letter-spacing:0.1em;
     text-transform:uppercase;
-    color:var(--brass-dim);
-    border:1px solid var(--hairline);
-    padding:5px 10px;
-    border-radius:2px;
+    color:var(--brass);
+    background:rgba(199,162,104,0.1);
+    padding:6px 12px;
+    border-radius:var(--radius-pill);
   }
 
   /* ---------- STEPPER ---------- */
@@ -182,7 +189,9 @@
   .status-card{
     background:var(--ink-soft);
     border:1px solid var(--hairline);
-    padding:28px;
+    border-radius:16px;
+    padding:32px;
+    box-shadow:0 1px 2px rgba(0,0,0,0.3), 0 24px 48px -18px rgba(0,0,0,0.6);
   }
 
   .status-headline{
@@ -227,13 +236,13 @@
     background:var(--brass);
     color:var(--brass-ink);
     border:none;
-    border-radius:var(--radius);
+    border-radius:8px;
     font-family:'IBM Plex Mono', monospace;
     font-size:11.5px;
     letter-spacing:0.14em;
     text-transform:uppercase;
     font-weight:500;
-    padding:16px;
+    padding:17px;
     cursor:pointer;
     margin-top:24px;
     transition:background 0.2s ease, transform 0.1s ease;
@@ -257,6 +266,7 @@
     padding:14px 16px;
     background:var(--field);
     border:1px solid var(--hairline);
+    border-radius:10px;
     font-size:12.5px;
     color:var(--stone);
     line-height:1.5;
@@ -271,6 +281,7 @@
     padding:14px 16px;
     background:rgba(44,92,79,0.12);
     border:1px solid var(--emerald);
+    border-radius:10px;
     font-size:12.5px;
     color:#8FBBAC;
     line-height:1.5;
@@ -279,9 +290,10 @@
 
   .review-box{
     margin-top:24px;
-    padding:20px;
+    padding:22px;
     background:var(--field);
     border:1px solid var(--hairline);
+    border-radius:14px;
   }
   .review-box.hidden{ display:none; }
   .review-title{
@@ -305,11 +317,11 @@
     width:100%;
     background:var(--ink);
     border:1px solid var(--field-border);
-    border-radius:2px;
+    border-radius:10px;
     color:var(--ivory);
     font-family:'Inter', sans-serif;
     font-size:13px;
-    padding:12px;
+    padding:12px 14px;
     min-height:70px;
     outline:none;
     resize:vertical;
@@ -320,7 +332,7 @@
     background:var(--brass);
     color:var(--brass-ink);
     border:none;
-    border-radius:2px;
+    border-radius:var(--radius-pill);
     font-family:'IBM Plex Mono', monospace;
     font-size:10.5px;
     letter-spacing:0.1em;
@@ -339,11 +351,11 @@
     width:100%;
     background:var(--ink);
     border:1px solid var(--field-border);
-    border-radius:2px;
+    border-radius:10px;
     color:var(--ivory);
     font-family:'Inter', sans-serif;
     font-size:13px;
-    padding:11px 12px;
+    padding:11px 14px;
     outline:none;
     margin-bottom:12px;
   }
@@ -381,10 +393,11 @@
     display:flex;
     align-items:flex-start;
     gap:12px;
-    margin-top:24px;
+    margin-top:26px;
     padding:16px 18px;
     background:rgba(199,162,104,0.08);
     border:1px solid var(--brass-dim);
+    border-radius:12px;
     font-size:12.5px;
     color:var(--stone);
     line-height:1.6;
@@ -400,16 +413,18 @@
     padding:14px 16px;
     background:rgba(181,69,61,0.1);
     border:1px solid var(--rust);
+    border-radius:10px;
     font-size:12.5px;
     color:#E0958D;
     line-height:1.5;
   }
 
   .code-box{
-    margin-top:18px;
-    padding:20px;
+    margin-top:20px;
+    padding:24px;
     background:var(--field);
-    border:1px solid var(--brass-dim);
+    border:1px solid rgba(199,162,104,0.35);
+    border-radius:14px;
     text-align:center;
   }
   .code-box-label{
@@ -449,7 +464,7 @@
     width:100%;
     background:var(--field);
     border:1px solid var(--field-border);
-    border-radius:2px;
+    border-radius:12px;
     color:var(--ivory);
     font-family:'IBM Plex Mono', monospace;
     font-size:20px;
@@ -465,7 +480,7 @@
     background:var(--brass);
     color:var(--brass-ink);
     border:none;
-    border-radius:2px;
+    border-radius:8px;
     font-family:'IBM Plex Mono', monospace;
     font-size:11px;
     letter-spacing:0.1em;

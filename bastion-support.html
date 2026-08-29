@@ -222,7 +222,7 @@ document.getElementById('supportForm').addEventListener('submit', async function
 
     if(!res.ok){
       statusEl.className = 'status-line show bad';
-      statusEl.textContent = 'Could not send your message: ' + (data.error || 'please try again.');
+      statusEl.textContent = data.error || 'Could not send your message — please try again.';
       btn.disabled = false;
       btn.textContent = originalText;
       return;

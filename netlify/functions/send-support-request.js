@@ -29,22 +29,63 @@ exports.handler = async (event) => {
     if (name.length > 200 || subject.length > 200 || message.length > 5000 || email.length > 320) {
       return { statusCode: 400, body: JSON.stringify({ error: 'One of the fields is too long' }) };
     }
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(email)) {
+      return { statusCode: 400, body: JSON.stringify({ error: 'Please enter a valid email address' }) };
+    }
 
     const SUPABASE_URL = process.env.SUPABASE_URL;
     const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    const clientIp = event.headers['x-nf-client-connection-ip']
+      || event.headers['client-ip']
+      || (event.headers['x-forwarded-for'] || '').split(',')[0].trim()
+      || 'unknown';
+
+    // ---- Rate limiting: reject before writing anything or sending email ----
+    // Max 3 submissions per IP per hour, and max 5 per email per 24 hours.
+    // This is a basic guard against flooding, not a full anti-abuse system —
+    // a determined attacker could still rotate both, but this stops casual spam.
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    const supaHeaders = {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    };
+
+    if (clientIp !== 'unknown') {
+      const ipCheckRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/support_requests?select=id&ip_address=eq.${encodeURIComponent(clientIp)}&created_at=gte.${encodeURIComponent(oneHourAgo)}`,
+        { headers: { ...supaHeaders, Prefer: 'count=exact' } }
+      );
+      const ipCount = parseInt((ipCheckRes.headers.get('content-range') || '').split('/')[1] || '0', 10);
+      if (ipCount >= 3) {
+        return { statusCode: 429, body: JSON.stringify({ error: "You've sent a few messages recently — please wait a bit before sending another." }) };
+      }
+    }
+
+    const emailCheckRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/support_requests?select=id&email=eq.${encodeURIComponent(email)}&created_at=gte.${encodeURIComponent(oneDayAgo)}`,
+      { headers: { ...supaHeaders, Prefer: 'count=exact' } }
+    );
+    const emailCount = parseInt((emailCheckRes.headers.get('content-range') || '').split('/')[1] || '0', 10);
+    if (emailCount >= 5) {
+      return { statusCode: 429, body: JSON.stringify({ error: "We've received several messages from this email today — our team will get back to you soon." }) };
+    }
 
     // 1) Save it, so it's tracked in the Admin panel even if the email below fails.
     const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/support_requests`, {
       method: 'POST',
       headers: {
-        apikey: SUPABASE_SERVICE_ROLE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        ...supaHeaders,
         'Content-Type': 'application/json',
         Prefer: 'return=minimal',
       },
       body: JSON.stringify({
         name, email, subject, message,
         user_id: user_id || null,
+        ip_address: clientIp !== 'unknown' ? clientIp : null,
       }),
     });
 

@@ -125,6 +125,41 @@
   .page-title span{ color:var(--brass); }
 
   .section{ margin-top:60px; }
+
+  .dash-grid{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:14px;
+  }
+  @media(max-width:640px){ .dash-grid{ grid-template-columns:1fr; } }
+  .dash-card{
+    background:var(--surface); border:1px solid var(--hairline); border-radius:14px;
+    padding:22px 20px;
+  }
+  .dash-card-label{
+    font-family:'IBM Plex Mono', monospace; font-size:10px;
+    letter-spacing:0.1em; text-transform:uppercase; color:var(--stone-dim);
+  }
+  .dash-card-value{
+    font-family:'Fraunces', serif; font-weight:450; font-size:38px; color:var(--brass);
+    margin-top:10px;
+  }
+  .dash-card-foot{ font-size:12px; color:var(--stone); margin-top:6px; }
+
+  .dash-actions{ display:flex; gap:14px; flex-wrap:wrap; }
+  .dash-primary, .dash-secondary{
+    font-family:'IBM Plex Mono', monospace; font-size:11.5px;
+    letter-spacing:0.14em; text-transform:uppercase; font-weight:500;
+    padding:14px 26px; border-radius:8px; text-decoration:none;
+    display:inline-flex; align-items:center; justify-content:center;
+  }
+  .dash-primary{ background:var(--brass); color:var(--brass-ink); transition:background 0.2s ease; }
+  .dash-primary:hover{ background:#D4B27E; }
+  .dash-secondary{
+    background:none; border:1px solid var(--field-border); color:var(--ivory);
+    transition:border-color 0.2s ease;
+  }
+  .dash-secondary:hover{ border-color:var(--brass); }
   .section-head{
     display:flex; align-items:baseline; justify-content:space-between;
     margin-bottom:6px;
@@ -388,6 +423,30 @@
 <div class="wrap hidden" id="accountContent">
   <div class="eyebrow">Verified Escrow Exchange</div>
   <h1 class="page-title">My <span>Account</span></h1>
+  <div style="margin-top:10px; font-size:14px; color:var(--stone);">Welcome back, <span id="dashFirstName" style="color:var(--ivory);">there</span> — here's where things stand.</div>
+
+  <div class="dash-grid" style="margin-top:28px;">
+    <div class="dash-card">
+      <div class="dash-card-label">Active Listings</div>
+      <div class="dash-card-value" id="statActiveListings">0</div>
+      <div class="dash-card-foot">Items you have for sale</div>
+    </div>
+    <div class="dash-card">
+      <div class="dash-card-label">Open Trades</div>
+      <div class="dash-card-value" id="statOpenTrades">0</div>
+      <div class="dash-card-foot">Deals currently in escrow</div>
+    </div>
+    <div class="dash-card">
+      <div class="dash-card-label">Completed Trades</div>
+      <div class="dash-card-value" id="statCompletedTrades">0</div>
+      <div class="dash-card-foot">Successfully released</div>
+    </div>
+  </div>
+
+  <div class="dash-actions" style="margin-top:18px;">
+    <a class="dash-primary" href="bastion-create-listing.html">List an Item</a>
+    <a class="dash-secondary" href="bastion-marketplace.html">Browse Marketplace</a>
+  </div>
 
   <div style="margin-top:32px; padding:26px 28px; background:var(--ink-soft); border:1px solid var(--hairline); border-radius:14px;">
     <div style="display:flex; align-items:center; gap:16px; margin-bottom:20px;">
@@ -744,6 +803,10 @@ async function loadAccount(){
 
   const userId = session.user.id;
   currentUserEmail = session.user.email || '';
+  const displayName = (session.user.user_metadata && session.user.user_metadata.full_name)
+    ? session.user.user_metadata.full_name.split(' ')[0]
+    : currentUserEmail.split('@')[0];
+  document.getElementById('dashFirstName').textContent = displayName;
   loadHandle(userId);
 
   try{
@@ -774,6 +837,13 @@ async function loadAccount(){
 
     renderListings(deals);
     renderTransactions(txns, userId);
+
+    const activeListingsCount = deals.filter(function(d){ return (d.status || 'active') === 'active'; }).length;
+    const openTradesCount = txns.filter(function(t){ return t.status !== 'released'; }).length;
+    const completedTradesCount = txns.filter(function(t){ return t.status === 'released'; }).length;
+    document.getElementById('statActiveListings').textContent = activeListingsCount;
+    document.getElementById('statOpenTrades').textContent = openTradesCount;
+    document.getElementById('statCompletedTrades').textContent = completedTradesCount;
 
     loadingEl.classList.add('hidden');
     contentEl.classList.remove('hidden');

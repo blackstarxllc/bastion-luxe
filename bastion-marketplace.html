@@ -478,6 +478,19 @@
     -webkit-box-orient:vertical;
   }
 
+  .card-location{
+    display:flex; align-items:center; gap:5px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px; letter-spacing:0.04em;
+    color:var(--stone-dim);
+    margin-top:10px;
+  }
+  .card-location::before{
+    content:"";
+    width:5px; height:5px; border-radius:50%;
+    background:var(--brass-dim); flex-shrink:0;
+  }
+
   .card-foot{
     display:flex; align-items:baseline; justify-content:space-between;
     margin-top:16px;
@@ -951,6 +964,7 @@ function renderGrid(){
     const desc = escapeHtml(deal.description || 'No description provided.');
     const cat = escapeHtml(deal.category || 'Uncategorized');
     const condition = deal.condition ? '<div class="card-condition">' + escapeHtml(deal.condition) + '</div>' : '';
+    const location = (deal.city && deal.state) ? escapeHtml(deal.city + ', ' + deal.state) : (deal.state ? escapeHtml(deal.state) : '');
     const price = deal.price != null ? formatPrice(deal.price) : '—';
     const fee = deal.price != null ? feeForPrice(deal.price) : '';
     const id = deal.id != null ? deal.id : '';
@@ -978,6 +992,7 @@ function renderGrid(){
         <div class="card-name">${name}</div>
         ${condition}
         <div class="card-desc">${desc}</div>
+        ${location ? '<div class="card-location">' + location + '</div>' : ''}
         <div class="card-foot">
           <span class="card-price">${price}</span>
           <span class="card-fee">${fee}</span>

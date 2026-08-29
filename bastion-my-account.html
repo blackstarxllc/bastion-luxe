@@ -286,6 +286,10 @@
     background:linear-gradient(115deg, #E9CB98 0%, var(--brass) 35%, #A5793F 65%, var(--brass) 100%);
     -webkit-background-clip:text; background-clip:text; color:transparent;
   }
+  .item-card-stats{
+    display:flex; gap:14px; margin-top:10px;
+    font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--stone-dim); letter-spacing:0.03em;
+  }
   .item-card-actions{ display:flex; gap:8px; margin-top:14px; }
 
   .status-badge{
@@ -302,6 +306,25 @@
   .status-badge.pending_payment{ color:#B08FD9; background:rgba(176,143,217,0.12); }
   .status-badge.shipped{ color:#8FB3D9; background:rgba(143,179,217,0.12); }
   .status-badge.released{ color:#8FBBAC; background:rgba(143,187,172,0.12); }
+  .status-badge.accepted{ color:#8FBBAC; background:rgba(143,187,172,0.12); }
+  .status-badge.declined{ color:#E0958D; background:rgba(140,63,55,0.12); }
+  .status-badge.withdrawn{ color:var(--stone-dim); background:rgba(255,255,255,0.04); }
+  .status-badge.promoted{ color:var(--brass); background:rgba(199,162,104,0.14); }
+
+  .offer-card-note{ font-size:11.5px; color:var(--stone); margin-top:10px; line-height:1.5; }
+  .offer-card-actions{ display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+  .offer-accept-btn{
+    background:linear-gradient(120deg, #E9CB98 0%, var(--brass) 45%, #B08A4F 75%, #D9B87E 100%);
+    color:var(--brass-ink); border:none; border-radius:999px;
+    font-family:'IBM Plex Mono', monospace; font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase;
+    padding:7px 14px; cursor:pointer;
+  }
+  .offer-counter-row{ display:flex; gap:8px; margin-top:10px; }
+  .offer-counter-row input{
+    flex:1; background:var(--field); border:1px solid var(--field-border); border-radius:999px;
+    color:var(--ivory); font-family:'Inter', sans-serif; font-size:12.5px; padding:8px 14px; outline:none;
+  }
+  .offer-counter-row input:focus{ border-color:var(--brass); }
 
   .remove-btn{
     background:rgba(255,255,255,0.02);
@@ -384,7 +407,9 @@
   .notif-dropdown{
     position:absolute; top:calc(100% + 10px); right:0;
     width:320px; max-height:240px; overflow-y:auto;
-    background:var(--ink-soft); border:1px solid var(--hairline);
+    background:rgba(10,11,13,0.75); border:1px solid rgba(199,162,104,0.18);
+    backdrop-filter:blur(20px);
+    -webkit-backdrop-filter:blur(20px);
     border-radius:14px;
     box-shadow:0 12px 32px rgba(0,0,0,0.45);
     z-index:100;
@@ -518,6 +543,14 @@
 
   <div class="section">
     <div class="section-head">
+      <div class="section-title">Saved Searches</div>
+      <div class="section-count" id="savedSearchesCount"></div>
+    </div>
+    <div class="item-grid" id="savedSearchesList"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
       <div class="section-title">My Listings</div>
       <div class="section-count" id="listingsCount"></div>
     </div>
@@ -528,6 +561,14 @@
       <button class="listings-tab" data-status="sold" type="button">Sold</button>
     </div>
     <div class="item-grid" id="listingsList"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <div class="section-title">My Offers</div>
+      <div class="section-count" id="offersCount"></div>
+    </div>
+    <div class="item-grid" id="offersList"></div>
   </div>
 
   <div class="section">
@@ -613,11 +654,58 @@ function renderSaved(favDeals){
   }).join('');
 }
 
+function renderSavedSearches(searches){
+  const el = document.getElementById('savedSearchesList');
+  document.getElementById('savedSearchesCount').textContent = searches.length + (searches.length === 1 ? ' search' : ' searches');
+
+  if(searches.length === 0){
+    el.innerHTML = `<div class="empty-row">No saved searches yet. Save one from the Marketplace filters to get notified of new matches.</div>`;
+    return;
+  }
+
+  el.innerHTML = searches.map(function(s){
+    const parts = [];
+    if(s.category) parts.push(escapeHtml(s.category));
+    if(s.keyword) parts.push('"' + escapeHtml(s.keyword) + '"');
+    if(s.condition) parts.push(escapeHtml(s.condition));
+    if(s.min_price && s.max_price) parts.push(formatMoney(s.min_price) + '–' + formatMoney(s.max_price));
+    else if(s.max_price) parts.push('Under ' + formatMoney(s.max_price));
+    else if(s.min_price) parts.push('Over ' + formatMoney(s.min_price));
+    const summary = parts.length ? parts.join(' · ') : 'All listings';
+
+    return `
+      <div class="item-card" onclick="window.location.href='bastion-marketplace.html'">
+        <div class="item-card-body">
+          <div class="item-card-name">${summary}</div>
+          <div class="item-card-meta">You'll be notified of new matches</div>
+          <div class="item-card-actions">
+            <button class="remove-btn" onclick="event.stopPropagation(); removeSavedSearch('${s.id}', this)">Remove</button>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function removeSavedSearch(id, btn){
+  btn.disabled = true;
+  const { error } = await supabaseClient.from('saved_searches').delete().eq('id', id);
+  if(error){
+    alert('Could not remove this search: ' + error.message);
+    btn.disabled = false;
+    return;
+  }
+  btn.closest('.item-card').remove();
+}
+
+
+
 let allListings = [];
 let listingsStatusFilter = 'all';
+let listingsFavoriteCounts = {};
 
-function renderListings(deals){
+function renderListings(deals, favoriteCounts){
   allListings = deals;
+  listingsFavoriteCounts = favoriteCounts || {};
   renderListingRows();
 }
 
@@ -647,13 +735,23 @@ function renderListingRows(){
     const photo = d.image_url
       ? `<img src="${escapeHtml(d.image_url)}" alt="${name}">`
       : `<span class="no-photo-seal">B</span>`;
+    const views = d.views || 0;
+    const favs = listingsFavoriteCounts[d.id] || 0;
+    const promotedTag = d.promoted ? '<span class="status-badge promoted" style="margin-left:8px;">Promoted</span>' : '';
     return `
       <div class="item-card" onclick="window.location.href='bastion-deal-detail.html?id=${encodeURIComponent(d.id)}'">
         <div class="item-card-photo">${photo}</div>
         <div class="item-card-body">
-          <div class="item-card-name">${name}</div>
+          <div class="item-card-top">
+            <div class="item-card-name">${name}</div>
+            ${promotedTag}
+          </div>
           <div class="item-card-meta">${cat}</div>
           <div class="item-card-price">${formatMoney(d.price)}</div>
+          <div class="item-card-stats">
+            <span>${views} view${views === 1 ? '' : 's'}</span>
+            <span>${favs} favorite${favs === 1 ? '' : 's'}</span>
+          </div>
           <div class="item-card-actions">
             <button class="remove-btn" onclick="event.stopPropagation(); window.location.href='bastion-create-listing.html?id=${encodeURIComponent(d.id)}'">Edit</button>
             <button class="remove-btn" onclick="event.stopPropagation(); removeListing('${d.id}', this)">Remove</button>
@@ -661,6 +759,119 @@ function renderListingRows(){
         </div>
       </div>`;
   }).join('');
+}
+
+function renderOffers(offers, userId){
+  const el = document.getElementById('offersList');
+  document.getElementById('offersCount').textContent = offers.length + (offers.length === 1 ? ' offer' : ' offers');
+
+  if(offers.length === 0){
+    el.innerHTML = `<div class="empty-row">No offers yet. Offers you send or receive on listings will show up here.</div>`;
+    return;
+  }
+
+  el.innerHTML = offers.map(function(o){
+    const deal = o.deals || {};
+    const name = escapeHtml(deal.item_name || 'Untitled item');
+    const photo = deal.image_url
+      ? `<img src="${escapeHtml(deal.image_url)}" alt="${name}">`
+      : `<span class="no-photo-seal">B</span>`;
+    const isBuyer = o.buyer_id === userId;
+    const role = isBuyer ? 'Buying' : 'Selling';
+    const myTurn = o.status === 'pending' && (
+      (isBuyer && o.made_by === 'seller') || (!isBuyer && o.made_by === 'buyer')
+    );
+
+    let statusLabel = o.status;
+    let note = '';
+    let actions = '';
+
+    if(o.status === 'pending'){
+      statusLabel = myTurn ? 'Awaiting your response' : 'Pending';
+      if(!myTurn){
+        note = `<div class="offer-card-note">Waiting on the ${isBuyer ? 'seller' : 'buyer'} to respond.</div>`;
+      } else {
+        actions = `
+          <div class="offer-card-actions">
+            <button class="offer-accept-btn" onclick="event.stopPropagation(); respondToOffer('${o.id}', 'accepted', this)">Accept</button>
+            <button class="remove-btn" onclick="event.stopPropagation(); respondToOffer('${o.id}', 'declined', this)">Decline</button>
+            <button class="remove-btn" onclick="event.stopPropagation(); showCounterInput('${o.id}', this)">Counter</button>
+          </div>
+          <div class="offer-counter-row hidden" id="counterRow-${o.id}">
+            <input type="number" min="1" step="1" id="counterInput-${o.id}" placeholder="Your counter amount">
+            <button class="offer-accept-btn" onclick="event.stopPropagation(); submitCounter('${o.id}', '${o.deal_id}', '${o.buyer_id}', '${o.seller_id}', this)">Send</button>
+          </div>`;
+      }
+    } else if(o.status === 'accepted'){
+      note = `<div class="offer-card-note">Accepted — message the ${isBuyer ? 'seller' : 'buyer'} to arrange payment.</div>`;
+    } else if(o.status === 'declined'){
+      note = `<div class="offer-card-note">This negotiation was declined.</div>`;
+    } else if(o.status === 'withdrawn'){
+      note = `<div class="offer-card-note">Withdrawn.</div>`;
+    }
+
+    return `
+      <div class="item-card" onclick="window.location.href='bastion-deal-detail.html?id=${encodeURIComponent(o.deal_id)}'">
+        <div class="item-card-photo">${photo}</div>
+        <div class="item-card-body">
+          <div class="item-card-top">
+            <div class="item-card-name">${name}</div>
+            <span class="status-badge ${o.status}">${escapeHtml(statusLabel)}</span>
+          </div>
+          <div class="item-card-meta">${role}</div>
+          <div class="item-card-price">${formatMoney(o.amount)}</div>
+          ${note}
+          ${actions}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function showCounterInput(offerId, btn){
+  document.getElementById('counterRow-' + offerId).classList.remove('hidden');
+  btn.closest('.offer-card-actions').classList.add('hidden');
+}
+
+async function respondToOffer(offerId, newStatus, btn){
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = '…';
+  const { error } = await supabaseClient.from('offers').update({ status: newStatus }).eq('id', offerId);
+  if(error){
+    alert('Could not update this offer: ' + error.message);
+    btn.disabled = false;
+    btn.textContent = original;
+    return;
+  }
+  loadAccount();
+}
+
+async function submitCounter(offerId, dealId, buyerId, sellerId, btn){
+  const input = document.getElementById('counterInput-' + offerId);
+  const amount = parseFloat(input.value);
+  if(!amount || amount <= 0){
+    input.style.borderColor = 'var(--rust)';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = '…';
+
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  const userId = sessionData.session.user.id;
+  const madeBy = userId === buyerId ? 'buyer' : 'seller';
+
+  const { error } = await supabaseClient.from('offers').insert([{
+    deal_id: dealId, buyer_id: buyerId, seller_id: sellerId,
+    amount: amount, made_by: madeBy, parent_offer_id: offerId
+  }]);
+
+  if(error){
+    alert('Could not send counter: ' + error.message);
+    btn.disabled = false;
+    btn.textContent = 'Send';
+    return;
+  }
+  loadAccount();
 }
 
 document.getElementById('listingsFilterTabs').addEventListener('click', function(e){
@@ -862,14 +1073,26 @@ async function loadAccount(){
   loadHandle(userId);
 
   try{
-    const [listingsRes, buyingRes, sellingRes, favoritesRes] = await Promise.all([
+    const [listingsRes, buyingRes, sellingRes, favoritesRes, offersBuyingRes, offersSellingRes] = await Promise.all([
       supabaseClient.from('deals').select('*').eq('seller_id', userId).order('created_at', { ascending: false }),
       supabaseClient.from('transactions').select('*, deals(image_url)').eq('buyer_id', userId),
       supabaseClient.from('transactions').select('*, deals(image_url)').eq('seller_id', userId),
-      supabaseClient.from('favorites').select('deal_id').eq('user_id', userId)
+      supabaseClient.from('favorites').select('deal_id').eq('user_id', userId),
+      supabaseClient.from('offers').select('*, deals(item_name, image_url)').eq('buyer_id', userId).order('created_at', { ascending: false }),
+      supabaseClient.from('offers').select('*, deals(item_name, image_url)').eq('seller_id', userId).order('created_at', { ascending: false })
     ]);
 
     const deals = listingsRes.data || [];
+
+    // Favorite counts for the seller's own listings, fetched in one query
+    let favoriteCounts = {};
+    if(deals.length > 0){
+      const dealIds = deals.map(function(d){ return d.id; });
+      const { data: favRows } = await supabaseClient.from('favorites').select('deal_id').in('deal_id', dealIds);
+      (favRows || []).forEach(function(f){
+        favoriteCounts[f.deal_id] = (favoriteCounts[f.deal_id] || 0) + 1;
+      });
+    }
 
     let favDeals = [];
     const favIds = (favoritesRes.data || []).map(f => f.deal_id);
@@ -879,6 +1102,13 @@ async function loadAccount(){
     }
     renderSaved(favDeals);
 
+    const { data: savedSearches } = await supabaseClient
+      .from('saved_searches')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    renderSavedSearches(savedSearches || []);
+
     // Merge buyer + seller transactions, de-duplicated by id
     const txnMap = {};
     (buyingRes.data || []).forEach(function(t){ txnMap[t.id] = t; });
@@ -887,8 +1117,22 @@ async function loadAccount(){
       return new Date(b.created_at || 0) - new Date(a.created_at || 0);
     });
 
-    renderListings(deals);
+    renderListings(deals, favoriteCounts);
     renderTransactions(txns, userId);
+
+    // Offers: combine buyer + seller sides, keep only the latest row per (deal_id, buyer_id) thread
+    const allOfferRows = [].concat(offersBuyingRes.data || [], offersSellingRes.data || [])
+      .sort(function(a,b){ return new Date(b.created_at || 0) - new Date(a.created_at || 0); });
+    const seenThreads = {};
+    const latestOffers = [];
+    allOfferRows.forEach(function(o){
+      const key = o.deal_id + '::' + o.buyer_id;
+      if(!seenThreads[key]){
+        seenThreads[key] = true;
+        latestOffers.push(o);
+      }
+    });
+    renderOffers(latestOffers, userId);
 
     const activeListingsCount = deals.filter(function(d){ return (d.status || 'active') === 'active'; }).length;
     const openTradesCount = txns.filter(function(t){ return t.status !== 'released'; }).length;

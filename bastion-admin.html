@@ -71,11 +71,13 @@
     color:var(--stone); font-size:13px; padding:16px 0; line-height:1.6;
   }
   .row{
-    border:1px solid var(--hairline); background:var(--surface);
+    border:1px solid rgba(199,162,104,0.14); background:rgba(255,255,255,0.025);
     padding:18px 20px; margin-bottom:10px; border-radius:12px;
-    transition:border-color 0.2s ease;
+    backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);
+    transition:border-color 0.2s ease, background 0.2s ease;
   }
-  .row:hover{ border-color:rgba(199,162,104,0.2); }
+  .row:hover{ border-color:rgba(199,162,104,0.3); background:rgba(255,255,255,0.045); }
   .row-top{
     display:flex; justify-content:space-between; align-items:flex-start;
     gap:12px; flex-wrap:wrap;
@@ -145,7 +147,9 @@
   .notif-dropdown{
     position:absolute; top:calc(100% + 10px); right:0;
     width:320px; max-height:240px; overflow-y:auto;
-    background:var(--ink-soft); border:1px solid var(--hairline);
+    background:rgba(10,11,13,0.75); border:1px solid rgba(199,162,104,0.18);
+    backdrop-filter:blur(20px);
+    -webkit-backdrop-filter:blur(20px);
     border-radius:14px;
     box-shadow:0 12px 32px rgba(0,0,0,0.45);
     z-index:100;
@@ -426,12 +430,15 @@ async function resolveDispute(txnId, dealId, action, btn){
   const original = btn.textContent;
   btn.textContent = 'WORKING…';
 
-  let newTxnStatus, newDealStatus;
-  if(action === 'release'){ newTxnStatus = 'released'; newDealStatus = 'sold'; }
-  else if(action === 'refund'){ newTxnStatus = 'cancelled'; newDealStatus = 'active'; }
-  else { newTxnStatus = 'shipped'; newDealStatus = null; }
+  let newTxnStatus, newDealStatus, timestampField;
+  if(action === 'release'){ newTxnStatus = 'released'; newDealStatus = 'sold'; timestampField = 'released_at'; }
+  else if(action === 'refund'){ newTxnStatus = 'cancelled'; newDealStatus = 'active'; timestampField = null; }
+  else { newTxnStatus = 'shipped'; newDealStatus = null; timestampField = 'shipped_at'; }
 
-  const { error } = await supabaseClient.from('transactions').update({ status: newTxnStatus }).eq('id', txnId);
+  const updatePayload = { status: newTxnStatus };
+  if(timestampField) updatePayload[timestampField] = new Date().toISOString();
+
+  const { error } = await supabaseClient.from('transactions').update(updatePayload).eq('id', txnId);
   if(error){
     alert('Could not resolve: ' + error.message);
     btn.disabled = false;
@@ -631,8 +638,8 @@ async function loadListings(){
       <div class="row" data-deal-id="${escapeHtml(deal.id)}">
         <div class="row-top">
           <div>
-            <div class="row-title">${escapeHtml(deal.item_name || 'Untitled item')}</div>
-            <div class="row-meta">${escapeHtml(deal.category || '')} · seller: ${escapeHtml(deal.seller_id)}</div>
+            <div class="row-title">${escapeHtml(deal.item_name || 'Untitled item')}${deal.promoted ? ' <span class="badge admin">Promoted</span>' : ''}</div>
+            <div class="row-meta">${escapeHtml(deal.category || '')} · seller: ${escapeHtml(deal.seller_id)} · ${deal.views || 0} views</div>
           </div>
           <div style="text-align:right;">
             <div class="row-price">${money(deal.price)}</div>
@@ -642,11 +649,23 @@ async function loadListings(){
         <div class="row-actions">
           <a class="btn" href="/bastion-deal-detail.html?id=${encodeURIComponent(deal.id)}" target="_blank">View</a>
           <a class="btn" href="/bastion-create-listing.html?id=${encodeURIComponent(deal.id)}" target="_blank">Edit</a>
+          <button class="btn" onclick="togglePromoted('${deal.id}', ${deal.promoted ? 'true' : 'false'}, this)">${deal.promoted ? 'Unpromote' : 'Promote'}</button>
           <button class="btn danger" onclick="removeListing('${deal.id}', this)">Remove listing</button>
         </div>
       </div>
     `;
   }).join('');
+}
+
+async function togglePromoted(dealId, currentlyPromoted, btn){
+  btn.disabled = true;
+  const { error } = await supabaseClient.from('deals').update({ promoted: !currentlyPromoted }).eq('id', dealId);
+  if(error){
+    alert('Could not update: ' + error.message);
+    btn.disabled = false;
+    return;
+  }
+  loadListings();
 }
 
 async function removeListing(dealId, btn){

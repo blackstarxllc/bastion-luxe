@@ -411,6 +411,15 @@
     border-radius:var(--radius-pill);
     padding:5px 10px;
   }
+  .card-promoted{
+    position:absolute; bottom:10px; left:10px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9px; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--brass-ink);
+    background:linear-gradient(120deg, #E9CB98 0%, var(--brass) 45%, #B08A4F 75%, #D9B87E 100%);
+    border-radius:var(--radius-pill);
+    padding:5px 10px;
+  }
 
   .card-top{
     display:flex; justify-content:flex-end; align-items:flex-start;
@@ -625,7 +634,9 @@
   .notif-dropdown{
     position:absolute; top:calc(100% + 10px); right:0;
     width:320px; max-height:240px; overflow-y:auto;
-    background:var(--ink-soft); border:1px solid var(--hairline);
+    background:rgba(10,11,13,0.75); border:1px solid rgba(199,162,104,0.18);
+    backdrop-filter:blur(20px);
+    -webkit-backdrop-filter:blur(20px);
     border-radius:14px;
     box-shadow:0 12px 32px rgba(0,0,0,0.45);
     z-index:100;
@@ -751,6 +762,8 @@
         </select>
       </div>
       <button class="clear-filters" id="clearFiltersBtn">Clear filters</button>
+      <button class="clear-filters" id="saveSearchBtn" style="color:var(--brass);">Save this search</button>
+      <span class="clear-filters" id="saveSearchStatus" style="color:var(--stone-dim); cursor:default;"></span>
     </div>
   </div>
 </div>
@@ -920,6 +933,9 @@ function renderGrid(){
     filtered = filtered.slice().sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
   }
 
+  // Promoted listings float to the top, without disturbing the chosen sort within each group
+  filtered = filtered.slice().sort((a, b) => (b.promoted ? 1 : 0) - (a.promoted ? 1 : 0));
+
   if(filtered.length === 0){
     grid.innerHTML = `
       <div class="state-block">
@@ -951,6 +967,7 @@ function renderGrid(){
         <div class="card-photo">
           ${photo}
           <span class="card-cat">${cat}</span>
+          ${deal.promoted ? '<span class="card-promoted">Promoted</span>' : ''}
           <button class="fav-btn ${isFav ? 'active' : ''}" onclick="event.stopPropagation(); toggleFavorite('${id}', this)">
             <svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M12 21s-7-4.5-9.5-9C.5 8 2 4 6 4c2 0 3.5 1.2 4 3 .5-1.8 2-3 4-3 4 0 5.5 4 3.5 8-2.5 4.5-9.5 9-9.5 9z"/></svg>
           </button>
@@ -1052,6 +1069,36 @@ document.getElementById('clearFiltersBtn').addEventListener('click', function(){
   document.getElementById('conditionBar').querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
   document.getElementById('conditionBar').querySelector('[data-cond="all"]').classList.add('active');
   renderGrid();
+});
+
+document.getElementById('saveSearchBtn').addEventListener('click', async function(){
+  const statusEl = document.getElementById('saveSearchStatus');
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  const session = sessionData && sessionData.session;
+  if(!session){
+    window.location.href = 'bastion-auth.html';
+    return;
+  }
+
+  this.disabled = true;
+  statusEl.textContent = 'Saving…';
+
+  const { error } = await supabaseClient.from('saved_searches').insert([{
+    user_id: session.user.id,
+    category: activeCategory === 'all' ? null : activeCategory,
+    keyword: searchQuery || null,
+    min_price: priceMin,
+    max_price: priceMax,
+    condition: activeCondition === 'all' ? null : activeCondition
+  }]);
+
+  this.disabled = false;
+  if(error){
+    statusEl.textContent = 'Could not save: ' + error.message;
+    return;
+  }
+  statusEl.textContent = 'Saved — we\'ll notify you of new matches.';
+  setTimeout(function(){ statusEl.textContent = ''; }, 4000);
 });
 
 if(new URLSearchParams(window.location.search).get('deletion_requested') === '1'){

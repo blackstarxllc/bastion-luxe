@@ -174,6 +174,28 @@
   }
   .spec-val{ color:var(--ivory); text-align:right; }
 
+  .recent-sales{ margin-top:32px; }
+  .recent-sales-title{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px; letter-spacing:0.14em; text-transform:uppercase;
+    color:var(--stone-dim); margin-bottom:14px;
+    padding-bottom:10px; border-bottom:1px solid var(--hairline);
+  }
+  .recent-sale-row{
+    display:flex; justify-content:space-between; align-items:baseline;
+    gap:20px; padding:9px 0; border-bottom:1px solid var(--hairline); font-size:12.5px;
+  }
+  .recent-sale-row:last-child{ border-bottom:none; }
+  .recent-sale-name{
+    color:var(--stone); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .recent-sale-price{
+    font-family:'Fraunces', serif; font-size:14px; flex-shrink:0;
+    background:linear-gradient(115deg, #E9CB98 0%, var(--brass) 35%, #A5793F 65%, var(--brass) 100%);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .recent-sale-date{ color:var(--stone-dim); font-size:10.5px; font-family:'IBM Plex Mono', monospace; flex-shrink:0; margin-left:12px; }
+
   .related-section{
     margin-top:72px;
     padding-top:40px;
@@ -352,10 +374,12 @@
 
   /* ---------- RIGHT: transaction card ---------- */
   .deal-card{
-    background:var(--ink-soft);
-    border:1px solid var(--hairline);
+    background:rgba(255,255,255,0.035);
+    border:1px solid rgba(199,162,104,0.15);
     border-radius:14px;
     padding:32px;
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
     height:fit-content;
     position:sticky;
     top:100px;
@@ -442,6 +466,39 @@
     transition:border-color 0.2s ease, color 0.2s ease;
   }
   .submit-secondary:hover{ border-color:var(--brass); color:var(--brass); }
+
+  .offer-form{ margin-top:14px; }
+  .offer-form-label{
+    font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.1em;
+    text-transform:uppercase; color:var(--stone-dim); margin-bottom:8px;
+  }
+  .offer-form input, .offer-form textarea{
+    width:100%; background:var(--field); border:1px solid var(--field-border);
+    border-radius:10px; color:var(--ivory); font-family:'Inter', sans-serif;
+    font-size:14px; padding:11px 14px; outline:none; margin-bottom:8px;
+  }
+  .offer-form textarea{ min-height:60px; resize:vertical; }
+  .offer-form input:focus, .offer-form textarea:focus{ border-color:var(--brass); }
+  .offer-form-actions{ display:flex; gap:10px; align-items:center; }
+  .offer-status-msg{ font-size:11.5px; color:var(--stone); margin-top:8px; }
+
+  .offer-thread{
+    margin-top:14px; padding:16px 18px;
+    background:rgba(255,255,255,0.025); border:1px solid rgba(199,162,104,0.16);
+    border-radius:12px; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+  }
+  .offer-thread-label{
+    font-family:'IBM Plex Mono', monospace; font-size:9.5px; letter-spacing:0.1em;
+    text-transform:uppercase; color:var(--brass-dim); margin-bottom:6px;
+  }
+  .offer-thread-amount{
+    font-family:'Fraunces', serif; font-size:22px;
+    background:linear-gradient(115deg, #E9CB98 0%, var(--brass) 35%, #A5793F 65%, var(--brass) 100%);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .offer-thread-note{ font-size:12px; color:var(--stone); margin-top:6px; line-height:1.5; }
+  .offer-thread a{ color:var(--brass); }
+
   .submit:hover{ background:#D4B27E; }
   .submit:active{ transform:scale(0.995); }
 
@@ -613,7 +670,9 @@
   .notif-dropdown{
     position:absolute; top:calc(100% + 10px); right:0;
     width:320px; max-height:240px; overflow-y:auto;
-    background:var(--ink-soft); border:1px solid var(--hairline);
+    background:rgba(10,11,13,0.75); border:1px solid rgba(199,162,104,0.18);
+    backdrop-filter:blur(20px);
+    -webkit-backdrop-filter:blur(20px);
     border-radius:14px;
     box-shadow:0 12px 32px rgba(0,0,0,0.45);
     z-index:100;
@@ -726,6 +785,11 @@
         <div class="spec-title hidden" id="specTitle">Item Details</div>
         <div id="specGrid"></div>
 
+        <div class="recent-sales hidden" id="recentSales">
+          <div class="recent-sales-title">Recently Sold in This Category</div>
+          <div id="recentSalesList"></div>
+        </div>
+
         <div class="divider"></div>
 
         <div class="process">
@@ -763,6 +827,20 @@
 
         <button class="submit" id="buyBtn">Begin Secure Purchase</button>
         <button class="submit-secondary hidden" id="messageSellerBtn">Message Seller</button>
+        <button class="submit-secondary hidden" id="makeOfferBtn">Make an Offer</button>
+
+        <div class="offer-form hidden" id="offerForm">
+          <div class="offer-form-label">Your offer</div>
+          <input type="number" id="offerAmountInput" placeholder="e.g. 125000" min="1" step="1">
+          <textarea id="offerMessageInput" placeholder="Add a note for the seller (optional)" maxlength="300"></textarea>
+          <div class="offer-form-actions">
+            <button class="submit-secondary" id="offerSubmitBtn" style="width:auto; padding:11px 20px;">Send Offer</button>
+            <button class="report-cancel" id="offerCancelBtn">Cancel</button>
+          </div>
+          <div class="offer-status-msg" id="offerStatusMsg"></div>
+        </div>
+
+        <div class="offer-thread hidden" id="offerThread"></div>
 
         <div class="seal-note">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
@@ -932,6 +1010,111 @@ async function findOrCreateConversation(dealId, sellerId, buyerId){
   return created.id;
 }
 
+async function setupOfferSection(dealId, sellerId, listedPrice, dealStatus){
+  const btn = document.getElementById('makeOfferBtn');
+  const form = document.getElementById('offerForm');
+  const threadEl = document.getElementById('offerThread');
+  if(!sellerId || dealStatus !== 'active') return;
+
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  const session = sessionData && sessionData.session;
+  if(!session || session.user.id === sellerId) return;
+
+  const userId = session.user.id;
+
+  // Check for an existing negotiation thread on this deal, from this buyer
+  const { data: existing } = await supabaseClient
+    .from('offers')
+    .select('*')
+    .eq('deal_id', dealId)
+    .eq('buyer_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  function renderThread(offer){
+    threadEl.classList.remove('hidden');
+    btn.classList.add('hidden');
+    form.classList.add('hidden');
+
+    if(offer.status === 'pending'){
+      const waitingOnSeller = offer.made_by === 'buyer';
+      threadEl.innerHTML =
+        '<div class="offer-thread-label">' + (waitingOnSeller ? 'Your offer' : 'Seller countered') + '</div>' +
+        '<div class="offer-thread-amount">' + formatMoney(offer.amount) + '</div>' +
+        '<div class="offer-thread-note">' +
+          (waitingOnSeller
+            ? 'Waiting on the seller to respond.'
+            : 'Respond to this counter from <a href="bastion-my-account.html">My Account → My Offers</a>.') +
+        '</div>';
+    } else if(offer.status === 'accepted'){
+      threadEl.innerHTML =
+        '<div class="offer-thread-label">Offer accepted</div>' +
+        '<div class="offer-thread-amount">' + formatMoney(offer.amount) + '</div>' +
+        '<div class="offer-thread-note">Message the seller to arrange payment.</div>';
+    } else {
+      // declined / withdrawn — let them make a fresh offer
+      threadEl.classList.add('hidden');
+      btn.classList.remove('hidden');
+    }
+  }
+
+  if(existing){
+    renderThread(existing);
+  } else {
+    btn.classList.remove('hidden');
+  }
+
+  btn.addEventListener('click', function(){
+    btn.classList.add('hidden');
+    form.classList.remove('hidden');
+    document.getElementById('offerAmountInput').focus();
+  });
+
+  document.getElementById('offerCancelBtn').addEventListener('click', function(){
+    form.classList.add('hidden');
+    btn.classList.remove('hidden');
+  });
+
+  document.getElementById('offerSubmitBtn').addEventListener('click', async function(){
+    const amountInput = document.getElementById('offerAmountInput');
+    const messageInput = document.getElementById('offerMessageInput');
+    const statusMsg = document.getElementById('offerStatusMsg');
+    const amount = parseFloat(amountInput.value);
+
+    if(!amount || amount <= 0){
+      statusMsg.textContent = 'Enter a valid amount.';
+      return;
+    }
+
+    this.disabled = true;
+    this.textContent = 'SENDING…';
+
+    const { data, error } = await supabaseClient
+      .from('offers')
+      .insert([{
+        deal_id: dealId,
+        buyer_id: userId,
+        seller_id: sellerId,
+        amount: amount,
+        made_by: 'buyer',
+        message: messageInput.value.trim() || null
+      }])
+      .select()
+      .single();
+
+    if(error){
+      statusMsg.textContent = 'Could not send offer: ' + error.message;
+      this.disabled = false;
+      this.textContent = 'Send Offer';
+      return;
+    }
+
+    form.classList.add('hidden');
+    renderThread(data);
+  });
+}
+
 async function setupMessageSellerButton(dealId, sellerId){
   const btn = document.getElementById('messageSellerBtn');
   if(!sellerId) return;
@@ -1046,6 +1229,28 @@ async function setupFavoriteButton(dealId){
 
 function labelize(key){
   return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+async function loadRecentSales(category, dealId){
+  if(!category) return;
+  try{
+    const { data, error } = await supabaseClient.rpc('get_recent_sales', {
+      p_category: category,
+      p_exclude_deal_id: dealId,
+      p_limit: 5
+    });
+    if(error || !data || data.length === 0) return;
+
+    document.getElementById('recentSalesList').innerHTML = data.map(function(s){
+      const when = s.sold_at ? new Date(s.sold_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '';
+      return '<div class="recent-sale-row">' +
+        '<span class="recent-sale-name">' + escapeHtml(s.item_name || 'Item') + '</span>' +
+        '<span class="recent-sale-price">' + formatMoney(s.sold_price) + '</span>' +
+        '<span class="recent-sale-date">' + when + '</span>' +
+      '</div>';
+    }).join('');
+    document.getElementById('recentSales').classList.remove('hidden');
+  } catch(e){ /* market data is a nice-to-have, fail silently */ }
 }
 
 function renderSpecSheet(details, category){
@@ -1231,11 +1436,14 @@ async function loadDeal(){
     document.title = 'Bastion — ' + name;
 
     renderPhoto(data.image_url, data.details);
+    supabaseClient.rpc('increment_deal_view', { p_deal_id: data.id }).then(function(){}, function(){});
     renderSpecSheet(data.details, cat);
+    loadRecentSales(cat, data.id);
     renderRelated(cat, data.id);
     renderSellerInfo(data.seller_id, price);
     setupFavoriteButton(data.id);
     setupMessageSellerButton(data.id, data.seller_id);
+    setupOfferSection(data.id, data.seller_id, price, data.status);
     setupReportButton(data.id, name);
 
     const buyBtn = document.getElementById('buyBtn');

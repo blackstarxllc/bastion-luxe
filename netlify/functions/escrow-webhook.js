@@ -40,7 +40,11 @@ exports.handler = async (event) => {
     const bastionStatus = statusMap[newStatus] || null;
 
     const updateBody = { escrow_status: newStatus };
-    if (bastionStatus) updateBody.status = bastionStatus;
+    if (bastionStatus) {
+      updateBody.status = bastionStatus;
+      const timestampField = { funded: 'funded_at', shipped: 'shipped_at', released: 'released_at' }[bastionStatus];
+      if (timestampField) updateBody[timestampField] = new Date().toISOString();
+    }
 
     await fetch(
       `${SUPABASE_URL}/rest/v1/transactions?escrow_transaction_id=eq.${encodeURIComponent(escrowTransactionId)}`,

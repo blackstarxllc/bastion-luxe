@@ -15,36 +15,52 @@
   :root{
     --ink:#0A0B0D; --ink-soft:#101216; --surface:#15171B;
     --ivory:#F1ECE1; --stone:#8D8F94; --stone-dim:#5B5D62;
-    --brass:#C7A268; --brass-ink:#171308;
+    --brass:#C7A268; --brass-dim:#8C6F44; --brass-ink:#171308;
     --hairline:rgba(241,236,225,0.08);
-    --radius:2px;
+    --radius-pill:999px;
   }
   *{box-sizing:border-box;}
-  body{ margin:0; background:var(--ink); color:var(--ivory); font-family:'Inter', sans-serif; }
+  body{
+    margin:0; background:
+      radial-gradient(1100px 550px at 10% -10%, rgba(199,162,104,0.05), transparent 60%),
+      var(--ink);
+    color:var(--ivory); font-family:'Inter', sans-serif; -webkit-font-smoothing:antialiased;
+  }
   header{
     display:flex; justify-content:space-between; align-items:center;
-    padding:20px 24px; border-bottom:1px solid var(--hairline);
+    padding:18px 24px; border-bottom:1px solid var(--hairline);
+    position:sticky; top:0;
+    background:rgba(10,11,13,0.82);
+    -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+    z-index:10;
   }
-  .wordmark{ font-family:'Fraunces', serif; font-size:22px; color:var(--ivory); text-decoration:none; }
+  @media(min-width:900px){ header{ padding:18px 56px; } }
+  .wordmark{ font-family:'Fraunces', serif; font-weight:450; font-size:22px; color:var(--ivory); text-decoration:none; }
   .wordmark:link{ color:var(--ivory) !important; }
   .wordmark:visited{ color:var(--ivory) !important; }
   .wordmark em{ color:var(--brass); font-style:italic; }
   .wordmark:link em{ color:var(--brass) !important; }
   .wordmark:visited em{ color:var(--brass) !important; }
-  header a{
+  header a.back-pill{
     color:var(--stone); text-decoration:none;
-    font-family:'IBM Plex Mono', monospace; font-size:11.5px;
-    letter-spacing:0.06em; text-transform:uppercase;
+    font-family:'IBM Plex Mono', monospace; font-size:10.5px;
+    letter-spacing:0.08em; text-transform:uppercase;
+    padding:10px 16px; border-radius:var(--radius-pill);
+    transition:color 0.2s ease, background 0.2s ease;
   }
-  main{ max-width:720px; margin:0 auto; padding:48px 24px 80px; }
+  header a.back-pill:hover{ color:var(--ivory); background:rgba(255,255,255,0.04); }
+  main{ max-width:740px; margin:0 auto; padding:64px 24px 40px; }
+  @media(min-width:900px){ main{ padding:80px 24px 40px; } }
   .eyebrow{
-    font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--brass);
-    letter-spacing:0.12em; text-transform:uppercase; margin-bottom:14px;
+    font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--brass);
+    letter-spacing:0.18em; text-transform:uppercase; margin-bottom:18px;
+    display:flex; align-items:center; gap:10px;
   }
-  h1{ font-family:'Fraunces', serif; font-weight:400; font-size:36px; margin:0 0 28px; line-height:1.2; }
+  .eyebrow::before{ content:""; width:16px; height:1px; background:var(--brass); display:inline-block; }
+  h1{ font-family:'Fraunces', serif; font-weight:450; font-style:italic; font-size:38px; margin:0 0 28px; line-height:1.2; letter-spacing:-0.01em; }
   h2{
-    font-family:'Fraunces', serif; font-weight:500; font-size:20px;
-    color:var(--brass); margin:44px 0 12px;
+    font-family:'Fraunces', serif; font-weight:500; font-size:21px;
+    color:var(--brass); margin:48px 0 14px;
   }
   p, li{ font-size:15px; line-height:1.8; color:#D8D3C6; }
   ul{ padding-left:20px; }
@@ -52,25 +68,27 @@
   strong{ color:var(--ivory); }
   .pull{
     font-family:'Fraunces', serif; font-style:italic; font-size:19px;
-    color:var(--ivory); border-left:2px solid var(--brass); padding-left:20px;
-    margin:36px 0; line-height:1.6;
+    color:var(--ivory); border-left:2px solid var(--brass); padding-left:22px;
+    margin:40px 0; line-height:1.6;
   }
   .cta{
-    margin-top:52px; padding:24px; background:var(--surface); border:1px solid var(--hairline);
-    border-radius:var(--radius); text-align:center;
+    margin-top:56px; padding:28px; background:var(--surface); border:1px solid var(--hairline);
+    border-radius:14px; text-align:center;
   }
   .cta a{
-    display:inline-block; margin-top:12px; color:var(--brass-ink); background:var(--brass);
-    text-decoration:none; padding:10px 22px; border-radius:var(--radius);
-    font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.06em; text-transform:uppercase;
+    display:inline-block; margin-top:14px; color:var(--brass-ink); background:var(--brass);
+    text-decoration:none; padding:11px 22px; border-radius:var(--radius-pill);
+    font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase;
+    transition:background 0.2s ease;
   }
+  .cta a:hover{ background:#D4B27E; }
 </style>
 </head>
 <body>
 
 <header>
   <a href="bastion-marketplace.html" class="wordmark">Bast<em>ion</em></a>
-  <a href="/bastion-marketplace.html">Back to Marketplace</a>
+  <a href="/bastion-marketplace.html" class="back-pill">Back to Marketplace</a>
 </header>
 
 <main>
@@ -115,6 +133,16 @@
     <a href="/bastion-faq.html">Read the FAQ</a>
   </div>
 </main>
+
+<footer style="max-width:740px;margin:0 auto;padding:40px 24px 48px;border-top:1px solid rgba(241,236,225,0.08);display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center;justify-content:space-between;">
+  <a href="bastion-marketplace.html" class="wordmark" style="font-size:16px; color:var(--stone-dim);">Bast<em style="color:var(--brass-dim);">ion</em></a>
+  <div style="display:flex; flex-wrap:wrap; gap:24px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase;">
+    <a href="/bastion-faq.html" style="color:var(--stone); text-decoration:none;">FAQ</a>
+    <a href="/bastion-safety.html" style="color:var(--stone); text-decoration:none;">Safety Center</a>
+    <a href="/bastion-terms.html" style="color:var(--stone); text-decoration:none;">Terms</a>
+    <a href="/bastion-privacy.html" style="color:var(--stone); text-decoration:none;">Privacy</a>
+  </div>
+</footer>
 
 </body>
 </html>

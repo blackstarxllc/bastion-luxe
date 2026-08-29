@@ -15,37 +15,53 @@
   :root{
     --ink:#0A0B0D; --ink-soft:#101216; --surface:#15171B;
     --ivory:#F1ECE1; --stone:#8D8F94; --stone-dim:#5B5D62;
-    --brass:#C7A268; --brass-ink:#171308;
+    --brass:#C7A268; --brass-dim:#8C6F44; --brass-ink:#171308;
     --hairline:rgba(241,236,225,0.08);
-    --radius:2px;
+    --radius-pill:999px;
   }
   *{box-sizing:border-box;}
-  body{ margin:0; background:var(--ink); color:var(--ivory); font-family:'Inter', sans-serif; }
+  body{
+    margin:0; background:
+      radial-gradient(1100px 550px at 10% -10%, rgba(199,162,104,0.05), transparent 60%),
+      var(--ink);
+    color:var(--ivory); font-family:'Inter', sans-serif; -webkit-font-smoothing:antialiased;
+  }
   header{
     display:flex; justify-content:space-between; align-items:center;
-    padding:20px 24px; border-bottom:1px solid var(--hairline);
+    padding:18px 24px; border-bottom:1px solid var(--hairline);
+    position:sticky; top:0;
+    background:rgba(10,11,13,0.82);
+    -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+    z-index:10;
   }
-  .wordmark{ font-family:'Fraunces', serif; font-size:22px; color:var(--ivory); text-decoration:none; }
+  @media(min-width:900px){ header{ padding:18px 56px; } }
+  .wordmark{ font-family:'Fraunces', serif; font-weight:450; font-size:22px; color:var(--ivory); text-decoration:none; }
   .wordmark:link{ color:var(--ivory) !important; }
   .wordmark:visited{ color:var(--ivory) !important; }
   .wordmark em{ color:var(--brass); font-style:italic; }
   .wordmark:link em{ color:var(--brass) !important; }
   .wordmark:visited em{ color:var(--brass) !important; }
-  header a{
+  header a.back-pill{
     color:var(--stone); text-decoration:none;
-    font-family:'IBM Plex Mono', monospace; font-size:11.5px;
-    letter-spacing:0.06em; text-transform:uppercase;
+    font-family:'IBM Plex Mono', monospace; font-size:10.5px;
+    letter-spacing:0.08em; text-transform:uppercase;
+    padding:10px 16px; border-radius:var(--radius-pill);
+    transition:color 0.2s ease, background 0.2s ease;
   }
-  main{ max-width:720px; margin:0 auto; padding:48px 24px 80px; }
+  header a.back-pill:hover{ color:var(--ivory); background:rgba(255,255,255,0.04); }
+  main{ max-width:740px; margin:0 auto; padding:64px 24px 40px; }
+  @media(min-width:900px){ main{ padding:80px 24px 40px; } }
   .eyebrow{
-    font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--brass);
-    letter-spacing:0.12em; text-transform:uppercase; margin-bottom:14px;
+    font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--brass);
+    letter-spacing:0.18em; text-transform:uppercase; margin-bottom:18px;
+    display:flex; align-items:center; gap:10px;
   }
-  h1{ font-family:'Fraunces', serif; font-weight:400; font-size:34px; margin:0 0 8px; }
-  .sub{ color:var(--stone); font-size:14px; margin-bottom:44px; }
+  .eyebrow::before{ content:""; width:16px; height:1px; background:var(--brass); display:inline-block; }
+  h1{ font-family:'Fraunces', serif; font-weight:450; font-style:italic; font-size:36px; margin:0 0 10px; letter-spacing:-0.01em; }
+  .sub{ color:var(--stone); font-size:14px; margin-bottom:48px; line-height:1.6; }
   h2{
-    font-family:'Fraunces', serif; font-weight:500; font-size:15px;
-    color:var(--brass); text-transform:none; margin:0 0 22px; padding-top:32px;
+    font-family:'Fraunces', serif; font-weight:500; font-size:14.5px;
+    color:var(--brass); text-transform:none; margin:0 0 20px; padding-top:36px;
     border-top:1px solid var(--hairline); letter-spacing:0.02em;
   }
   h2:first-of-type{ border-top:none; padding-top:0; }
@@ -54,14 +70,19 @@
   }
   summary{
     font-family:'Inter', sans-serif; font-weight:600; font-size:15px; color:var(--ivory);
-    padding:16px 0; cursor:pointer; list-style:none; display:flex; justify-content:space-between; gap:16px;
+    padding:18px 4px; cursor:pointer; list-style:none; display:flex; justify-content:space-between; align-items:center; gap:16px;
+    transition:color 0.2s ease;
   }
+  summary:hover{ color:var(--brass); }
   summary::-webkit-details-marker{ display:none; }
   summary::after{
-    content:'+'; color:var(--brass); font-size:18px; flex-shrink:0;
+    content:'+'; color:var(--brass); font-size:15px; flex-shrink:0;
+    width:26px; height:26px; border-radius:50%; border:1px solid rgba(199,162,104,0.3);
+    display:flex; align-items:center; justify-content:center;
+    transition:transform 0.2s ease;
   }
   details[open] summary::after{ content:'–'; }
-  .answer{ font-size:14.5px; line-height:1.75; color:#D8D3C6; padding:0 0 20px; }
+  .answer{ font-size:14.5px; line-height:1.75; color:#D8D3C6; padding:0 4px 22px; }
   .answer strong{ color:var(--ivory); }
   .answer ul{ padding-left:20px; margin:8px 0; }
   .answer li{ margin-bottom:6px; }
@@ -71,7 +92,7 @@
 
 <header>
   <a href="bastion-marketplace.html" class="wordmark">Bast<em>ion</em></a>
-  <a href="/bastion-marketplace.html">Back to Marketplace</a>
+  <a href="/bastion-marketplace.html" class="back-pill">Back to Marketplace</a>
 </header>
 
 <main>
@@ -132,6 +153,16 @@
   </details>
 
 </main>
+
+<footer style="max-width:740px;margin:0 auto;padding:40px 24px 48px;border-top:1px solid rgba(241,236,225,0.08);display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center;justify-content:space-between;">
+  <a href="bastion-marketplace.html" class="wordmark" style="font-size:16px; color:var(--stone-dim);">Bast<em style="color:var(--brass-dim);">ion</em></a>
+  <div style="display:flex; flex-wrap:wrap; gap:24px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase;">
+    <a href="/bastion-about.html" style="color:var(--stone); text-decoration:none;">Built on Trust</a>
+    <a href="/bastion-safety.html" style="color:var(--stone); text-decoration:none;">Safety Center</a>
+    <a href="/bastion-terms.html" style="color:var(--stone); text-decoration:none;">Terms</a>
+    <a href="/bastion-privacy.html" style="color:var(--stone); text-decoration:none;">Privacy</a>
+  </div>
+</footer>
 
 </body>
 </html>

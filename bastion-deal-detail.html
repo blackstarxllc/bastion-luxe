@@ -1616,8 +1616,12 @@ async function loadDeal(){
           return;
         }
 
-        // Mark the listing as pending so nobody else can buy it mid-transaction.
-        await supabaseClient.from(TABLE_NAME).update({ status: 'pending' }).eq('id', data.id);
+        // The listing is automatically marked "pending" and blocked from a
+        // second purchase by a database trigger the moment this transaction
+        // is created — not from here. A buyer's own session was never
+        // actually allowed to update someone else's listing (correctly, by
+        // your security rules), so this used to fail silently every time,
+        // which is exactly why the same item could be bought more than once.
 
         // Open the real Escrow.com transaction in the background. If this
         // fails, we still let the buyer continue — the transaction page can

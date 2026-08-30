@@ -8,20 +8,23 @@
 //
 // ============================ SECURITY ============================
 // The webhook payload is treated as an UNTRUSTED HINT, never as truth.
+// The ONLY thing taken from it is the transaction ID; the actual status
+// is then fetched directly from Escrow.com's own API using our own
+// credentials, and THAT is what gets written. A forged webhook can at
+// worst trigger a harmless re-sync against the real source of truth.
 //
-// Anyone on the internet can POST to this URL. If we simply believed the
-// body, an attacker could send {"id": "...", "status": "released"} and
-// mark a real transaction as released -- moving real money. So instead:
+// The shared secret check below is a soft gate, not this security
+// boundary — see the note above it for why it's intentionally
+// non-blocking.
+// ==================================================================
 //
-//   1. An optional shared secret gates obvious junk traffic cheaply.
-//   2. The ONLY thing we take from the payload is the transaction ID.
-//   3. We then ask Escrow.com directly what that transaction's status
-//      actually is, using our own API credentials, and write THAT.
-//
-// The result: a forged webhook can at worst trigger a harmless re-sync
-// against the real source of truth. It can never invent a status.
-// This also means we don't need to reverse-engineer Escrow.com's
-// signature scheme in order to be safe.
+// ======================== FAILURE VISIBILITY =======================
+// Every failure path here returns 200, on purpose — a non-2xx response
+// is very likely what got a previous version of this webhook disabled
+// by Escrow.com after "too many failures". But silent-to-Escrow.com
+// does NOT mean silent to Bastion: every real failure is written to the
+// system_alerts table (visible in the Admin panel), not just logged to
+// Netlify's function logs where nobody is watching in real time.
 // ==================================================================
 
 const ESCROW_API_BASE = process.env.ESCROW_LIVE_MODE === 'true'
@@ -33,6 +36,34 @@ exports.handler = async (event) => {
     return { statusCode: 405, body: 'Method not allowed' };
   }
 
+  const SUPABASE_URL = process.env.SUPABASE_URL;
+  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  async function logAlert(message, context) {
+    console.error('escrow-webhook:', message, context || {});
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return;
+    try {
+      await fetch(SUPABASE_URL + '/rest/v1/system_alerts', {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify({
+          source: 'escrow_webhook',
+          message: message,
+          context: context || {},
+        }),
+      });
+    } catch (e) {
+      // If even logging the alert fails, there's nothing further to do —
+      // it's still in the Netlify console output above as a last resort.
+      console.error('escrow-webhook: could not write to system_alerts', e);
+    }
+  }
+
   try {
     // ---- Step 1: cheap gate against junk traffic -------------------
     // The secret is a soft check, not the real security boundary — that
@@ -42,7 +73,7 @@ exports.handler = async (event) => {
     // reliably preserve a "?secret=..." query string on the URL it calls
     // back (some platforms strip query strings from registered webhook
     // URLs), every single call would fail here — which looks exactly like
-    // what happened. So: log a mismatch loudly, but don't block on it.
+    // what happened previously.
     const expectedSecret = process.env.ESCROW_WEBHOOK_SECRET;
     if (expectedSecret) {
       const params = event.queryStringParameters || {};
@@ -50,7 +81,7 @@ exports.handler = async (event) => {
         || event.headers['x-webhook-secret']
         || event.headers['X-Webhook-Secret'];
       if (provided !== expectedSecret) {
-        console.warn('escrow-webhook: secret did not match (proceeding anyway — real security is the Escrow.com verification step below)', {
+        await logAlert('Webhook secret did not match (proceeding anyway — verification against Escrow.com below is the real security boundary)', {
           hadQueryParams: Object.keys(params).length > 0,
           providedLength: provided ? provided.length : 0,
         });
@@ -61,22 +92,12 @@ exports.handler = async (event) => {
     try {
       payload = JSON.parse(event.body || '{}');
     } catch (parseErr) {
-      console.error('escrow-webhook: could not parse request body as JSON', { rawBody: (event.body || '').slice(0, 1000) });
-      // Always 200 here — a malformed body isn't something retrying will
-      // fix, and returning an error status is what gets a webhook disabled
-      // by the sender after repeated "failures".
+      await logAlert('Could not parse webhook body as JSON', { rawBody: (event.body || '').slice(0, 1000) });
       return { statusCode: 200, body: JSON.stringify({ received: true, parsed: false }) };
     }
 
-    // Log the full raw payload every time, at least until we've confirmed
-    // exactly which field Escrow.com actually uses for the transaction ID
-    // on each event type. This is the one piece of information needed to
-    // stop guessing and know for certain.
     console.log('escrow-webhook: received payload', JSON.stringify(payload).slice(0, 2000));
 
-    // Try every reasonable place the transaction ID might live, since the
-    // exact field name for this specific event type ("transaction_create")
-    // hasn't been confirmed yet.
     const escrowTransactionId =
       payload.id
       || payload.transaction_id
@@ -87,27 +108,23 @@ exports.handler = async (event) => {
       || null;
 
     if (!escrowTransactionId) {
-      console.error('escrow-webhook: could not find a transaction id anywhere in the payload', JSON.stringify(payload).slice(0, 1000));
-      // 200, not 400 — see note above about why a hard failure status here
-      // is actively harmful (it's very likely what got the webhook disabled).
+      await logAlert('Could not find a transaction id anywhere in the webhook payload', { payload: JSON.stringify(payload).slice(0, 1000) });
       return { statusCode: 200, body: JSON.stringify({ received: true, foundId: false }) };
     }
 
-    const SUPABASE_URL = process.env.SUPABASE_URL;
-    const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const isLive = process.env.ESCROW_LIVE_MODE === 'true';
     const ESCROW_EMAIL = isLive ? process.env.ESCROW_LIVE_EMAIL : process.env.ESCROW_SANDBOX_EMAIL;
     const ESCROW_API_KEY = isLive ? process.env.ESCROW_LIVE_API_KEY : process.env.ESCROW_SANDBOX_API_KEY;
 
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !ESCROW_EMAIL || !ESCROW_API_KEY) {
-      console.error('escrow-webhook: missing env vars', {
+      await logAlert('Missing required environment variables', {
         hasSupabaseUrl: !!SUPABASE_URL,
         hasServiceRole: !!SUPABASE_SERVICE_ROLE_KEY,
         hasEscrowEmail: !!ESCROW_EMAIL,
         hasEscrowKey: !!ESCROW_API_KEY,
         liveMode: isLive,
       });
-      return { statusCode: 500, body: JSON.stringify({ error: 'Server is missing required environment variables' }) };
+      return { statusCode: 200, body: JSON.stringify({ received: true, configOk: false }) };
     }
 
     // ---- Step 2: ask Escrow.com what the truth actually is ---------
@@ -120,13 +137,11 @@ exports.handler = async (event) => {
 
     if (!verifyRes.ok) {
       const detail = await verifyRes.text().catch(() => '');
-      console.error('escrow-webhook: could not verify transaction with Escrow.com', {
+      await logAlert('Could not verify transaction with Escrow.com', {
         escrowTransactionId,
         status: verifyRes.status,
         detail: detail.slice(0, 500),
       });
-      // Return 200 so Escrow.com doesn't hammer retries over something a
-      // retry won't fix; the error is logged loudly for a human instead.
       return { statusCode: 200, body: JSON.stringify({ received: true, verified: false }) };
     }
 
@@ -134,7 +149,7 @@ exports.handler = async (event) => {
     const verifiedStatus = deriveStatus(escrowTxn);
 
     if (!verifiedStatus) {
-      console.warn('escrow-webhook: could not derive a status from verified transaction', {
+      await logAlert('Could not derive a status from the verified Escrow.com transaction', {
         escrowTransactionId,
         rawStatus: JSON.stringify(escrowTxn.status || {}).slice(0, 300),
       });
@@ -180,46 +195,38 @@ exports.handler = async (event) => {
       }
     );
 
-    // Previously this response was never checked at all, so a failed sync
-    // was completely invisible. Now it's surfaced.
     if (!patchRes.ok) {
       const detail = await patchRes.text().catch(() => '');
-      console.error('escrow-webhook: failed to update Bastion transaction', {
+      await logAlert('Failed to write the verified status onto the Bastion transaction', {
         escrowTransactionId,
         status: patchRes.status,
         detail: detail.slice(0, 500),
       });
-      // 200, not 500 — same reasoning as above. A human needs to see this
-      // in the logs and fix it directly; relying on Escrow.com's retries
-      // just risks tripping their failure limit again.
       return { statusCode: 200, body: JSON.stringify({ received: true, synced: false }) };
     }
 
     const updated = await patchRes.json().catch(() => []);
     if (!Array.isArray(updated) || updated.length === 0) {
-      console.warn('escrow-webhook: no Bastion transaction matched this escrow id', { escrowTransactionId });
+      await logAlert('No Bastion transaction matched this Escrow.com transaction id', { escrowTransactionId });
     }
 
     const dealId = Array.isArray(updated) && updated[0] ? updated[0].deal_id : null;
 
-    // When a trade completes, close out the listing so it can't be bought again.
     if (bastionStatus === 'released' && dealId) {
-      await patchDeal(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, dealId, 'sold');
+      await patchDeal(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, dealId, 'sold', logAlert);
     }
-
-    // If the trade was cancelled outright, put the listing back on the market.
     if (verifiedStatus === 'cancelled' && dealId) {
-      await patchDeal(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, dealId, 'active');
+      await patchDeal(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, dealId, 'active', logAlert);
     }
 
     return { statusCode: 200, body: JSON.stringify({ received: true, verified: true, status: verifiedStatus }) };
   } catch (err) {
-    console.error('escrow-webhook fatal error:', err);
-    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
+    await logAlert('Fatal error in escrow-webhook', { error: err.message, stack: (err.stack || '').slice(0, 1000) });
+    return { statusCode: 200, body: JSON.stringify({ received: true, fatalError: true }) };
   }
 };
 
-async function patchDeal(supabaseUrl, serviceKey, dealId, status) {
+async function patchDeal(supabaseUrl, serviceKey, dealId, status, logAlert) {
   try {
     await fetch(supabaseUrl + '/rest/v1/deals?id=eq.' + encodeURIComponent(dealId), {
       method: 'PATCH',
@@ -232,7 +239,7 @@ async function patchDeal(supabaseUrl, serviceKey, dealId, status) {
       body: JSON.stringify({ status: status }),
     });
   } catch (e) {
-    console.error('escrow-webhook: could not set deal status to ' + status, e);
+    await logAlert('Could not set deal status to ' + status, { dealId, error: e.message });
   }
 }
 

@@ -237,6 +237,10 @@
   <h1>Admin <em>Panel</em></h1>
   <div class="sub">Resolve disputes, moderate listings, and manage users without touching the database directly.</div>
 
+  <div class="section-title">System Alerts</div>
+  <div class="empty-note" style="padding-top:0;">Real failures from behind-the-scenes systems (like the Escrow.com webhook) land here — these never surface to buyers or sellers, but need a human to look at them.</div>
+  <div id="systemAlertsList"></div>
+
   <div class="section-title">Users</div>
   <input id="userSearch" type="text" placeholder="Search by handle…" class="search-input">
   <div id="usersList"></div>
@@ -525,6 +529,57 @@ async function resolveSupportRequest(id, btn){
   loadSupportRequests();
 }
 
+async function loadSystemAlerts(){
+  const list = document.getElementById('systemAlertsList');
+  const { data, error } = await supabaseClient
+    .from('system_alerts')
+    .select('*')
+    .eq('resolved', false)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if(error){
+    list.innerHTML = '<div class="empty-note">Could not load system alerts: ' + escapeHtml(error.message) + '</div>';
+    return;
+  }
+  if(!data || data.length === 0){
+    list.innerHTML = '<div class="empty-note">No unresolved alerts. Everything behind the scenes is checking in clean.</div>';
+    return;
+  }
+
+  list.innerHTML = data.map(function(a){
+    const when = a.created_at ? new Date(a.created_at).toLocaleString('en-US') : '';
+    const contextStr = a.context ? JSON.stringify(a.context) : '';
+    return `
+      <div class="row" data-alert-id="${escapeHtml(a.id)}">
+        <div class="row-top">
+          <div>
+            <div class="row-title">${escapeHtml(a.source)}</div>
+            <div class="row-meta">${escapeHtml(a.message)}</div>
+            ${contextStr ? '<div class="row-meta" style="margin-top:4px; opacity:0.7; word-break:break-all;">' + escapeHtml(contextStr.slice(0, 400)) + '</div>' : ''}
+          </div>
+          <div style="text-align:right;">
+            <span class="badge admin">${escapeHtml(when)}</span>
+          </div>
+        </div>
+        <div class="row-actions">
+          <button class="btn" onclick="resolveAlert('${a.id}', this)">Mark resolved</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function resolveAlert(id, btn){
+  btn.disabled = true;
+  const { error } = await supabaseClient.from('system_alerts').update({ resolved: true }).eq('id', id);
+  if(error){
+    alert('Could not resolve: ' + error.message);
+    btn.disabled = false;
+    return;
+  }
+  loadSystemAlerts();
+}
+
 async function loadReports(){
   const list = document.getElementById('reportsList');
   const { data, error } = await supabaseClient
@@ -708,6 +763,7 @@ async function removeListing(dealId, btn){
   if(!ok) return;
   document.getElementById('gate').style.display = 'none';
   document.getElementById('content').style.display = 'block';
+  loadSystemAlerts();
   loadUsers();
   loadDisputes();
   loadSupportRequests();

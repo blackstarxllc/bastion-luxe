@@ -69,9 +69,6 @@
       width:44%;
       min-height:100vh;
       padding:64px 56px;
-      background:
-        radial-gradient(ellipse 900px 500px at 20% -10%, rgba(199,162,104,0.08), transparent 60%),
-        var(--ink-soft);
       border-bottom:none;
       border-right:1px solid var(--hairline);
       display:flex;
@@ -203,6 +200,7 @@
     padding-top:28px;
     border-top:1px solid var(--hairline);
   }
+  @media(max-width:899px){ .process{ margin-top:32px; } }
   @media(min-width:900px){ .process{ margin-top:40px; } }
 
   .process-step{ flex:1; }
@@ -224,7 +222,12 @@
     margin-bottom:12px;
   }
   @media(max-width:899px){
-    .categories{ margin-bottom:56px; }
+    /* .process uses margin-top:auto to push itself down in the desktop
+       flex-column layout — that has no effect at all in mobile's normal
+       block flow, so .categories was left with only its own 24px against
+       a paragraph of wrapped text above it. This gives mobile its own
+       real gap instead of inheriting a value meant for a different layout. */
+    .categories{ margin-top:48px; margin-bottom:56px; }
   }
   .categories-label{
     font-family:'IBM Plex Mono', monospace;

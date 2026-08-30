@@ -176,6 +176,11 @@ exports.handler = async (event) => {
         escrowResponse: JSON.stringify(escrowData),
         sentPayload: JSON.stringify(escrowPayload),
       });
+      await logAlertToSupabase(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, 'escrow_transaction_creation', 'Escrow.com rejected the transaction creation request', {
+        transactionId,
+        status: createRes.status,
+        escrowResponse: JSON.stringify(escrowData).slice(0, 800),
+      });
       return {
         statusCode: 502,
         body: JSON.stringify({ error: 'Escrow.com rejected the transaction', details: escrowData }),
@@ -204,6 +209,27 @@ exports.handler = async (event) => {
     };
   } catch (err) {
     console.error('create-escrow-transaction fatal error:', err);
+    await logAlertToSupabase(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, 'escrow_transaction_creation', 'Fatal error creating escrow transaction', {
+      error: err.message,
+    });
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
 };
+
+async function logAlertToSupabase(supabaseUrl, serviceKey, source, message, context){
+  if (!supabaseUrl || !serviceKey) return;
+  try {
+    await fetch(supabaseUrl + '/rest/v1/system_alerts', {
+      method: 'POST',
+      headers: {
+        apikey: serviceKey,
+        Authorization: 'Bearer ' + serviceKey,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({ source, message, context: context || {} }),
+    });
+  } catch (e) {
+    console.error('create-escrow-transaction: could not write to system_alerts', e);
+  }
+}

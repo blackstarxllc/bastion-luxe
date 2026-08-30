@@ -517,6 +517,58 @@
   .offer-form-actions{ display:flex; gap:10px; align-items:center; }
   .offer-status-msg{ font-size:11.5px; color:var(--stone); margin-top:8px; }
 
+  /* ---------- BRANDED CONFIRMATION MODAL ---------- */
+  .confirm-overlay{
+    position:fixed; inset:0; z-index:1000;
+    background:rgba(5,6,7,0.72);
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    display:flex; align-items:center; justify-content:center;
+    padding:24px;
+  }
+  .confirm-modal{
+    width:100%; max-width:420px;
+    background:rgba(21,23,27,0.92);
+    border:1px solid rgba(199,162,104,0.28);
+    border-radius:18px;
+    padding:36px 32px 28px;
+    text-align:center;
+    backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px);
+    box-shadow:0 30px 70px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(199,162,104,0.06);
+    animation:confirmModalIn 0.22s ease;
+  }
+  @keyframes confirmModalIn{
+    from{ opacity:0; transform:translateY(8px) scale(0.98); }
+    to{ opacity:1; transform:translateY(0) scale(1); }
+  }
+  .confirm-modal-seal{
+    width:44px; height:44px; margin:0 auto 18px;
+    border-radius:50%; border:1px solid var(--brass-dim);
+    background:rgba(199,162,104,0.08);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces', serif; font-size:19px; color:var(--brass);
+  }
+  .confirm-modal-title{
+    font-family:'Fraunces', serif; font-style:italic; font-weight:450;
+    font-size:21px; color:var(--ivory); margin-bottom:12px; line-height:1.3;
+  }
+  .confirm-modal-body{
+    font-size:13.5px; color:var(--stone); line-height:1.65; margin-bottom:26px;
+  }
+  .confirm-modal-body strong{ color:var(--ivory); font-weight:600; }
+  .confirm-modal-actions{ display:flex; gap:10px; }
+  .confirm-modal-cancel, .confirm-modal-proceed{
+    flex:1; padding:13px; border-radius:999px; cursor:pointer;
+    font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase;
+    border:none;
+  }
+  .confirm-modal-cancel{ background:rgba(255,255,255,0.04); color:var(--stone); border:1px solid var(--field-border); }
+  .confirm-modal-cancel:hover{ color:var(--ivory); border-color:var(--stone); }
+  .confirm-modal-proceed{
+    background:linear-gradient(120deg, #E9CB98 0%, var(--brass) 45%, #B08A4F 75%, #D9B87E 100%);
+    color:var(--brass-ink); font-weight:500;
+  }
+  .confirm-modal-proceed:hover{ filter:brightness(1.06); }
+
   .offer-thread{
     margin-top:14px; padding:16px 18px;
     background:rgba(255,255,255,0.025); border:1px solid rgba(199,162,104,0.16);
@@ -693,6 +745,17 @@
     transition:border-color 0.2s ease;
   }
   .notif-bell:hover{ border-color:var(--brass); }
+  .nav-logout-btn{
+    background:none; border:1px solid var(--field-border, var(--hairline));
+    color:var(--stone);
+    border-radius:10px;
+    width:36px; height:36px;
+    display:inline-flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    transition:border-color 0.2s ease, color 0.2s ease;
+  }
+  .nav-logout-btn svg{ width:16px; height:16px; }
+  .nav-logout-btn:hover{ border-color:#8C3F37; color:#E0958D; }
   .notif-bell svg{ width:17px; height:17px; }
   .notif-count{
     position:absolute; top:-5px; right:-5px;
@@ -713,10 +776,18 @@
     z-index:100;
   }
   .notif-dropdown-title{
+    display:flex; align-items:center; justify-content:space-between;
     font-family:'IBM Plex Mono', monospace; font-size:10.5px;
     letter-spacing:0.08em; text-transform:uppercase; color:var(--stone-dim);
     padding:14px 16px; border-bottom:1px solid var(--hairline);
   }
+  .notif-clear-btn{
+    background:none; border:none; color:var(--brass-dim);
+    font-family:'IBM Plex Mono', monospace; font-size:9.5px;
+    letter-spacing:0.06em; text-transform:none; cursor:pointer;
+    padding:0; transition:color 0.2s ease;
+  }
+  .notif-clear-btn:hover{ color:var(--brass); }
   .notif-item{
     padding:9px 14px; border-bottom:1px solid var(--hairline);
     cursor:pointer; transition:background 0.2s ease;
@@ -745,6 +816,7 @@
     mix-blend-mode:overlay;
     pointer-events:none;
   }
+  select option{ background:var(--ink-soft); color:var(--ivory); }
 </style>
   <script>
     if ("serviceWorker" in navigator) {
@@ -765,10 +837,13 @@
         <span class="notif-count" id="notifCount" style="display:none;"></span>
       </button>
       <div class="notif-dropdown" id="notifDropdown" style="display:none;">
-        <div class="notif-dropdown-title">Notifications</div>
+        <div class="notif-dropdown-title"><span>Notifications</span><button class="notif-clear-btn" id="notifClearBtn" type="button">Clear all</button></div>
         <div id="notifList"></div>
       </div>
     </div>
+    <button class="nav-logout-btn" id="navLogoutBtn" type="button" aria-label="Log out" title="Log out">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+    </button>
     <a href="bastion-messages.html" class="back-link" style="position:relative;">Messages<span id="navMsgDot" style="display:none; position:absolute; top:-3px; right:-11px; width:7px; height:7px; border-radius:50%; background:var(--brass);"></span></a>
     <a href="bastion-marketplace.html" class="back-link">← Back to Marketplace</a>
   </div>
@@ -942,6 +1017,35 @@ function escapeHtml(str){
   return div.innerHTML;
 }
 
+function showConfirmModal(title, bodyHtml, confirmLabel, hideCancelBtn){
+  const overlay = document.getElementById('confirmOverlay');
+  document.getElementById('confirmModalTitle').textContent = title;
+  document.getElementById('confirmModalBody').innerHTML = bodyHtml;
+  const proceedBtn = document.getElementById('confirmModalProceed');
+  const cancelBtn = document.getElementById('confirmModalCancel');
+  proceedBtn.textContent = confirmLabel || 'Confirm';
+  cancelBtn.style.display = hideCancelBtn ? 'none' : '';
+
+  overlay.classList.remove('hidden');
+
+  return new Promise(function(resolve){
+    function cleanup(result){
+      overlay.classList.add('hidden');
+      proceedBtn.removeEventListener('click', onProceed);
+      cancelBtn.removeEventListener('click', onCancel);
+      overlay.removeEventListener('click', onOverlayClick);
+      resolve(result);
+    }
+    function onProceed(){ cleanup(true); }
+    function onCancel(){ cleanup(false); }
+    function onOverlayClick(e){ if(e.target === overlay) cleanup(false); }
+
+    proceedBtn.addEventListener('click', onProceed);
+    cancelBtn.addEventListener('click', onCancel);
+    overlay.addEventListener('click', onOverlayClick);
+  });
+}
+
 function formatMoney(n){
   return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -1052,7 +1156,10 @@ async function setupOfferSection(dealId, sellerId, listedPrice, dealStatus, acce
   const btn = document.getElementById('makeOfferBtn');
   const form = document.getElementById('offerForm');
   const threadEl = document.getElementById('offerThread');
-  if(!sellerId || dealStatus !== 'active') return;
+  // Offers stay open even while a purchase is pending — that buyer might
+  // fall through, and a backup offer or interested buyer shouldn't be shut
+  // out. Only truly closed once the item is actually sold or disputed.
+  if(!sellerId || dealStatus === 'sold' || dealStatus === 'disputed') return;
 
   const { data: sessionData } = await supabaseClient.auth.getSession();
   const session = sessionData && sessionData.session;
@@ -1125,7 +1232,11 @@ async function setupOfferSection(dealId, sellerId, listedPrice, dealStatus, acce
       return;
     }
 
-    const confirmed = confirm('Send an offer of ' + formatMoney(amount) + ' to the seller? This is a real offer — if they accept it, you\'ll be expected to follow through.');
+    const confirmed = await showConfirmModal(
+      'Send this offer?',
+      'You\'re offering <strong>' + formatMoney(amount) + '</strong> to the seller. This is a real offer — if they accept it, you\'ll be expected to follow through with the purchase.',
+      'Send Offer'
+    );
     if(!confirmed) return;
 
     this.disabled = true;
@@ -1551,10 +1662,9 @@ async function loadDeal(){
       buyBtn.style.opacity = '0.5';
       buyBtn.style.cursor = 'not-allowed';
     } else if(data.status === 'pending'){
-      buyBtn.textContent = 'Sale Pending';
-      buyBtn.disabled = true;
-      buyBtn.style.opacity = '0.5';
-      buyBtn.style.cursor = 'not-allowed';
+      // A sale is in progress with another buyer, but it isn't final —
+      // still allow a backup purchase in case the first one falls through.
+      buyBtn.textContent = 'Begin Secure Purchase';
     }
 
     loadingEl.classList.add('hidden');
@@ -1584,7 +1694,13 @@ async function loadDeal(){
           return;
         }
 
-        const confirmed = confirm('Begin a secure escrow purchase of "' + name + '" for ' + formatMoney(price) + ' plus escrow fees? Your payment will be held in escrow until the item is verified and you confirm receipt.');
+        const isBackupPurchase = data.status === 'pending';
+        const confirmed = await showConfirmModal(
+          'Begin secure escrow purchase?',
+          'Purchasing <strong>"' + name + '"</strong> for <strong>' + formatMoney(price) + '</strong> plus escrow fees. Your payment will be held in escrow until the item is verified and you confirm receipt.' +
+          (isBackupPurchase ? '<br><br>Note: another buyer already has a purchase in progress on this item. If they complete first, yours will be automatically cancelled and you will not be charged.' : ''),
+          'Begin Purchase'
+        );
         if(!confirmed){
           btn.disabled = false;
           btn.textContent = originalText;
@@ -1623,12 +1739,16 @@ async function loadDeal(){
         // your security rules), so this used to fail silently every time,
         // which is exactly why the same item could be bought more than once.
 
-        // Open the real Escrow.com transaction in the background. If this
-        // fails, we still let the buyer continue — the transaction page can
-        // retry it, and we don't want a hiccup here to block the whole flow.
+        // Open the real Escrow.com transaction. The internal purchase record
+        // above is already valid either way, so a failure here doesn't block
+        // the buyer entirely — but it used to fail completely silently,
+        // which is very likely why the transaction page appeared to "do
+        // nothing": Escrow.com may have rejected the request, and nobody
+        // ever found out.
+        let escrowSetupFailed = false;
         try {
           const sessionRes = await supabaseClient.auth.getSession();
-          await fetch('/.netlify/functions/create-escrow-transaction', {
+          const escrowRes = await fetch('/.netlify/functions/create-escrow-transaction', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -1636,8 +1756,23 @@ async function loadDeal(){
             },
             body: JSON.stringify({ transactionId: txn.id })
           });
+          if(!escrowRes.ok){
+            escrowSetupFailed = true;
+            const errBody = await escrowRes.json().catch(function(){ return {}; });
+            console.error('Escrow.com transaction creation failed:', escrowRes.status, errBody);
+          }
         } catch (escrowErr) {
+          escrowSetupFailed = true;
           console.error('Escrow.com transaction creation failed:', escrowErr);
+        }
+
+        if(escrowSetupFailed){
+          await showConfirmModal(
+            'Purchase started, but escrow setup needs attention',
+            'Your purchase was recorded, but we couldn\'t confirm the secure escrow setup with our payment partner. Please contact <a href="bastion-support.html" style="color:var(--brass);">Support</a> right away so this can be resolved before you pay.',
+            'Continue to Transaction',
+            true
+          );
         }
 
         window.location.href = 'bastion-transaction.html?id=' + encodeURIComponent(txn.id);
@@ -1678,5 +1813,17 @@ loadDeal();
 </script>
 
 <script src="bastion-notifications.js"></script>
+<div class="confirm-overlay hidden" id="confirmOverlay">
+  <div class="confirm-modal">
+    <div class="confirm-modal-seal">B</div>
+    <div class="confirm-modal-title" id="confirmModalTitle"></div>
+    <div class="confirm-modal-body" id="confirmModalBody"></div>
+    <div class="confirm-modal-actions">
+      <button class="confirm-modal-cancel" id="confirmModalCancel">Cancel</button>
+      <button class="confirm-modal-proceed" id="confirmModalProceed">Confirm</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

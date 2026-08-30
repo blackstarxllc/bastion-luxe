@@ -309,6 +309,7 @@
   .status-badge.accepted{ color:#8FBBAC; background:rgba(143,187,172,0.12); }
   .status-badge.declined{ color:#E0958D; background:rgba(140,63,55,0.12); }
   .status-badge.withdrawn{ color:var(--stone-dim); background:rgba(255,255,255,0.04); }
+  .status-badge.cancelled{ color:var(--stone-dim); background:rgba(255,255,255,0.04); }
   .status-badge.promoted{ color:var(--brass); background:rgba(199,162,104,0.14); }
 
   .offer-card-note{ font-size:11.5px; color:var(--stone); margin-top:10px; line-height:1.5; }
@@ -318,6 +319,21 @@
     color:var(--brass-ink); border:none; border-radius:999px;
     font-family:'IBM Plex Mono', monospace; font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase;
     padding:7px 14px; cursor:pointer;
+    text-decoration:none; display:inline-flex; align-items:center;
+    transition:box-shadow 0.25s ease, transform 0.15s ease;
+  }
+  .offer-accept-btn-glow{
+    padding:11px 20px; font-size:10.5px;
+    box-shadow:0 0 0 1px rgba(199,162,104,0.3), 0 0 18px 2px rgba(199,162,104,0.35), 0 0 34px 6px rgba(199,162,104,0.16);
+    animation:offerGlowPulse 2.6s ease-in-out infinite;
+  }
+  .offer-accept-btn-glow:hover{
+    transform:translateY(-1px);
+    box-shadow:0 0 0 1px rgba(199,162,104,0.45), 0 0 22px 4px rgba(199,162,104,0.5), 0 0 40px 8px rgba(199,162,104,0.22);
+  }
+  @keyframes offerGlowPulse{
+    0%, 100%{ box-shadow:0 0 0 1px rgba(199,162,104,0.3), 0 0 18px 2px rgba(199,162,104,0.35), 0 0 34px 6px rgba(199,162,104,0.16); }
+    50%{ box-shadow:0 0 0 1px rgba(199,162,104,0.4), 0 0 24px 4px rgba(199,162,104,0.5), 0 0 42px 10px rgba(199,162,104,0.22); }
   }
   .offer-counter-row{ display:flex; gap:8px; margin-top:10px; }
   .offer-counter-row input{
@@ -395,6 +411,17 @@
     transition:border-color 0.2s ease;
   }
   .notif-bell:hover{ border-color:var(--brass); }
+  .nav-logout-btn{
+    background:none; border:1px solid var(--field-border, var(--hairline));
+    color:var(--stone);
+    border-radius:10px;
+    width:36px; height:36px;
+    display:inline-flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    transition:border-color 0.2s ease, color 0.2s ease;
+  }
+  .nav-logout-btn svg{ width:16px; height:16px; }
+  .nav-logout-btn:hover{ border-color:#8C3F37; color:#E0958D; }
   .notif-bell svg{ width:17px; height:17px; }
   .notif-count{
     position:absolute; top:-5px; right:-5px;
@@ -415,10 +442,18 @@
     z-index:100;
   }
   .notif-dropdown-title{
+    display:flex; align-items:center; justify-content:space-between;
     font-family:'IBM Plex Mono', monospace; font-size:10.5px;
     letter-spacing:0.08em; text-transform:uppercase; color:var(--stone-dim);
     padding:14px 16px; border-bottom:1px solid var(--hairline);
   }
+  .notif-clear-btn{
+    background:none; border:none; color:var(--brass-dim);
+    font-family:'IBM Plex Mono', monospace; font-size:9.5px;
+    letter-spacing:0.06em; text-transform:none; cursor:pointer;
+    padding:0; transition:color 0.2s ease;
+  }
+  .notif-clear-btn:hover{ color:var(--brass); }
   .notif-item{
     padding:9px 14px; border-bottom:1px solid var(--hairline);
     cursor:pointer; transition:background 0.2s ease;
@@ -445,6 +480,7 @@
     mix-blend-mode:overlay;
     pointer-events:none;
   }
+  select option{ background:var(--ink-soft); color:var(--ivory); }
 </style>
   <script>
     if ("serviceWorker" in navigator) {
@@ -465,10 +501,13 @@
         <span class="notif-count" id="notifCount" style="display:none;"></span>
       </button>
       <div class="notif-dropdown" id="notifDropdown" style="display:none;">
-        <div class="notif-dropdown-title">Notifications</div>
+        <div class="notif-dropdown-title"><span>Notifications</span><button class="notif-clear-btn" id="notifClearBtn" type="button">Clear all</button></div>
         <div id="notifList"></div>
       </div>
     </div>
+    <button class="nav-logout-btn" id="navLogoutBtn" type="button" aria-label="Log out" title="Log out">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+    </button>
     <a href="bastion-messages.html" class="nav-btn" style="position:relative;">Messages<span id="navMsgDot" style="display:none; position:absolute; top:-3px; right:-3px; width:7px; height:7px; border-radius:50%; background:var(--brass);"></span></a>
     <a href="bastion-create-listing.html" class="nav-btn">List an Item</a>
     <a href="bastion-marketplace.html" class="nav-btn primary">Marketplace</a>
@@ -797,13 +836,19 @@ function renderOffers(offers, userId){
             <button class="remove-btn" onclick="event.stopPropagation(); respondToOffer('${o.id}', 'declined', this)">Decline</button>
             <button class="remove-btn" onclick="event.stopPropagation(); showCounterInput('${o.id}', this)">Counter</button>
           </div>
-          <div class="offer-counter-row hidden" id="counterRow-${o.id}">
-            <input type="number" min="1" step="1" id="counterInput-${o.id}" placeholder="Your counter amount">
+          <div class="offer-counter-row hidden" id="counterRow-${o.id}" onclick="event.stopPropagation()">
+            <input type="number" min="1" step="1" id="counterInput-${o.id}" placeholder="Your counter amount" onclick="event.stopPropagation()">
             <button class="offer-accept-btn" onclick="event.stopPropagation(); submitCounter('${o.id}', '${o.deal_id}', '${o.buyer_id}', '${o.seller_id}', this)">Send</button>
           </div>`;
       }
     } else if(o.status === 'accepted'){
-      note = `<div class="offer-card-note">Accepted — message the ${isBuyer ? 'seller' : 'buyer'} to arrange payment.</div>`;
+      statusLabel = 'Accepted';
+      if(isBuyer){
+        actions = `
+          <div class="offer-card-actions">
+            <a class="offer-accept-btn offer-accept-btn-glow" href="bastion-deal-detail.html?id=${encodeURIComponent(o.deal_id)}">Begin Secure Escrow at ${formatMoney(o.amount)}</a>
+          </div>`;
+      }
     } else if(o.status === 'declined'){
       note = `<div class="offer-card-note">This negotiation was declined.</div>`;
     } else if(o.status === 'withdrawn'){
@@ -963,7 +1008,7 @@ function renderTransactionRows(txns, userId, filterMonth){
     const name = escapeHtml(t.item_name || 'Untitled item');
     const role = t.buyer_id === userId ? 'Buying' : (t.seller_id === userId ? 'Selling' : '');
     const status = escapeHtml(t.status || 'funded');
-    const statusLabel = status === 'pending_payment' ? 'Confirming payment' : status;
+    const statusLabel = status === 'pending_payment' ? 'Confirming payment' : (status === 'cancelled' ? 'Sold to another buyer' : status);
 
     let groupHeader = '';
     if(groupLabel !== lastGroupLabel){

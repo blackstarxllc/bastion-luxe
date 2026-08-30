@@ -1,0 +1,38 @@
+# Bastion — Netlify configuration
+#
+# Security headers were previously not configured at all. For a site that
+# handles real money and real personal data, these close off a set of
+# common browser-level attacks (clickjacking, MIME sniffing, referrer
+# leakage) that are cheap to prevent and expensive to be caught by.
+
+[build]
+  publish = "."
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # Stops the site being embedded in an iframe on someone else's domain,
+    # which is how clickjacking attacks trick users into clicking things
+    # like "release funds" without realising it.
+    X-Frame-Options = "DENY"
+
+    # Stops browsers from second-guessing declared content types, which can
+    # turn an uploaded file into an executable script.
+    X-Content-Type-Options = "nosniff"
+
+    # Don't leak the full URL (which can contain transaction IDs) to
+    # third-party sites when a user clicks an external link.
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+    # Force HTTPS for a year, including subdomains.
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+
+    # This site never needs the camera, microphone, or geolocation.
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
+
+# Never let a browser or CDN cache a serverless function response — these
+# are transaction-state endpoints where a stale answer is a real problem.
+[[headers]]
+  for = "/.netlify/functions/*"
+  [headers.values]
+    Cache-Control = "no-store, max-age=0"

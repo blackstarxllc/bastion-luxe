@@ -11,8 +11,12 @@
 // against a real sandbox test — if the first attempt doesn't match their
 // API exactly, the error response will tell us precisely what to adjust.
 
-const ESCROW_API_BASE = 'https://api.escrow-sandbox.com/2017-09-01';
-// Switch to https://api.escrow.com/2017-09-01 when moving to real money.
+// Sandbox vs live is controlled by a single environment variable, so
+// going live is a config flip — not a code edit that could be half-applied.
+// Set ESCROW_LIVE_MODE=true in Netlify when you're ready for real money.
+const ESCROW_API_BASE = process.env.ESCROW_LIVE_MODE === 'true'
+  ? 'https://api.escrow.com/2017-09-01'
+  : 'https://api.escrow-sandbox.com/2017-09-01';
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -33,8 +37,9 @@ exports.handler = async (event) => {
 
     const SUPABASE_URL = process.env.SUPABASE_URL;
     const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const ESCROW_EMAIL = process.env.ESCROW_SANDBOX_EMAIL;
-    const ESCROW_API_KEY = process.env.ESCROW_SANDBOX_API_KEY;
+    const isLive = process.env.ESCROW_LIVE_MODE === 'true';
+    const ESCROW_EMAIL = isLive ? process.env.ESCROW_LIVE_EMAIL : process.env.ESCROW_SANDBOX_EMAIL;
+    const ESCROW_API_KEY = isLive ? process.env.ESCROW_LIVE_API_KEY : process.env.ESCROW_SANDBOX_API_KEY;
 
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !ESCROW_EMAIL || !ESCROW_API_KEY) {
       console.error('release-escrow-transaction: missing env vars', {
@@ -83,6 +88,22 @@ exports.handler = async (event) => {
         buyerId: txn.buyer_id,
       });
       return { statusCode: 403, body: JSON.stringify({ error: 'Only the buyer on this transaction can release funds' }) };
+    }
+
+    // Guard against releasing something that was never funded, or releasing
+    // the same transaction twice. Without this, a repeated request (a double
+    // click, a retry, a replayed request) could hit Escrow.com more than once.
+    if (txn.status === 'released') {
+      return { statusCode: 200, body: JSON.stringify({ released: true, already_released: true }) };
+    }
+    if (txn.status === 'disputed') {
+      return { statusCode: 409, body: JSON.stringify({ error: 'This transaction is under dispute and cannot be released until it is resolved.' }) };
+    }
+    if (txn.status !== 'funded' && txn.status !== 'shipped') {
+      return {
+        statusCode: 409,
+        body: JSON.stringify({ error: 'This transaction is not in a releasable state yet (current status: ' + (txn.status || 'unknown') + ').' }),
+      };
     }
 
     if (!txn.escrow_transaction_id || !txn.escrow_item_id) {

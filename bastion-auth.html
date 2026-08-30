@@ -224,7 +224,7 @@
     margin-bottom:12px;
   }
   @media(max-width:899px){
-    .categories{ margin-bottom:32px; }
+    .categories{ margin-bottom:56px; }
   }
   .categories-label{
     font-family:'IBM Plex Mono', monospace;
@@ -262,9 +262,11 @@
     display:flex;
     align-items:center;
     justify-content:center;
-    padding:40px 24px 56px;
+    padding:72px 24px 56px;
   }
-  @media(min-width:900px){ .panel{ padding:64px; } }
+  @media(min-width:900px){
+    .panel{ padding:64px; min-height:100vh; }
+  }
 
   .card{ width:100%; max-width:380px; }
 

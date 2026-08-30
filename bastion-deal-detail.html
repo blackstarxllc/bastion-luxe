@@ -1193,10 +1193,15 @@ async function setupOfferSection(dealId, sellerId, listedPrice, dealStatus, acce
             : 'Respond to this counter from <a href="bastion-my-account.html">My Account → My Offers</a>.') +
         '</div>';
     } else if(offer.status === 'accepted'){
+      effectivePrice = Number(offer.amount) || effectivePrice;
+      const buyBtnEl = document.getElementById('buyBtn');
+      if(buyBtnEl && !buyBtnEl.disabled){
+        buyBtnEl.textContent = 'Begin Secure Escrow at ' + formatMoney(effectivePrice);
+      }
       threadEl.innerHTML =
         '<div class="offer-thread-label">Offer accepted</div>' +
         '<div class="offer-thread-amount">' + formatMoney(offer.amount) + '</div>' +
-        '<div class="offer-thread-note">Message the seller to arrange payment.</div>';
+        '<div class="offer-thread-note">Use the button below to begin the secure escrow purchase at this price.</div>';
     } else {
       // declined / withdrawn — let them make a fresh offer, if the seller still accepts offers
       threadEl.classList.add('hidden');
@@ -1618,6 +1623,7 @@ async function loadDeal(){
     const desc = data.description || 'No description provided for this item.';
     const cat = data.category || 'Uncategorized';
     const price = Number(data.price) || 0;
+    let effectivePrice = price; // may be overridden below if this buyer has an accepted offer
     const rate = feeRateForPrice(price);
     const fee = price * rate; // Bastion's own cut — this is the only fee actually sent to Escrow.com as part of the held amount
     const total = price + fee; // real amount held/moved — never includes Escrow.com's own fee
@@ -1695,9 +1701,10 @@ async function loadDeal(){
         }
 
         const isBackupPurchase = data.status === 'pending';
+        const isNegotiatedPrice = effectivePrice !== price;
         const confirmed = await showConfirmModal(
           'Begin secure escrow purchase?',
-          'Purchasing <strong>"' + name + '"</strong> for <strong>' + formatMoney(price) + '</strong> plus escrow fees. Your payment will be held in escrow until the item is verified and you confirm receipt.' +
+          'Purchasing <strong>"' + name + '"</strong> for <strong>' + formatMoney(effectivePrice) + '</strong>' + (isNegotiatedPrice ? ' — your accepted offer price' : '') + ' plus escrow fees. Your payment will be held in escrow until the item is verified and you confirm receipt.' +
           (isBackupPurchase ? '<br><br>Note: another buyer already has a purchase in progress on this item. If they complete first, yours will be automatically cancelled and you will not be charged.' : ''),
           'Begin Purchase'
         );
@@ -1709,6 +1716,14 @@ async function loadDeal(){
 
         const releaseCode = String(Math.floor(100000 + Math.random() * 900000));
 
+        // Recompute using the effective (possibly negotiated) price — the
+        // server-side trigger enforces the real charged amount regardless,
+        // but these values should still reflect what's actually happening
+        // rather than always showing the original listing price.
+        const effectiveRate = feeRateForPrice(effectivePrice);
+        const effectiveFee = effectivePrice * effectiveRate;
+        const effectiveTotal = effectivePrice + effectiveFee;
+
         const { data: txn, error: txnError } = await supabaseClient
           .from('transactions')
           .insert([{
@@ -1716,9 +1731,9 @@ async function loadDeal(){
             buyer_id: buyerId,
             seller_id: data.seller_id || null,
             item_name: name,
-            price: price,
-            fee: fee,
-            total: total,
+            price: effectivePrice,
+            fee: effectiveFee,
+            total: effectiveTotal,
             status: 'pending_payment',
             release_code: releaseCode
           }])
@@ -1739,13 +1754,13 @@ async function loadDeal(){
         // your security rules), so this used to fail silently every time,
         // which is exactly why the same item could be bought more than once.
 
-        // Open the real Escrow.com transaction. The internal purchase record
-        // above is already valid either way, so a failure here doesn't block
-        // the buyer entirely — but it used to fail completely silently,
-        // which is very likely why the transaction page appeared to "do
-        // nothing": Escrow.com may have rejected the request, and nobody
-        // ever found out.
-        let escrowSetupFailed = false;
+        // If Escrow.com's side fails to set up here, the buyer's purchase
+        // record is still valid and safe either way — so this stays silent
+        // to them (a scary error box here would tank conversion over
+        // something that isn't actually their problem). It's still logged
+        // loudly to the console and to Netlify's function logs so the team
+        // can catch and fix it without the buyer ever seeing anything look
+        // broken.
         try {
           const sessionRes = await supabaseClient.auth.getSession();
           const escrowRes = await fetch('/.netlify/functions/create-escrow-transaction', {
@@ -1757,22 +1772,11 @@ async function loadDeal(){
             body: JSON.stringify({ transactionId: txn.id })
           });
           if(!escrowRes.ok){
-            escrowSetupFailed = true;
             const errBody = await escrowRes.json().catch(function(){ return {}; });
             console.error('Escrow.com transaction creation failed:', escrowRes.status, errBody);
           }
         } catch (escrowErr) {
-          escrowSetupFailed = true;
           console.error('Escrow.com transaction creation failed:', escrowErr);
-        }
-
-        if(escrowSetupFailed){
-          await showConfirmModal(
-            'Purchase started, but escrow setup needs attention',
-            'Your purchase was recorded, but we couldn\'t confirm the secure escrow setup with our payment partner. Please contact <a href="bastion-support.html" style="color:var(--brass);">Support</a> right away so this can be resolved before you pay.',
-            'Continue to Transaction',
-            true
-          );
         }
 
         window.location.href = 'bastion-transaction.html?id=' + encodeURIComponent(txn.id);

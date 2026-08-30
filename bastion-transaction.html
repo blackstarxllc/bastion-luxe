@@ -564,6 +564,17 @@
     transition:border-color 0.2s ease;
   }
   .notif-bell:hover{ border-color:var(--brass); }
+  .nav-logout-btn{
+    background:none; border:1px solid var(--field-border, var(--hairline));
+    color:var(--stone);
+    border-radius:10px;
+    width:36px; height:36px;
+    display:inline-flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    transition:border-color 0.2s ease, color 0.2s ease;
+  }
+  .nav-logout-btn svg{ width:16px; height:16px; }
+  .nav-logout-btn:hover{ border-color:#8C3F37; color:#E0958D; }
   .notif-bell svg{ width:17px; height:17px; }
   .notif-count{
     position:absolute; top:-5px; right:-5px;
@@ -584,10 +595,18 @@
     z-index:100;
   }
   .notif-dropdown-title{
+    display:flex; align-items:center; justify-content:space-between;
     font-family:'IBM Plex Mono', monospace; font-size:10.5px;
     letter-spacing:0.08em; text-transform:uppercase; color:var(--stone-dim);
     padding:14px 16px; border-bottom:1px solid var(--hairline);
   }
+  .notif-clear-btn{
+    background:none; border:none; color:var(--brass-dim);
+    font-family:'IBM Plex Mono', monospace; font-size:9.5px;
+    letter-spacing:0.06em; text-transform:none; cursor:pointer;
+    padding:0; transition:color 0.2s ease;
+  }
+  .notif-clear-btn:hover{ color:var(--brass); }
   .notif-item{
     padding:9px 14px; border-bottom:1px solid var(--hairline);
     cursor:pointer; transition:background 0.2s ease;
@@ -614,6 +633,7 @@
     mix-blend-mode:overlay;
     pointer-events:none;
   }
+  select option{ background:var(--ink-soft); color:var(--ivory); }
 </style>
   <script>
     if ("serviceWorker" in navigator) {
@@ -634,10 +654,13 @@
         <span class="notif-count" id="notifCount" style="display:none;"></span>
       </button>
       <div class="notif-dropdown" id="notifDropdown" style="display:none;">
-        <div class="notif-dropdown-title">Notifications</div>
+        <div class="notif-dropdown-title"><span>Notifications</span><button class="notif-clear-btn" id="notifClearBtn" type="button">Clear all</button></div>
         <div id="notifList"></div>
       </div>
     </div>
+    <button class="nav-logout-btn" id="navLogoutBtn" type="button" aria-label="Log out" title="Log out">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+    </button>
     <a href="bastion-messages.html" class="back-link" style="position:relative;">Messages<span id="navMsgDot" style="display:none; position:absolute; top:-3px; right:-11px; width:7px; height:7px; border-radius:50%; background:var(--brass);"></span></a>
     <a href="bastion-marketplace.html" class="back-link">← Back to Marketplace</a>
   </div>
@@ -753,6 +776,10 @@ function getIdFromUrl(){
 function updateStepper(status){
   const order = ['funded', 'shipped', 'released'];
   if(status === 'disputed'){
+    document.querySelectorAll('.step').forEach(function(el){ el.classList.remove('done', 'active'); });
+    return;
+  }
+  if(status === 'cancelled'){
     document.querySelectorAll('.step').forEach(function(el){ el.classList.remove('done', 'active'); });
     return;
   }
@@ -981,6 +1008,17 @@ function renderActionArea(txn, isBuyer, isSeller){
     return;
   }
 
+  if(status === 'cancelled'){
+    disputeLink.classList.add('hidden');
+    document.getElementById('disputeForm').classList.add('hidden');
+    area.innerHTML = `
+      <div class="waiting-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
+        <span>Another buyer completed payment first. You were not charged, and no further action is needed. <a href="bastion-marketplace.html">Back to Marketplace →</a></span>
+      </div>`;
+    return;
+  }
+
   if(status === 'released'){
     disputeLink.classList.add('hidden');
     document.getElementById('disputeForm').classList.add('hidden');
@@ -1141,14 +1179,16 @@ async function loadTransaction(){
       funded: 'Funds secured in escrow.',
       shipped: 'Item confirmed and on its way to release.',
       released: 'Trade complete.',
-      disputed: 'Under review.'
+      disputed: 'Under review.',
+      cancelled: 'This trade did not go through.'
     };
     const descs = {
       pending_payment: 'This trade is reserved for you — the listing has been taken off the marketplace while payment is confirmed.',
       funded: 'The buyer\'s payment is held safely. Nothing moves until the item is verified — in person or on arrival — and the buyer confirms.',
       shipped: 'The seller has confirmed the handoff. The buyer will release funds once the item is verified and as described.',
       released: 'Funds have been released to the seller. This trade is complete and archived.',
-      disputed: 'This trade has been flagged and paused for manual review.'
+      disputed: 'This trade has been flagged and paused for manual review.',
+      cancelled: 'Another buyer completed payment first. You were not charged — nothing further is needed here.'
     };
     document.getElementById('statusHeadline').textContent = headlines[txn.status] || txn.status;
     document.getElementById('statusDesc').textContent = descs[txn.status] || '';

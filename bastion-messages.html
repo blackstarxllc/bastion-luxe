@@ -381,6 +381,17 @@
     transition:border-color 0.2s ease;
   }
   .notif-bell:hover{ border-color:var(--brass); }
+  .nav-logout-btn{
+    background:none; border:1px solid var(--field-border, var(--hairline));
+    color:var(--stone);
+    border-radius:10px;
+    width:36px; height:36px;
+    display:inline-flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    transition:border-color 0.2s ease, color 0.2s ease;
+  }
+  .nav-logout-btn svg{ width:16px; height:16px; }
+  .nav-logout-btn:hover{ border-color:#8C3F37; color:#E0958D; }
   .notif-bell svg{ width:17px; height:17px; }
   .notif-count{
     position:absolute; top:-5px; right:-5px;
@@ -393,16 +404,26 @@
   .notif-dropdown{
     position:absolute; top:calc(100% + 10px); right:0;
     width:320px; max-height:240px; overflow-y:auto;
-    background:var(--ink-soft); border:1px solid var(--hairline);
+    background:rgba(10,11,13,0.75); border:1px solid rgba(199,162,104,0.18);
+    backdrop-filter:blur(20px);
+    -webkit-backdrop-filter:blur(20px);
     border-radius:14px;
     box-shadow:0 12px 32px rgba(0,0,0,0.45);
     z-index:100;
   }
   .notif-dropdown-title{
+    display:flex; align-items:center; justify-content:space-between;
     font-family:'IBM Plex Mono', monospace; font-size:10.5px;
     letter-spacing:0.08em; text-transform:uppercase; color:var(--stone-dim);
     padding:14px 16px; border-bottom:1px solid var(--hairline);
   }
+  .notif-clear-btn{
+    background:none; border:none; color:var(--brass-dim);
+    font-family:'IBM Plex Mono', monospace; font-size:9.5px;
+    letter-spacing:0.06em; text-transform:none; cursor:pointer;
+    padding:0; transition:color 0.2s ease;
+  }
+  .notif-clear-btn:hover{ color:var(--brass); }
   .notif-item{
     padding:9px 14px; border-bottom:1px solid var(--hairline);
     cursor:pointer; transition:background 0.2s ease;
@@ -449,10 +470,13 @@
         <span class="notif-count" id="notifCount" style="display:none;"></span>
       </button>
       <div class="notif-dropdown" id="notifDropdown" style="display:none;">
-        <div class="notif-dropdown-title">Notifications</div>
+        <div class="notif-dropdown-title"><span>Notifications</span><button class="notif-clear-btn" id="notifClearBtn" type="button">Clear all</button></div>
         <div id="notifList"></div>
       </div>
     </div>
+    <button class="nav-logout-btn" id="navLogoutBtn" type="button" aria-label="Log out" title="Log out">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+    </button>
     <a href="bastion-marketplace.html" class="nav-btn">Marketplace</a>
     <a href="bastion-my-account.html" class="nav-btn primary">My Account</a>
   </div>

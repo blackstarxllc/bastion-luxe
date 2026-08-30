@@ -1201,7 +1201,7 @@ async function setupOfferSection(dealId, sellerId, listedPrice, dealStatus, acce
       threadEl.innerHTML =
         '<div class="offer-thread-label">Offer accepted</div>' +
         '<div class="offer-thread-amount">' + formatMoney(offer.amount) + '</div>' +
-        '<div class="offer-thread-note">Use the button below to begin the secure escrow purchase at this price.</div>';
+        '<div class="offer-thread-note">Use the "Begin Secure Escrow" button above to complete this purchase at your agreed price.</div>';
     } else {
       // declined / withdrawn — let them make a fresh offer, if the seller still accepts offers
       threadEl.classList.add('hidden');
@@ -1700,11 +1700,35 @@ async function loadDeal(){
           return;
         }
 
+        // Check for an accepted offer fresh, right now, rather than trusting
+        // effectivePrice from the separate setupOfferSection() call — that
+        // runs independently on page load and there's no guarantee it has
+        // finished by the time a fast click happens. This is real pricing;
+        // it shouldn't depend on a timing race.
+        let confirmedPrice = price;
+        try{
+          const { data: acceptedOffer } = await supabaseClient
+            .from('offers')
+            .select('amount')
+            .eq('deal_id', data.id)
+            .eq('buyer_id', buyerId)
+            .eq('status', 'accepted')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if(acceptedOffer && acceptedOffer.amount){
+            confirmedPrice = Number(acceptedOffer.amount);
+            effectivePrice = confirmedPrice;
+          }
+        } catch(offerCheckErr){
+          console.error('Could not check for an accepted offer, proceeding with listing price:', offerCheckErr);
+        }
+
         const isBackupPurchase = data.status === 'pending';
-        const isNegotiatedPrice = effectivePrice !== price;
+        const isNegotiatedPrice = confirmedPrice !== price;
         const confirmed = await showConfirmModal(
           'Begin secure escrow purchase?',
-          'Purchasing <strong>"' + name + '"</strong> for <strong>' + formatMoney(effectivePrice) + '</strong>' + (isNegotiatedPrice ? ' — your accepted offer price' : '') + ' plus escrow fees. Your payment will be held in escrow until the item is verified and you confirm receipt.' +
+          'Purchasing <strong>"' + name + '"</strong> for <strong>' + formatMoney(confirmedPrice) + '</strong>' + (isNegotiatedPrice ? ' — your accepted offer price' : '') + ' plus escrow fees. Your payment will be held in escrow until the item is verified and you confirm receipt.' +
           (isBackupPurchase ? '<br><br>Note: another buyer already has a purchase in progress on this item. If they complete first, yours will be automatically cancelled and you will not be charged.' : ''),
           'Begin Purchase'
         );
@@ -1716,13 +1740,13 @@ async function loadDeal(){
 
         const releaseCode = String(Math.floor(100000 + Math.random() * 900000));
 
-        // Recompute using the effective (possibly negotiated) price — the
-        // server-side trigger enforces the real charged amount regardless,
-        // but these values should still reflect what's actually happening
-        // rather than always showing the original listing price.
-        const effectiveRate = feeRateForPrice(effectivePrice);
-        const effectiveFee = effectivePrice * effectiveRate;
-        const effectiveTotal = effectivePrice + effectiveFee;
+        // Recompute using the freshly-confirmed price from the check right
+        // above — the server-side trigger enforces the real charged amount
+        // regardless, but these values should still reflect what's
+        // actually happening rather than always showing the listing price.
+        const effectiveRate = feeRateForPrice(confirmedPrice);
+        const effectiveFee = confirmedPrice * effectiveRate;
+        const effectiveTotal = confirmedPrice + effectiveFee;
 
         const { data: txn, error: txnError } = await supabaseClient
           .from('transactions')
@@ -1731,7 +1755,7 @@ async function loadDeal(){
             buyer_id: buyerId,
             seller_id: data.seller_id || null,
             item_name: name,
-            price: effectivePrice,
+            price: confirmedPrice,
             fee: effectiveFee,
             total: effectiveTotal,
             status: 'pending_payment',

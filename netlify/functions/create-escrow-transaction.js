@@ -9,8 +9,12 @@
 //
 // This is the ONLY safe place API keys live — never in the website's HTML/JS.
 
-const ESCROW_API_BASE = 'https://api.escrow-sandbox.com/2017-09-01';
-// When ready for real money later, this becomes: https://api.escrow.com/2017-09-01
+// Sandbox vs live is controlled by a single environment variable, so
+// going live is a config flip — not a code edit that could be half-applied.
+// Set ESCROW_LIVE_MODE=true in Netlify when you're ready for real money.
+const ESCROW_API_BASE = process.env.ESCROW_LIVE_MODE === 'true'
+  ? 'https://api.escrow.com/2017-09-01'
+  : 'https://api.escrow-sandbox.com/2017-09-01';
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -31,8 +35,9 @@ exports.handler = async (event) => {
 
     const SUPABASE_URL = process.env.SUPABASE_URL;
     const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const ESCROW_EMAIL = process.env.ESCROW_SANDBOX_EMAIL;
-    const ESCROW_API_KEY = process.env.ESCROW_SANDBOX_API_KEY;
+    const isLive = process.env.ESCROW_LIVE_MODE === 'true';
+    const ESCROW_EMAIL = isLive ? process.env.ESCROW_LIVE_EMAIL : process.env.ESCROW_SANDBOX_EMAIL;
+    const ESCROW_API_KEY = isLive ? process.env.ESCROW_LIVE_API_KEY : process.env.ESCROW_SANDBOX_API_KEY;
 
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !ESCROW_EMAIL || !ESCROW_API_KEY) {
       console.error('create-escrow-transaction: missing env vars', {

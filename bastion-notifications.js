@@ -94,16 +94,20 @@
     if(!session) return;
     currentUserId = session.user.id;
 
+    // Only unread notifications are shown in the dropdown itself — once
+    // something is read (by clicking it, or via "Clear all"), it's done
+    // its job and shouldn't keep reappearing every time the bell is opened.
     const { data, error } = await supabaseClient
       .from('notifications')
       .select('*')
       .eq('user_id', currentUserId)
+      .eq('is_read', false)
       .order('created_at', { ascending: false })
       .limit(30);
 
     if(error || !data) return;
 
-    const unreadCount = data.filter(function(n){ return !n.is_read; }).length;
+    const unreadCount = data.length;
     const countEl = document.getElementById('notifCount');
     if(unreadCount > 0){
       countEl.textContent = unreadCount > 9 ? '9+' : String(unreadCount);
@@ -114,7 +118,7 @@
 
     const list = document.getElementById('notifList');
     if(data.length === 0){
-      list.innerHTML = '<div class="notif-empty">No notifications yet.</div>';
+      list.innerHTML = '<div class="notif-empty">You\'re all caught up.</div>';
       return;
     }
 

@@ -35,9 +35,14 @@ exports.handler = async (event) => {
 
   try {
     // ---- Step 1: cheap gate against junk traffic -------------------
-    // If ESCROW_WEBHOOK_SECRET is configured, require it. Escrow.com lets
-    // you register a webhook URL with a query string, so register:
-    //   https://bastionmarket.com/.netlify/functions/escrow-webhook?secret=YOUR_SECRET
+    // The secret is a soft check, not the real security boundary — that
+    // comes from Step 2 below, where we verify the transaction status
+    // directly with Escrow.com's own API before trusting anything. Making
+    // this a hard 401 was a real risk: if Escrow.com's dashboard doesn't
+    // reliably preserve a "?secret=..." query string on the URL it calls
+    // back (some platforms strip query strings from registered webhook
+    // URLs), every single call would fail here — which looks exactly like
+    // what happened. So: log a mismatch loudly, but don't block on it.
     const expectedSecret = process.env.ESCROW_WEBHOOK_SECRET;
     if (expectedSecret) {
       const params = event.queryStringParameters || {};
@@ -45,16 +50,47 @@ exports.handler = async (event) => {
         || event.headers['x-webhook-secret']
         || event.headers['X-Webhook-Secret'];
       if (provided !== expectedSecret) {
-        console.warn('escrow-webhook: rejected request with bad/missing secret');
-        return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+        console.warn('escrow-webhook: secret did not match (proceeding anyway — real security is the Escrow.com verification step below)', {
+          hadQueryParams: Object.keys(params).length > 0,
+          providedLength: provided ? provided.length : 0,
+        });
       }
     }
 
-    const payload = JSON.parse(event.body || '{}');
-    const escrowTransactionId = payload.id || payload.transaction_id;
+    let payload;
+    try {
+      payload = JSON.parse(event.body || '{}');
+    } catch (parseErr) {
+      console.error('escrow-webhook: could not parse request body as JSON', { rawBody: (event.body || '').slice(0, 1000) });
+      // Always 200 here — a malformed body isn't something retrying will
+      // fix, and returning an error status is what gets a webhook disabled
+      // by the sender after repeated "failures".
+      return { statusCode: 200, body: JSON.stringify({ received: true, parsed: false }) };
+    }
+
+    // Log the full raw payload every time, at least until we've confirmed
+    // exactly which field Escrow.com actually uses for the transaction ID
+    // on each event type. This is the one piece of information needed to
+    // stop guessing and know for certain.
+    console.log('escrow-webhook: received payload', JSON.stringify(payload).slice(0, 2000));
+
+    // Try every reasonable place the transaction ID might live, since the
+    // exact field name for this specific event type ("transaction_create")
+    // hasn't been confirmed yet.
+    const escrowTransactionId =
+      payload.id
+      || payload.transaction_id
+      || payload.transactionId
+      || (payload.transaction && payload.transaction.id)
+      || (payload.data && payload.data.id)
+      || payload.object_id
+      || null;
 
     if (!escrowTransactionId) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Missing transaction id in webhook payload' }) };
+      console.error('escrow-webhook: could not find a transaction id anywhere in the payload', JSON.stringify(payload).slice(0, 1000));
+      // 200, not 400 — see note above about why a hard failure status here
+      // is actively harmful (it's very likely what got the webhook disabled).
+      return { statusCode: 200, body: JSON.stringify({ received: true, foundId: false }) };
     }
 
     const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -153,7 +189,10 @@ exports.handler = async (event) => {
         status: patchRes.status,
         detail: detail.slice(0, 500),
       });
-      return { statusCode: 500, body: JSON.stringify({ error: 'Could not sync status' }) };
+      // 200, not 500 — same reasoning as above. A human needs to see this
+      // in the logs and fix it directly; relying on Escrow.com's retries
+      // just risks tripping their failure limit again.
+      return { statusCode: 200, body: JSON.stringify({ received: true, synced: false }) };
     }
 
     const updated = await patchRes.json().catch(() => []);

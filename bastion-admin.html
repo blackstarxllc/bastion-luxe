@@ -204,6 +204,34 @@
     mix-blend-mode:overlay;
     pointer-events:none;
   }
+
+  .ship-badge{
+    display:inline-block; padding:3px 9px; border-radius:999px;
+    font-family:'IBM Plex Mono', monospace; font-size:9.5px;
+    letter-spacing:0.08em; text-transform:uppercase;
+    background:rgba(199,162,104,0.1); color:var(--brass); margin-right:6px;
+  }
+  .ship-badge.late{ background:rgba(140,63,55,0.15); color:#E0958D; }
+  .ship-badge.delivered{ background:rgba(44,92,79,0.15); color:#8FBBAC; }
+  .evidence-link{
+    display:inline-block; margin:3px 8px 3px 0; padding:5px 10px;
+    border:1px solid rgba(199,162,104,0.3); border-radius:6px;
+    color:var(--brass); font-family:'IBM Plex Mono', monospace; font-size:10.5px;
+    text-decoration:none;
+  }
+  .evidence-link:hover{ border-color:var(--brass); }
+  .dispute-timeline{
+    margin-top:12px; padding-top:12px; border-top:1px solid rgba(241,236,225,0.06);
+    font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--stone-dim);
+    line-height:1.9;
+  }
+  .filter-tabs{ display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+  .filter-tabs button{
+    background:transparent; border:1px solid var(--field-border,#2A2D33);
+    color:var(--stone); padding:7px 14px; border-radius:999px; cursor:pointer;
+    font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.06em;
+  }
+  .filter-tabs button.active{ border-color:var(--brass); color:var(--brass); background:rgba(199,162,104,0.08); }
 </style>
 </head>
 <body>
@@ -241,6 +269,14 @@
   <div class="empty-note" style="padding-top:0;">Real failures from behind-the-scenes systems (like the Escrow.com webhook) land here — these never surface to buyers or sellers, but need a human to look at them.</div>
   <div id="systemAlertsList"></div>
 
+  <div class="section-title">Shipments</div>
+  <div class="empty-note" style="padding-top:0;">Orders that need attention: sellers past their ship-by deadline, and buyers whose item has been delivered but not yet confirmed. This does not list every shipment — only ones that need a human eye.</div>
+  <div class="filter-tabs">
+    <button class="active" data-ship-filter="attention">Needs attention</button>
+    <button data-ship-filter="active">All active</button>
+  </div>
+  <div id="shipmentsList"></div>
+
   <div class="section-title">Users</div>
   <input id="userSearch" type="text" placeholder="Search by handle…" class="search-input">
   <div id="usersList"></div>
@@ -268,6 +304,84 @@
 const SUPABASE_URL = 'https://xokyqobttfhugdponfpg.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nb18Wk7poF2HR0ZjpiJFnQ_tvv4wl0o';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+
+// =====================================================================
+// SHIPMENTS QUEUE
+// =====================================================================
+
+let shipmentFilterMode = 'attention';
+
+function shipAdminDate(v){
+  if(!v) return '';
+  try { return new Date(v).toLocaleString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }); }
+  catch(e){ return ''; }
+}
+
+async function loadShipments(){
+  const list = document.getElementById('shipmentsList');
+  const { data, error } = await supabaseClient
+    .from('shipments')
+    .select('*')
+    .in('status', ['awaiting_label','label_created','in_transit','out_for_delivery','delivered'])
+    .order('created_at', { ascending: false });
+
+  if(error){
+    list.innerHTML = '<div class="empty-note">Could not load shipments: ' + escapeHtml(error.message) + '</div>';
+    return;
+  }
+
+  const now = Date.now();
+  const enriched = (data || []).map(function(sh){
+    const isLate = sh.ship_by && !sh.first_scan_at && new Date(sh.ship_by).getTime() < now;
+    const isAwaitingConfirm = sh.status === 'delivered';
+    return Object.assign({}, sh, { _late: isLate, _awaitingConfirm: isAwaitingConfirm });
+  });
+
+  const filtered = shipmentFilterMode === 'attention'
+    ? enriched.filter(function(sh){ return sh._late || sh._awaitingConfirm; })
+    : enriched;
+
+  if(!filtered.length){
+    list.innerHTML = '<div class="empty-note">' + (shipmentFilterMode === 'attention' ? 'Nothing needs attention right now.' : 'No active shipments.') + '</div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(function(sh){
+    const badges = []
+      .concat(sh._late ? '<span class="ship-badge late">Ship-by deadline passed</span>' : [])
+      .concat(sh._awaitingConfirm ? '<span class="ship-badge delivered">Delivered \u2014 awaiting buyer confirmation</span>' : [])
+      .concat('<span class="ship-badge">' + escapeHtml((sh.tier || 'standard').toUpperCase()) + '</span>')
+      .join('');
+
+    return `
+      <div class="row">
+        <div class="row-top">
+          <div>
+            <div class="row-title">${escapeHtml(sh.carrier || 'No carrier yet')} ${escapeHtml(sh.tracking_number || '')}</div>
+            <div class="row-meta">
+              Transaction: ${escapeHtml(sh.transaction_id)}<br>
+              Status: ${escapeHtml(sh.status)}${sh.ship_by ? ' \u00b7 ship by ' + escapeHtml(shipAdminDate(sh.ship_by)) : ''}${sh.delivered_at ? ' \u00b7 delivered ' + escapeHtml(shipAdminDate(sh.delivered_at)) : ''}
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:10px;">${badges}</div>
+        <div class="row-actions" style="margin-top:12px;">
+          <a class="btn" href="/bastion-transaction.html?id=${encodeURIComponent(sh.transaction_id)}" target="_blank">Open order</a>
+          ${sh.label_url ? '<a class="btn" href="' + escapeHtml(sh.label_url) + '" target="_blank">View label</a>' : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+document.addEventListener('click', function(e){
+  const btn = e.target.closest('[data-ship-filter]');
+  if(!btn) return;
+  shipmentFilterMode = btn.getAttribute('data-ship-filter');
+  document.querySelectorAll('[data-ship-filter]').forEach(function(b){ b.classList.toggle('active', b === btn); });
+  loadShipments();
+});
 
 function escapeHtml(str){
   const div = document.createElement('div');
@@ -441,7 +555,8 @@ async function loadDisputes(){
         </div>
         ${txn.dispute_reason ? `<div class="row-meta" style="margin-top:10px;"><span class="badge disputed">${escapeHtml(txn.dispute_reason)}</span></div>` : ''}
         ${txn.dispute_details ? `<div class="row-meta" style="margin-top:6px; white-space:pre-wrap;">${escapeHtml(txn.dispute_details)}</div>` : ''}
-        <div class="row-actions">
+        <div id="disputeBundle-${escapeHtml(txn.id)}" class="dispute-timeline">Loading shipment record\u2026</div>
+        <div class="row-actions" style="margin-top:12px;">
           <button class="btn primary" onclick="resolveDispute('${txn.id}', '${txn.deal_id || ''}', 'release', this)">Release funds to seller</button>
           <button class="btn danger" onclick="resolveDispute('${txn.id}', '${txn.deal_id || ''}', 'refund', this)">Refund buyer / cancel deal</button>
           <button class="btn" onclick="resolveDispute('${txn.id}', '${txn.deal_id || ''}', 'reopen', this)">Reopen (back to shipped)</button>
@@ -449,36 +564,118 @@ async function loadDisputes(){
       </div>
     `;
   }).join('');
+
+  // Loaded after the rows render, one call per dispute, so a slow bundle on
+  // one case never blocks the rest of the queue from appearing.
+  data.forEach(function(txn){ loadDisputeBundle(txn.id); });
+}
+
+async function loadDisputeBundle(txnId){
+  const el = document.getElementById('disputeBundle-' + txnId);
+  if(!el) return;
+  try {
+    const { data, error } = await supabaseClient.rpc('get_dispute_bundle', { p_transaction_id: txnId });
+    if(error || !data){ el.innerHTML = ''; return; }
+
+    const shipment = data.shipment;
+    if(!shipment){
+      el.innerHTML = '<em style="font-style:normal; color:var(--stone-dim);">In-person handoff \u2014 no shipment record for this order.</em>';
+      return;
+    }
+
+    const events = data.events || [];
+    const evidence = data.evidence || [];
+
+    const timeline = events.length
+      ? events.map(function(ev){
+          return escapeHtml(shipAdminDate(ev.occurred_at)) + ' \u2014 ' + escapeHtml(ev.status)
+            + (ev.location ? ' (' + escapeHtml(ev.location) + ')' : '');
+        }).join('<br>')
+      : '<em style="font-style:normal;">No carrier scans recorded yet.</em>';
+
+    // The bucket is private (evidence must not be publicly guessable), so
+    // each link needs a signed URL rather than getPublicUrl, which would
+    // silently return a URL that 403s for anyone who clicks it.
+    let evidenceLinks = '<em style="font-style:normal;">No packing or unboxing evidence filed.</em>';
+    if(evidence.length){
+      const signed = await Promise.all(evidence.map(function(ev){
+        return supabaseClient.storage.from('shipment-evidence').createSignedUrl(ev.file_url, 3600);
+      }));
+      evidenceLinks = evidence.map(function(ev, i){
+        const url = signed[i] && signed[i].data && signed[i].data.signedUrl;
+        if(!url) return '<span class="evidence-link" style="opacity:0.5;">' + escapeHtml(ev.role) + ': ' + escapeHtml(ev.kind.replace(/_/g,' ')) + ' (unavailable)</span>';
+        return '<a class="evidence-link" href="' + escapeHtml(url) + '" target="_blank">' + escapeHtml(ev.role) + ': ' + escapeHtml(ev.kind.replace(/_/g,' ')) + '</a>';
+      }).join('');
+    }
+
+    el.innerHTML =
+      '<strong style="color:var(--ivory); font-family:\'Inter\',sans-serif; font-size:12px;">Shipment: ' + escapeHtml(shipment.carrier || 'no carrier') + ' ' + escapeHtml(shipment.tracking_number || '') + ' \u2014 ' + escapeHtml(shipment.status) + '</strong><br><br>'
+      + timeline
+      + '<br><br><strong style="color:var(--ivory); font-family:\'Inter\',sans-serif; font-size:12px;">Evidence on file (' + evidence.length + ')</strong><br>'
+      + evidenceLinks
+      + '<br><br>' + (data.message_count || 0) + ' message(s) exchanged between buyer and seller on this order.';
+  } catch(e){
+    el.innerHTML = '<em style="font-style:normal; color:var(--stone-dim);">Could not load the shipment record.</em>';
+  }
 }
 
 async function resolveDispute(txnId, dealId, action, btn){
   btn.disabled = true;
   const original = btn.textContent;
-  btn.textContent = 'WORKING…';
+  btn.textContent = 'WORKING\u2026';
 
-  let newTxnStatus, newDealStatus, timestampField;
-  if(action === 'release'){ newTxnStatus = 'released'; newDealStatus = 'sold'; timestampField = 'released_at'; }
-  else if(action === 'refund'){ newTxnStatus = 'cancelled'; newDealStatus = 'active'; timestampField = null; }
-  else { newTxnStatus = 'shipped'; newDealStatus = null; timestampField = 'shipped_at'; }
-
-  const updatePayload = { status: newTxnStatus };
-  if(timestampField) updatePayload[timestampField] = new Date().toISOString();
-
-  const { error } = await supabaseClient.from('transactions').update(updatePayload).eq('id', txnId);
-  if(error){
-    alert('Could not resolve: ' + error.message);
-    btn.disabled = false;
-    btn.textContent = original;
+  // 'reopen' has no Escrow.com counterpart — it just puts the order back
+  // into a normal in-flight state so the parties can keep going. 'release'
+  // and 'refund' are real money movements and go through Escrow.com itself,
+  // via admin-resolve-dispute.js — NOT a direct Supabase status flip. A
+  // status flip only changes what Bastion's own database claims happened;
+  // it does not move a single dollar.
+  if(action === 'reopen'){
+    const { error } = await supabaseClient.from('transactions')
+      .update({ status: 'shipped', shipped_at: new Date().toISOString() })
+      .eq('id', txnId);
+    if(error){
+      alert('Could not reopen: ' + error.message);
+      btn.disabled = false;
+      btn.textContent = original;
+      return;
+    }
+    logAdminAction('Reopened disputed transaction', 'transaction', txnId);
+    loadDisputes();
     return;
   }
-  if(dealId && newDealStatus){
-    await supabaseClient.from('deals').update({ status: newDealStatus }).eq('id', dealId);
+
+  try {
+    const session = (await supabaseClient.auth.getSession()).data.session;
+    if(!session) throw new Error('Your session has expired. Please sign in again.');
+
+    const res = await fetch('/.netlify/functions/admin-resolve-dispute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+      body: JSON.stringify({ transactionId: txnId, action: action })
+    });
+    const result = await res.json().catch(function(){ return {}; });
+
+    if(!res.ok){
+      // Escrow.com rejected the action, or something else went wrong. Say
+      // so plainly — this is exactly the case where the money did NOT
+      // move, and pretending otherwise would be worse than an error box.
+      alert((result.error || ('Could not resolve this on Escrow.com (' + res.status + ').')) + '\n\nNothing has been changed. The transaction is still marked as disputed.');
+      btn.disabled = false;
+      btn.textContent = original;
+      return;
+    }
+
+    const actionLabel = action === 'release'
+      ? 'Resolved dispute: released funds to seller (confirmed on Escrow.com)'
+      : 'Resolved dispute: refunded buyer / cancelled on Escrow.com';
+    logAdminAction(actionLabel, 'transaction', txnId);
+    loadDisputes();
+  } catch(err){
+    alert(err.message || 'Something went wrong resolving this dispute.');
+    btn.disabled = false;
+    btn.textContent = original;
   }
-  const actionLabel = action === 'release' ? 'Resolved dispute: released funds to seller'
-    : action === 'refund' ? 'Resolved dispute: refunded buyer / cancelled deal'
-    : 'Reopened disputed transaction';
-  logAdminAction(actionLabel, 'transaction', txnId);
-  loadDisputes();
 }
 
 async function loadSupportRequests(){
@@ -764,6 +961,7 @@ async function removeListing(dealId, btn){
   document.getElementById('gate').style.display = 'none';
   document.getElementById('content').style.display = 'block';
   loadSystemAlerts();
+  loadShipments();
   loadUsers();
   loadDisputes();
   loadSupportRequests();

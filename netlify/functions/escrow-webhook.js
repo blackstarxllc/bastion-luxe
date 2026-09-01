@@ -107,6 +107,16 @@ exports.handler = async (event) => {
       || payload.object_id
       || null;
 
+    // Escrow.com also sends CUSTOMER-level events (identity verification
+    // approved/rejected, and so on). Those legitimately carry
+    // transaction_id: 0 because they aren't about a transaction at all.
+    // They were being logged as errors, which buried the real failures in
+    // system_alerts under a pile of noise. Acknowledge and move on.
+    if (payload.event_type === 'customer' || Number(payload.transaction_id) === 0) {
+      console.log('escrow-webhook: customer-level event, not transaction related', payload.event || '');
+      return { statusCode: 200, body: JSON.stringify({ received: true, customerEvent: true }) };
+    }
+
     if (!escrowTransactionId) {
       await logAlert('Could not find a transaction id anywhere in the webhook payload', { payload: JSON.stringify(payload).slice(0, 1000) });
       return { statusCode: 200, body: JSON.stringify({ received: true, foundId: false }) };
@@ -149,6 +159,9 @@ exports.handler = async (event) => {
     const verifiedStatus = deriveStatus(escrowTxn);
 
     if (!verifiedStatus) {
+      // Often this simply means the transaction has no actionable state
+      // change yet (an empty status object). Only worth alerting on if we
+      // actually own this transaction.
       await logAlert('Could not derive a status from the verified Escrow.com transaction', {
         escrowTransactionId,
         rawStatus: JSON.stringify(escrowTxn.status || {}).slice(0, 300),

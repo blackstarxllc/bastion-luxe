@@ -148,6 +148,53 @@ exports.handler = async (event) => {
     // Bastion joins the transaction as a "broker" party using the same
     // account that authenticates these API calls (ESCROW_EMAIL), so its
     // cut lands directly in Bastion's own Escrow.com account.
+    //
+    // ⚠ THE BROKER FEE MUST BE ITS OWN ITEM.
+    //
+    // This previously added Bastion's protection fee as a SECOND SCHEDULE
+    // LINE inside the merchandise item, with type: 'broker_fee' on the
+    // schedule entry. Escrow.com rejected every single one of those with
+    // HTTP 422:
+    //
+    //   "Non-broker/partner fee item schedule beneficiary must be a seller"
+    //
+    // Within a normal merchandise item, every schedule line must pay the
+    // seller. A commission to anyone else has to be a separate item whose
+    // ITEM type (not schedule type) is 'broker_fee'. Because the whole call
+    // was rejected, no escrow transaction was ever created, no payment link
+    // was ever generated, and Escrow.com never emailed a single buyer.
+    //
+    // If you ever change the fee structure, change it here and re-test a
+    // real purchase end to end — a 422 on this call is silent to the buyer
+    // by design, so it will not announce itself.
+    const escrowItems = [
+      {
+        title: txn.item_name || 'Item',
+        description: txn.item_name || 'Bastion marketplace item',
+        type: 'general_merchandise',
+        inspection_period: inspectionPeriod, // value-tiered, in seconds — see above
+        quantity: 1,
+        schedule: [
+          { amount: itemPrice, payer_customer: buyerEmail, beneficiary_customer: sellerEmail },
+        ],
+      },
+    ];
+
+    // Only add the commission item when there is actually a fee to collect.
+    // An item with a zero amount is another way to earn a 422.
+    if (bastionFee > 0) {
+      escrowItems.push({
+        title: 'Bastion protection fee',
+        description: 'Bastion marketplace protection fee',
+        type: 'broker_fee',
+        inspection_period: inspectionPeriod,
+        quantity: 1,
+        schedule: [
+          { amount: bastionFee, payer_customer: buyerEmail, beneficiary_customer: ESCROW_EMAIL },
+        ],
+      });
+    }
+
     const escrowPayload = {
       parties: [
         { role: 'buyer', customer: buyerEmail },
@@ -156,19 +203,7 @@ exports.handler = async (event) => {
       ],
       currency: 'usd',
       description: txn.item_name || 'Bastion marketplace item',
-      items: [
-        {
-          title: txn.item_name || 'Item',
-          description: txn.item_name || 'Bastion marketplace item',
-          type: 'general_merchandise',
-          inspection_period: inspectionPeriod, // value-tiered, in seconds — see above
-          quantity: 1,
-          schedule: [
-            { amount: itemPrice, payer_customer: buyerEmail, beneficiary_customer: sellerEmail },
-            { amount: bastionFee, payer_customer: buyerEmail, beneficiary_customer: ESCROW_EMAIL, type: 'broker_fee' },
-          ],
-        },
-      ],
+      items: escrowItems,
     };
 
     const authHeader = 'Basic ' + Buffer.from(`${ESCROW_EMAIL}:${ESCROW_API_KEY}`).toString('base64');
@@ -217,7 +252,15 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         escrow_transaction_id: escrowData.id,
         escrow_status: escrowData.status || 'created',
-        escrow_item_id: escrowData.items && escrowData.items[0] ? escrowData.items[0].id : null,
+        // Pick the MERCHANDISE item explicitly. There are now two items on
+        // the transaction (the goods, and Bastion's broker fee), so
+        // items[0] is no longer safe to assume — releasing against the fee
+        // item instead of the goods would be a real money bug.
+        escrow_item_id: (function(){
+          var items = escrowData.items || [];
+          var merch = items.find(function(i){ return i.type !== 'broker_fee'; });
+          return merch ? merch.id : (items[0] ? items[0].id : null);
+        })(),
         // Capture a direct link to this transaction on Escrow.com's own
         // site, IF their response actually includes one — checking every
         // reasonable field name since the exact response shape hasn't

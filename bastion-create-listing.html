@@ -573,6 +573,53 @@
       </div>
     </div>
 
+    <div class="field">
+      <label for="fulfilment">How will you hand this over?</label>
+      <select id="fulfilment" required>
+        <option value="meetup">In person only</option>
+        <option value="shipping">Ship it only</option>
+        <option value="both" selected>Either — let the buyer choose</option>
+      </select>
+      <div class="photo-hint" style="margin-top:7px;">Shipped orders use a prepaid tracked Bastion label with signature on delivery. <a href="/bastion-shipping.html" target="_blank" style="color:var(--brass);">How shipping works →</a></div>
+    </div>
+
+    <div id="shippingFields">
+      <div class="detail-fields-title" style="margin-top:4px;">Package details</div>
+      <div class="photo-hint" style="margin-bottom:14px;">Measure the packed box, not the item. These set the real carrier price the buyer sees — if they're wrong, the carrier bills the difference later.</div>
+
+      <div class="field">
+        <label for="shipsFromPostal">Ships from ZIP code</label>
+        <input id="shipsFromPostal" type="text" inputmode="numeric" maxlength="10" placeholder="e.g. 78701">
+      </div>
+
+      <div class="detail-row-2">
+        <div class="field">
+          <label for="itemWeightOz">Packed weight (oz)</label>
+          <input id="itemWeightOz" type="number" min="0.1" step="0.1" placeholder="e.g. 32">
+        </div>
+        <div class="field">
+          <label for="itemLengthIn">Box length (in)</label>
+          <input id="itemLengthIn" type="number" min="0.1" step="0.1" placeholder="e.g. 10">
+        </div>
+      </div>
+      <div class="detail-row-2">
+        <div class="field">
+          <label for="itemWidthIn">Box width (in)</label>
+          <input id="itemWidthIn" type="number" min="0.1" step="0.1" placeholder="e.g. 8">
+        </div>
+        <div class="field">
+          <label for="itemHeightIn">Box height (in)</label>
+          <input id="itemHeightIn" type="number" min="0.1" step="0.1" placeholder="e.g. 5">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="serialNumber">Serial number <span style="color:var(--stone-dim);font-weight:400;">(private — optional but recommended)</span></label>
+        <input id="serialNumber" type="text" maxlength="120" placeholder="e.g. 8Z1234567">
+        <div class="photo-hint" style="margin-top:7px;">Buyers never see this. It stays sealed on your listing and is used only to settle a dispute if a buyer tries to return a different item than the one you sent.</div>
+      </div>
+    </div>
+
     <div class="fee-preview" id="feePreview"></div>
 
     <div class="field">
@@ -842,6 +889,23 @@ async function loadForEdit(){
   document.getElementById('condition').value = data.condition || '';
   document.getElementById('description').value = data.description || '';
   document.getElementById('itemCity').value = data.city || '';
+
+  // Shipping fields on edit. serial_number is deliberately NOT selected
+  // by '*' for anyone but the owner (column privileges), so fetch it
+  // through the guarded RPC rather than assuming it came back.
+  document.getElementById('fulfilment').value = data.fulfilment || 'meetup';
+  document.getElementById('shipsFromPostal').value = data.ships_from_postal || '';
+  document.getElementById('itemWeightOz').value = data.item_weight_oz || '';
+  document.getElementById('itemLengthIn').value = data.item_length_in || '';
+  document.getElementById('itemWidthIn').value  = data.item_width_in || '';
+  document.getElementById('itemHeightIn').value = data.item_height_in || '';
+  try {
+    const serialRes = await supabaseClient.rpc('get_my_listing_serial', { p_deal_id: editId });
+    if(!serialRes.error && serialRes.data){
+      document.getElementById('serialNumber').value = serialRes.data;
+    }
+  } catch(e){ /* not fatal — the field simply stays blank */ }
+  document.getElementById('fulfilment').dispatchEvent(new Event('change'));
   document.getElementById('itemState').value = data.state || '';
   document.getElementById('acceptsOffersCheckbox').checked = data.accepts_offers !== false;
 
@@ -1040,6 +1104,31 @@ document.getElementById('listingForm').addEventListener('submit', async function
       return;
     }
 
+    const fulfilment = document.getElementById('fulfilment').value || 'meetup';
+    const shipsFromPostal = document.getElementById('shipsFromPostal').value.trim() || null;
+    const weightOz = parseFloat(document.getElementById('itemWeightOz').value) || null;
+    const lengthIn = parseFloat(document.getElementById('itemLengthIn').value) || null;
+    const widthIn  = parseFloat(document.getElementById('itemWidthIn').value) || null;
+    const heightIn = parseFloat(document.getElementById('itemHeightIn').value) || null;
+
+    // A shippable listing with no dimensions can never be quoted, so the
+    // buyer would hit a dead end at checkout. Catch it here instead.
+    if(fulfilment !== 'meetup'){
+      if(!shipsFromPostal || !/^\d{5}(-\d{4})?$/.test(shipsFromPostal)){
+        setStatus('Enter a valid 5-digit ZIP code you\u2019ll be shipping from.', 'bad');
+        btn.disabled = false; btn.textContent = originalText;
+        document.getElementById('shipsFromPostal').focus();
+        return;
+      }
+      if(!weightOz || !lengthIn || !widthIn || !heightIn ||
+         weightOz <= 0 || lengthIn <= 0 || widthIn <= 0 || heightIn <= 0){
+        setStatus('Add the packed weight and box dimensions so shipping can be priced.', 'bad');
+        btn.disabled = false; btn.textContent = originalText;
+        document.getElementById('itemWeightOz').focus();
+        return;
+      }
+    }
+
     const payload = {
       item_name,
       category,
@@ -1050,7 +1139,13 @@ document.getElementById('listingForm').addEventListener('submit', async function
       details,
       accepts_offers: document.getElementById('acceptsOffersCheckbox').checked,
       city: document.getElementById('itemCity').value.trim() || null,
-      state: document.getElementById('itemState').value.trim().toUpperCase() || null
+      state: document.getElementById('itemState').value.trim().toUpperCase() || null,
+      fulfilment: fulfilment,
+      ships_from_postal: fulfilment === 'meetup' ? null : shipsFromPostal,
+      item_weight_oz: fulfilment === 'meetup' ? null : weightOz,
+      item_length_in: fulfilment === 'meetup' ? null : lengthIn,
+      item_width_in:  fulfilment === 'meetup' ? null : widthIn,
+      item_height_in: fulfilment === 'meetup' ? null : heightIn
     };
     // Only stamp seller_id on a brand-new listing — an admin editing someone
     // else's listing must never reassign ownership to their own account.
@@ -1069,6 +1164,25 @@ document.getElementById('listingForm').addEventListener('submit', async function
       return;
     }
 
+    // The serial number is stored separately from the listing itself, in a
+    // table only the seller and admins can read. Buyers must never see it —
+    // it's the control that settles a swap-fraud claim, and it's worthless
+    // the moment a would-be fraudster can read it off the listing.
+    try {
+      const serialValue = document.getElementById('serialNumber').value.trim();
+      const savedDealId = (data && data[0] && data[0].id) || editId;
+      if(savedDealId && (serialValue || editId)){
+        await supabaseClient
+          .from('listing_private')
+          .upsert({ deal_id: savedDealId, serial_number: serialValue || null, updated_at: new Date().toISOString() },
+                  { onConflict: 'deal_id' });
+      }
+    } catch(serialErr){
+      // Not fatal: the listing itself saved fine. Log it rather than making
+      // the seller redo the whole form over one optional field.
+      console.error('Could not save the private serial number:', serialErr);
+    }
+
     setStatus(editId ? 'Changes saved — redirecting…' : 'Listed successfully — redirecting to the marketplace…', 'ok');
     setTimeout(function(){
       window.location.href = editId ? ('/bastion-deal-detail.html?id=' + encodeURIComponent(editId)) : '/bastion-marketplace.html';
@@ -1082,6 +1196,20 @@ document.getElementById('listingForm').addEventListener('submit', async function
 });
 </script>
 
-<script src="bastion-notifications.js"></script>
+<script src="bastion-notifications.js">
+// Package details only matter if the item can actually ship. Hiding them
+// for meetup-only listings keeps the form from looking twice as long as
+// it needs to be.
+(function(){
+  var sel = document.getElementById('fulfilment');
+  var block = document.getElementById('shippingFields');
+  if(!sel || !block) return;
+  function sync(){
+    block.style.display = (sel.value === 'meetup') ? 'none' : '';
+  }
+  sel.addEventListener('change', sync);
+  sync();
+})();
+</script>
 </body>
 </html>

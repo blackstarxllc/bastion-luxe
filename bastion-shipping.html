@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0A0B0D">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bastion">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bastion — Shipping</title>
+<meta name="description" content="How shipping works on Bastion: prepaid tracked labels, signature on delivery, sealed-box evidence, and payment held in escrow until you confirm.">
+<meta property="og:title" content="Bastion — Shipping">
+<meta property="og:description" content="Prepaid tracked labels, signature on delivery, and payment held in escrow until you confirm the item in hand.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,450;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0B0D; --ink-soft:#101216; --surface:#15171B;
+    --ivory:#F1ECE1; --stone:#8D8F94; --stone-dim:#5B5D62;
+    --brass:#C7A268; --brass-dim:#8C6F44; --brass-ink:#171308; --danger:#C9776B;
+    --emerald:#2C5C4F;
+    --hairline:rgba(241,236,225,0.08);
+    --radius-pill:999px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:
+      radial-gradient(1400px 900px at 15% -10%, rgba(199,162,104,0.09), transparent 55%),
+      radial-gradient(1000px 700px at 100% 100%, rgba(199,162,104,0.05), transparent 60%),
+      var(--ink);
+    color:var(--ivory); font-family:'Inter', sans-serif; -webkit-font-smoothing:antialiased;
+  }
+  header{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:18px 24px; border-bottom:1px solid var(--hairline);
+    position:sticky; top:0;
+    background:rgba(10,11,13,0.82);
+    -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+    z-index:10;
+  }
+  @media(min-width:900px){ header{ padding:18px 56px; } }
+  .wordmark{ font-family:'Fraunces', serif; font-weight:450; font-size:22px; color:var(--ivory); text-decoration:none; }
+  .wordmark:link, .wordmark:visited{ color:var(--ivory) !important; }
+  .wordmark em{ color:var(--brass); font-style:italic; }
+  .wordmark:link em, .wordmark:visited em{ color:var(--brass) !important; }
+  .footer-wordmark{ color:var(--ivory); }
+  .footer-wordmark:link, .footer-wordmark:visited{ color:var(--ivory) !important; }
+  .footer-wordmark em{ color:var(--brass); font-style:italic; }
+  .footer-wordmark:link em, .footer-wordmark:visited em{ color:var(--brass) !important; }
+  header a.back-pill{
+    color:var(--stone); text-decoration:none;
+    font-family:'IBM Plex Mono', monospace; font-size:10.5px;
+    letter-spacing:0.08em; text-transform:uppercase;
+    padding:10px 16px; border-radius:var(--radius-pill);
+    transition:color 0.2s ease, background 0.2s ease;
+  }
+  header a.back-pill:hover{ color:var(--ivory); background:rgba(255,255,255,0.04); }
+  main{ max-width:740px; margin:0 auto; padding:64px 24px 40px; }
+  @media(min-width:900px){ main{ padding:80px 24px 40px; } }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--brass);
+    letter-spacing:0.18em; text-transform:uppercase; margin-bottom:18px;
+    display:flex; align-items:center; gap:10px;
+  }
+  .eyebrow::before{ content:""; width:16px; height:1px; background:var(--brass); display:inline-block; }
+  h1{ font-family:'Fraunces', serif; font-weight:450; font-style:italic; font-size:34px; margin:0 0 20px; line-height:1.25; letter-spacing:-0.01em; }
+  h2{ font-family:'Fraunces', serif; font-weight:500; font-size:20px; color:var(--brass); margin:48px 0 18px; }
+  h3{ font-family:'Inter', sans-serif; font-weight:600; font-size:15px; color:var(--ivory); margin:26px 0 10px; }
+  p, li{ font-size:14.5px; line-height:1.75; color:#D8D3C6; }
+  ul{ padding-left:0; list-style:none; }
+  .lede{ font-size:16px; line-height:1.7; color:var(--stone); }
+
+  .card{
+    background:var(--surface); border:1px solid var(--hairline); border-radius:12px;
+    padding:18px 20px; margin-bottom:12px; transition:border-color 0.2s ease;
+  }
+  .card:hover{ border-color:rgba(199,162,104,0.25); }
+  .card strong{ color:var(--ivory); display:block; margin-bottom:5px; font-size:14.5px; }
+  .card p{ margin:0; font-size:13.5px; color:var(--stone); }
+
+  /* ---- Journey timeline ---- */
+  .flow{ position:relative; margin:26px 0 8px; padding-left:30px; }
+  .flow::before{
+    content:""; position:absolute; left:8px; top:6px; bottom:6px; width:1px;
+    background:linear-gradient(180deg, var(--brass), rgba(199,162,104,0.15));
+  }
+  .step{ position:relative; margin-bottom:24px; }
+  .step::before{
+    content:""; position:absolute; left:-26px; top:5px;
+    width:9px; height:9px; border-radius:50%;
+    background:var(--ink); border:1.5px solid var(--brass);
+  }
+  .step-label{
+    font-family:'IBM Plex Mono', monospace; font-size:9.5px; letter-spacing:0.14em;
+    text-transform:uppercase; color:var(--brass); margin-bottom:6px;
+  }
+  .step strong{ display:block; color:var(--ivory); font-size:14.5px; margin-bottom:4px; }
+  .step p{ margin:0; font-size:13.5px; color:var(--stone); }
+
+  /* ---- Tier table ---- */
+  .tiers{ display:grid; gap:12px; margin:24px 0 8px; }
+  @media(min-width:760px){ .tiers{ grid-template-columns:repeat(3,1fr); } }
+  .tier{
+    background:var(--surface); border:1px solid var(--hairline);
+    border-radius:12px; padding:20px 18px; position:relative; overflow:hidden;
+  }
+  .tier::after{ content:""; position:absolute; left:0; top:0; bottom:0; width:2px; background:var(--brass-dim); }
+  .tier.vault::after{ background:linear-gradient(180deg, #E9CB98, var(--brass), #B08A4F); }
+  .tier-name{
+    font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.16em;
+    text-transform:uppercase; color:var(--brass); margin-bottom:4px;
+  }
+  .tier-range{ font-family:'Fraunces', serif; font-size:17px; color:var(--ivory); margin-bottom:14px; }
+  .tier ul{ margin:0; }
+  .tier li{
+    font-size:12.5px; color:var(--stone); line-height:1.6;
+    padding-left:16px; position:relative; margin-bottom:7px;
+  }
+  .tier li::before{ content:"—"; position:absolute; left:0; color:var(--brass-dim); }
+
+  .rule{
+    display:flex; gap:13px; align-items:flex-start;
+    background:rgba(199,162,104,0.06); border:1px solid rgba(199,162,104,0.22);
+    border-radius:12px; padding:18px 20px; margin:30px 0;
+  }
+  .rule svg{ width:18px; height:18px; flex-shrink:0; color:var(--brass); margin-top:2px; }
+  .rule p{ margin:0; color:var(--ivory); font-size:14px; }
+
+  .warn{
+    display:flex; gap:13px; align-items:flex-start;
+    background:rgba(201,119,107,0.08); border:1px solid rgba(201,119,107,0.3);
+    border-radius:12px; padding:18px 20px; margin:30px 0;
+  }
+  .warn svg{ width:18px; height:18px; flex-shrink:0; color:var(--danger); margin-top:2px; }
+  .warn p{ margin:0; color:var(--ivory); font-size:14px; }
+
+  .checklist{ counter-reset:ck; }
+  .checklist li{
+    counter-increment:ck; position:relative; padding-left:34px;
+    margin-bottom:13px; font-size:14px; color:#D8D3C6;
+  }
+  .checklist li::before{
+    content:counter(ck); position:absolute; left:0; top:1px;
+    width:22px; height:22px; border-radius:50%;
+    border:1px solid rgba(199,162,104,0.4); color:var(--brass);
+    font-family:'IBM Plex Mono', monospace; font-size:10.5px;
+    display:flex; align-items:center; justify-content:center;
+  }
+
+  body::before{
+    content:""; position:fixed; inset:0;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity:0.035; mix-blend-mode:overlay; pointer-events:none;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="bastion-marketplace.html" class="wordmark">Bast<em>ion</em></a>
+  <a href="/bastion-marketplace.html" class="back-pill">Back to Marketplace</a>
+</header>
+
+<main>
+  <div class="eyebrow">Shipping</div>
+  <h1>The parcel is tracked, the box is sealed, and the money doesn't move until you say so.</h1>
+  <p class="lede">Bastion started with in-person handoffs, and those aren't going anywhere. But a lot of the best items are three states away from the person who wants them. Shipping on Bastion is built so that distance costs you nothing in protection.</p>
+
+  <div class="rule">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2l7 4v6c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6z"/></svg>
+    <p><strong>The one rule that makes all of this work:</strong> the payment sits in escrow the entire time. Not with the seller. Not with Bastion. It moves only when you have the item in your hands and confirm it.</p>
+  </div>
+
+  <h2>How a shipped order actually goes</h2>
+
+  <div class="flow">
+    <div class="step">
+      <div class="step-label">Step 01</div>
+      <strong>You buy, and you pay into escrow</strong>
+      <p>Your payment goes to Escrow.com — a licensed escrow service, not Bastion's bank account. The seller can see it's secured. They can't touch it.</p>
+    </div>
+    <div class="step">
+      <div class="step-label">Step 02</div>
+      <strong>Your address locks</strong>
+      <p>The delivery address is copied onto the order and frozen. It can't be edited afterwards — not by you, not by anyone who gets into your account later. Changing it means cancelling and starting again.</p>
+    </div>
+    <div class="step">
+      <div class="step-label">Step 03</div>
+      <strong>Bastion issues the label — not the seller</strong>
+      <p>We generate a prepaid, tracked label bound to this exact order. Sellers never type in their own tracking number, because a typed-in number can point at any parcel going anywhere.</p>
+    </div>
+    <div class="step">
+      <div class="step-label">Step 04</div>
+      <strong>The seller packs it on camera</strong>
+      <p>Above a certain value the seller must record one continuous, unedited video: the item, going into the box, the box being sealed, the label going on. That video is filed against the order and can't be deleted.</p>
+    </div>
+    <div class="step">
+      <div class="step-label">Step 05</div>
+      <strong>The carrier scans it in</strong>
+      <p>Your order only moves to "shipped" when the carrier physically scans the package — not when the seller clicks a button. Every scan after that lands on your order page and in your notifications.</p>
+    </div>
+    <div class="step">
+      <div class="step-label">Step 06</div>
+      <strong>Someone signs for it</strong>
+      <p>Signature on delivery is mandatory on every Bastion shipment. Nothing is left on a doorstep. Above $1,000, it's adult signature — the carrier is required to hand it to a person.</p>
+    </div>
+    <div class="step">
+      <div class="step-label">Step 07</div>
+      <strong>You open it on camera and decide</strong>
+      <p>Your inspection window opens on delivery. Film yourself opening the sealed box. If it's right, confirm receipt and the seller gets paid. If it isn't, report the problem and the money stays exactly where it is.</p>
+    </div>
+  </div>
+
+  <h2>Protection scales with what's at stake</h2>
+  <p>A $200 pair of sneakers and a $40,000 watch should not travel the same way. Your order is placed into one of three tiers automatically, based on its price. You don't pick it and neither does the seller.</p>
+
+  <div class="tiers">
+    <div class="tier">
+      <div class="tier-name">Standard</div>
+      <div class="tier-range">Under $1,000</div>
+      <ul>
+        <li>Signature on delivery</li>
+        <li>Prepaid tracked label</li>
+        <li>Packing photos</li>
+        <li>2-day inspection window</li>
+        <li>Ship within 72 hours</li>
+      </ul>
+    </div>
+    <div class="tier">
+      <div class="tier-name">Protected</div>
+      <div class="tier-range">$1,000 – $10,000</div>
+      <ul>
+        <li>Adult signature required</li>
+        <li>Continuous packing video</li>
+        <li>Double-boxing required</li>
+        <li>3-day inspection window</li>
+        <li>Ship within 48 hours</li>
+        <li>Carrier pickup hold available</li>
+      </ul>
+    </div>
+    <div class="tier vault">
+      <div class="tier-name">Vault</div>
+      <div class="tier-range">$10,000 and above</div>
+      <ul>
+        <li>Adult signature required</li>
+        <li>Continuous packing video</li>
+        <li>Double-boxing required</li>
+        <li>Express service only</li>
+        <li>5-day inspection window</li>
+        <li>Ship within 48 hours</li>
+        <li>Carrier pickup hold available</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Why the box looks boring</h2>
+  <p>Every Bastion parcel goes out in a plain, unbranded outer box. The sender name on the label is a neutral company identifier — not "Bastion" and not the brand of what's inside.</p>
+  <p>This is deliberate. A box that announces it contains a luxury watch is a box that tells everyone who handles it exactly what's worth taking. The most effective anti-theft measure in shipping is making the parcel uninteresting.</p>
+
+  <h2>If you're the seller</h2>
+  <p>Your job is to make the package impossible to argue about. Do these and a dispute becomes a formality:</p>
+  <ol class="checklist">
+    <li><strong>Don't ship before escrow says funded.</strong> Your label won't even generate until the buyer's payment is confirmed. If someone pressures you to ship early, that's the scam.</li>
+    <li><strong>Record the packing video in one take.</strong> Start recording before the item goes in the box. Show the item clearly, show it going in, show the seal, show the label. Don't stop and don't edit — an edited video proves nothing.</li>
+    <li><strong>Double-box anything over $1,000.</strong> Item in an inner box, inner box in a plain sturdy outer box. Void fill so nothing shifts.</li>
+    <li><strong>Use clear packing tape over every seam.</strong> Clear tape makes it obvious if a box has been slit open and resealed in transit. Opaque or paper tape hides exactly the evidence you'd need.</li>
+    <li><strong>Record the serial number when you list it.</strong> If the item has one, put it in. It stays private — buyers never see it — and it's what settles a swap-fraud claim if a buyer tries to return a different item.</li>
+    <li><strong>Drop it off and get the receipt.</strong> Hand it to the counter and keep the acceptance receipt. Your ship-by clock stops at the carrier's first scan, not when you print the label.</li>
+  </ol>
+
+  <div class="warn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+    <p><strong>Miss your ship-by deadline</strong> and the buyer can cancel for a full refund, and it counts against your shipping record. The deadline exists because a seller sitting on a funded order is the most common way a good trade goes bad.</p>
+  </div>
+
+  <h2>If you're the buyer</h2>
+  <ol class="checklist">
+    <li><strong>Be there for the delivery.</strong> Signature is mandatory, so nobody is leaving it on your step. Arrange to be in, or use a carrier pickup hold on Protected and Vault orders.</li>
+    <li><strong>Film the unboxing in one continuous take.</strong> Start before you touch the seal. Show the sealed box from all sides, show the label, then open it. If you ever need to claim the box was empty or the item was swapped, this video is the entire claim.</li>
+    <li><strong>Check it properly before confirming.</strong> Condition, accessories, serial number, everything the listing promised. Once you confirm receipt, the funds are gone to the seller and that is final.</li>
+    <li><strong>Report a problem instead of confirming.</strong> If anything is off, use "Report an issue" on your order page. The money freezes in escrow while it's reviewed. Confirming first and complaining after leaves you with nothing to hold.</li>
+  </ol>
+
+  <h2>What happens when there's a dispute</h2>
+  <p>The moment either side reports a problem, the funds freeze in escrow. Nothing releases while it's open.</p>
+  <p>Bastion then assembles the whole record automatically — the listing, the escrow status, the label, every carrier scan and its location, the signature, the packing video, the unboxing video, and the messages between you. A real person reviews it.</p>
+  <p>We're honest about our limits here: <strong>Bastion does not authenticate merchandise.</strong> We're the marketplace, the identity check, the escrow, the logistics and the evidence trail. We are not a watchmaker and we won't pretend to rule on whether a movement is genuine. If a case turns on authenticity, we'll tell you that and point you to independent authentication.</p>
+  <p>What we can and do rule on is documented fact: whether it shipped on time, whether it arrived, whether it was signed for, whether the seal was intact, and which side has continuous unedited footage backing their account. In practice, that settles most of it.</p>
+
+  <h2>Shipping cost</h2>
+  <p>Rates are quoted live from the carrier before you buy, for your actual address and the actual package size the seller entered. You see the exact figure at checkout — item price, protection fee, shipping — before you commit to anything. There's no padded flat rate and no charge added afterwards.</p>
+  <p>The carrier's declared value is set to match the item's price. To be clear about what that is and isn't: a declared value is what the carrier records the parcel as being worth. It is not an insurance policy, and Bastion doesn't sell you one or promise you one. Your actual protection is the escrow — the money doesn't leave it until you confirm.</p>
+
+  <h2>Where we don't ship yet</h2>
+  <p>Bastion ships within the United States only for now. We also don't ship to PO boxes, general delivery, or freight-forwarding addresses at any value — those are where high-value parcels go to disappear with nobody to sign for them. International is on the roadmap and will come with customs handling built in, not bolted on.</p>
+
+  <p style="margin-top:44px; color:var(--stone); font-size:13.5px;">Still prefer to meet in person? Nothing has changed there — see the <a href="/bastion-safety.html" style="color:var(--brass);">Safety Center</a> for meetup guidance, or the <a href="/bastion-faq.html" style="color:var(--brass);">FAQ</a> for anything else.</p>
+</main>
+
+<footer style="max-width:740px;margin:0 auto;padding:40px 24px 48px;border-top:1px solid rgba(241,236,225,0.08);display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center;justify-content:space-between;">
+  <a href="bastion-marketplace.html" class="footer-wordmark" style="font-family:'Fraunces', serif; font-size:16px; text-decoration:none;">Bast<em>ion</em></a>
+  <div style="display:flex; flex-wrap:wrap; gap:24px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase;">
+    <a href="/bastion-about.html" style="color:var(--stone); text-decoration:none;">Built on Trust</a>
+    <a href="/bastion-faq.html" style="color:var(--stone); text-decoration:none;">FAQ</a>
+    <a href="/bastion-shipping.html" style="color:var(--brass); text-decoration:none;">Shipping</a>
+    <a href="/bastion-safety.html" style="color:var(--stone); text-decoration:none;">Safety Center</a>
+    <a href="/bastion-support.html" style="color:var(--stone); text-decoration:none;">Support</a>
+    <a href="/bastion-terms.html" style="color:var(--stone); text-decoration:none;">Terms</a>
+    <a href="/bastion-privacy.html" style="color:var(--stone); text-decoration:none;">Privacy</a>
+  </div>
+</footer>
+
+</body>
+</html>

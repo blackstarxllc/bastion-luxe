@@ -128,6 +128,20 @@ exports.handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ error: 'Transaction is missing a valid price/fee' }) };
     }
 
+    // ------------------------------------------------------------------
+    // Buyer inspection window, scaled to what's at stake.
+    //
+    // A flat 3 days was previously applied to a $200 pair of sneakers and
+    // an $80,000 watch alike. A buyer verifying a five-figure item may need
+    // a third-party appraisal; a buyer checking a common item does not need
+    // to sit on the seller's money for three days. These mirror
+    // public.inspection_window_for_value() in Postgres — change both.
+    // ------------------------------------------------------------------
+    const inspectionPeriod =
+      itemPrice >= 10000 ? 432000 :  // 5 days
+      itemPrice >= 1000  ? 259200 :  // 3 days
+                           172800;   // 2 days
+
     // 2. Create the real transaction on Escrow.com — with the payout SPLIT
     // between the seller (item price) and Bastion itself (the protection
     // fee), instead of sending the seller the buyer's entire payment.
@@ -147,7 +161,7 @@ exports.handler = async (event) => {
           title: txn.item_name || 'Item',
           description: txn.item_name || 'Bastion marketplace item',
           type: 'general_merchandise',
-          inspection_period: 259200, // 3 days, in seconds — buyer's window to inspect before funds auto-release
+          inspection_period: inspectionPeriod, // value-tiered, in seconds — see above
           quantity: 1,
           schedule: [
             { amount: itemPrice, payer_customer: buyerEmail, beneficiary_customer: sellerEmail },

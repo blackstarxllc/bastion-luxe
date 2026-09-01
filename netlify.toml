@@ -27,8 +27,12 @@
     # Force HTTPS for a year, including subdomains.
     Strict-Transport-Security = "max-age=31536000; includeSubDomains"
 
-    # This site never needs the camera, microphone, or geolocation.
-    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
+    # Camera and microphone are now allowed for this origin only, because
+    # packing and unboxing evidence is recorded on the device — on mobile,
+    # a file input with capture invokes the camera and a blanket camera=()
+    # would silently break the single most important dispute control we
+    # have. Geolocation and payment stay fully disabled.
+    Permissions-Policy = "camera=(self), microphone=(self), geolocation=(), payment=()"
 
 # Never let a browser or CDN cache a serverless function response — these
 # are transaction-state endpoints where a stale answer is a real problem.

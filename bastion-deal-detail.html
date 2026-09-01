@@ -1796,11 +1796,27 @@ function renderSpecSheet(details, category){
 
   if(rows.length === 0) return;
 
-  specTitle.textContent = category === 'Watches' ? 'Timepiece Details' :
-                           category === 'Vehicles' ? 'Vehicle Details' :
-                           category === 'Sneakers' ? 'Sneaker Details' :
-                           category === 'Jewelry' ? 'Jewelry Details' :
-                           category === 'Cards' ? 'Card Details' : 'Item Details';
+  const SPEC_TITLES = {
+    Watches: 'Timepiece Details',
+    Vehicles: 'Vehicle Details',
+    Sneakers: 'Sneaker Details',
+    Jewelry: 'Jewelry Details',
+    Cards: 'Card Details',
+    Handbags: 'Handbag Details',
+    Art: 'Artwork Details',
+    Antiques: 'Piece Details',
+    Instruments: 'Instrument Details',
+    Electronics: 'Equipment Details',
+    Comics: 'Comic Details',
+    Memorabilia: 'Memorabilia Details',
+    Collectibles: 'Collectible Details',
+    Coins: 'Coin Details',
+    Wine: 'Bottle Details',
+    Books: 'Edition Details',
+    Marine: 'Vessel Details',
+    NaturalHistory: 'Specimen Details'
+  };
+  specTitle.textContent = SPEC_TITLES[category] || 'Item Details';
   specTitle.classList.remove('hidden');
   specGrid.innerHTML = rows.join('');
 }

@@ -1,0 +1,37 @@
+-- ALREADY APPLIED to the live Bastion database on 2026-09-01.
+-- Kept here as the permanent record of what changed and why.
+--
+-- 1. CRITICAL — privilege escalation.
+--    The RLS policy "Users can update their own profile" allowed a user to
+--    write ANY column on their own profiles row, and the old guard trigger
+--    only froze id_verified / authenticity_verified. That meant any signed-in
+--    user could set is_admin = true on themselves with a single API call,
+--    which granted: reading every private message on the platform, bypassing
+--    the transaction state machine (it returns early for admins) to force
+--    status = 'released', banning other users, and deleting listings.
+--    They could also set is_banned = false to un-ban themselves.
+--    prevent_self_privilege_escalation() now freezes every privilege column.
+--
+-- 2. HIGH — profiles were never auto-created (8 users, 1 profile row).
+--    Every ban check reads profiles.is_banned; with no row, the check found
+--    nothing and banning silently did nothing for 7 of 8 users. Added an
+--    on_auth_user_created trigger and backfilled the missing rows.
+--
+-- 3. HIGH — the buyer could read the seller's release code.
+--    release_code lived on the transactions row, and the SELECT policy grants
+--    the whole row to both parties. The buyer could lift the code straight out
+--    of the API response, so the in-person handoff proof was decorative. The
+--    transaction page made it worse by comparing the code in the browser.
+--    Moved to transaction_release_codes (seller-read only) and verified
+--    server-side in release-escrow-transaction.js.
+--
+-- 4. MEDIUM — transactions UPDATE had no column restriction. Status and
+--    pricing were guarded by triggers, but escrow linkage, timestamps and
+--    identity columns were freely writable by either party.
+--
+-- 5. DEAD WEIGHT removed: duplicate money columns (amount, protection_fee —
+--    NULL on all 17 rows while price/fee/total were the real ones); the
+--    phantom 'pending_funding' status default that nothing ever wrote; and
+--    the dead `listings` table (0 rows, superseded by `deals`).
+--
+-- See the Supabase migration history for the exact statements.

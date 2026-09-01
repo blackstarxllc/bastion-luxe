@@ -1,0 +1,47 @@
+-- ALREADY APPLIED to the live Bastion database on 2026-09-01.
+-- Kept here as the permanent record.
+--
+-- Adds the full shipping system:
+--   deals.fulfilment / ships_from_postal / item dimensions
+--   listing_private          — seller-only serial numbers (anti swap-fraud)
+--   shipping_addresses       — buyer address book
+--   shipments                — one per shipped transaction, address snapshotted
+--   shipment_events          — carrier scan history (chain of custody)
+--   shipment_evidence        — packing / unboxing photos and video, append-only
+--   shipping_tier_for_value(), inspection_window_for_value()
+--   seller_shipping_stats(), get_dispute_bundle()
+--   storage bucket 'shipment-evidence' (private, 200MB, images + video)
+--   generate_release_code_for_transaction() trigger
+--
+-- Design decisions worth remembering:
+--
+--  * shipments has NO insert/update policy for buyers or sellers. Labels,
+--    tracking numbers and statuses are written only by the Netlify functions
+--    using the service role. A seller cannot type in a tracking number,
+--    because a self-supplied tracking number proves nothing — it can point at
+--    any parcel going anywhere, including an empty envelope to the right ZIP.
+--
+--  * The destination is COPIED onto the shipment, not referenced. If it were
+--    a foreign key to the address book, a buyer could edit that row after
+--    purchase and silently redirect a parcel the seller already packed.
+--
+--  * shipment_evidence has insert but no update or delete policy. Evidence is
+--    append-only; nobody can quietly retract a photo once a dispute opens.
+--    That permanence is the only reason it's worth anything.
+--
+--  * serial_number lives in listing_private, NOT on deals. A column-level
+--    REVOKE does not override a table-wide SELECT grant, so the first attempt
+--    left it readable by everyone; and fixing it with column grants would
+--    have broken every select('*') in the app.
+--
+--  * Inspection windows are value-tiered (2 / 3 / 5 days) rather than a flat
+--    3 days for a $200 item and an $80,000 item alike. Mirrored in
+--    create-escrow-transaction.js — change both together.
+--
+-- NOT built, deliberately:
+--   * No insurance is sold, promised, or represented anywhere. The carrier's
+--     declared value is recorded as a factual field only.
+--   * No automatic fund release on a delivery scan. Delivery opens the
+--     inspection window; a person closes it. Auto-releasing on delivery is
+--     exactly how empty-box fraud gets paid out.
+--   * No automatic dispute resolution. Evidence is assembled for a human.

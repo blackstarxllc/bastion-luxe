@@ -634,6 +634,85 @@
     pointer-events:none;
   }
   select option{ background:var(--ink-soft); color:var(--ivory); }
+
+  /* ---------- Shipping panel ---------- */
+  #shipPanel{ margin-top:22px; }
+  .ship-card{
+    background:rgba(21,23,27,0.7); border:1px solid var(--hairline, rgba(241,236,225,0.08));
+    border-radius:12px; padding:18px 20px; margin-bottom:14px;
+  }
+  .ship-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; flex-wrap:wrap; }
+  .ship-title{
+    font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.16em;
+    text-transform:uppercase; color:var(--brass, #C7A268);
+  }
+  .ship-tier{
+    font-family:'IBM Plex Mono', monospace; font-size:9.5px; letter-spacing:0.12em;
+    text-transform:uppercase; padding:4px 10px; border-radius:999px;
+    border:1px solid rgba(199,162,104,0.35); color:var(--brass, #C7A268);
+  }
+  .ship-tier.vault{
+    background:linear-gradient(120deg,#E9CB98 0%,#C7A268 45%,#B08A4F 75%,#D9B87E 100%);
+    color:#171308; border-color:transparent; font-weight:600;
+  }
+  .ship-meta{ font-size:13px; color:var(--stone, #8D8F94); line-height:1.65; margin:0 0 4px; }
+  .ship-meta strong{ color:var(--ivory, #F1ECE1); font-weight:500; }
+  .ship-track{
+    font-family:'IBM Plex Mono', monospace; font-size:13px; color:var(--ivory, #F1ECE1);
+    letter-spacing:0.04em; word-break:break-all;
+  }
+  .ship-timeline{ position:relative; padding-left:26px; margin-top:16px; }
+  .ship-timeline::before{
+    content:""; position:absolute; left:5px; top:5px; bottom:5px; width:1px;
+    background:linear-gradient(180deg, var(--brass,#C7A268), rgba(199,162,104,0.15));
+  }
+  .ship-ev{ position:relative; margin-bottom:16px; }
+  .ship-ev:last-child{ margin-bottom:0; }
+  .ship-ev::before{
+    content:""; position:absolute; left:-25px; top:4px; width:9px; height:9px;
+    border-radius:50%; background:#0A0B0D; border:1.5px solid var(--brass-dim,#8C6F44);
+  }
+  .ship-ev.current::before{ border-color:var(--brass,#C7A268); box-shadow:0 0 0 3px rgba(199,162,104,0.15); }
+  .ship-ev-status{ font-size:13.5px; color:var(--ivory,#F1ECE1); margin-bottom:2px; }
+  .ship-ev-sub{ font-size:11.5px; color:var(--stone-dim,#5B5D62); font-family:'IBM Plex Mono', monospace; }
+  .ship-deadline{
+    display:flex; gap:10px; align-items:flex-start; margin-top:14px;
+    background:rgba(199,162,104,0.07); border:1px solid rgba(199,162,104,0.22);
+    border-radius:10px; padding:13px 15px;
+  }
+  .ship-deadline.late{ background:rgba(201,119,107,0.09); border-color:rgba(201,119,107,0.32); }
+  .ship-deadline p{ margin:0; font-size:12.5px; line-height:1.6; color:var(--ivory,#F1ECE1); }
+  .ship-checklist{ margin:14px 0 0; padding:0; list-style:none; }
+  .ship-checklist li{
+    position:relative; padding-left:22px; margin-bottom:9px;
+    font-size:12.5px; line-height:1.6; color:#D8D3C6;
+  }
+  .ship-checklist li::before{
+    content:""; position:absolute; left:2px; top:6px; width:6px; height:6px;
+    border-radius:50%; background:var(--brass-dim,#8C6F44);
+  }
+  .ship-btn{
+    width:100%; margin-top:16px; padding:14px 18px; border:none; border-radius:8px;
+    background:linear-gradient(120deg,#E9CB98 0%,#C7A268 45%,#B08A4F 75%,#D9B87E 100%);
+    color:#171308; font-family:'IBM Plex Mono', monospace; font-size:11.5px;
+    letter-spacing:0.09em; text-transform:uppercase; font-weight:600; cursor:pointer;
+    transition:opacity .2s ease;
+  }
+  .ship-btn:hover{ opacity:0.9; }
+  .ship-btn:disabled{ opacity:0.45; cursor:not-allowed; }
+  .ship-btn.secondary{
+    background:transparent; border:1px solid rgba(199,162,104,0.4);
+    color:var(--brass,#C7A268);
+  }
+  .ship-confirm{
+    display:flex; gap:10px; align-items:flex-start; margin-top:14px;
+    font-size:12.5px; color:#D8D3C6; line-height:1.55; cursor:pointer;
+  }
+  .ship-confirm input{ margin-top:2px; accent-color:var(--brass,#C7A268); flex-shrink:0; }
+  .ship-err{ margin-top:12px; font-size:12.5px; color:#C9776B; line-height:1.55; }
+  .ship-upload-row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; align-items:center; }
+  .ship-upload-row input[type=file]{ display:none; }
+  .ship-evidence-list{ margin-top:12px; font-size:12px; color:var(--stone,#8D8F94); line-height:1.7; }
 </style>
   <script>
     if ("serviceWorker" in navigator) {
@@ -721,6 +800,8 @@
       <div class="amount-row"><span>Protection fee</span><strong id="amtFee"></strong></div>
       <div class="amount-row total"><span>Total in escrow</span><strong id="amtTotal"></strong></div>
 
+      <div id="shipPanel" class="hidden"></div>
+
       <div id="actionArea"></div>
       <button class="dispute-link hidden" id="disputeLink">Report a problem with this trade</button>
       <div class="review-box hidden" id="disputeForm">
@@ -774,6 +855,8 @@ function getIdFromUrl(){
 }
 
 function updateStepper(status){
+  // in_transit and delivered are carrier-driven; both sit at the same
+  // point in the buyer's mental model as 'shipped'.
   const order = ['funded', 'shipped', 'released'];
   if(status === 'disputed'){
     document.querySelectorAll('.step').forEach(function(el){ el.classList.remove('done', 'active'); });
@@ -787,7 +870,8 @@ function updateStepper(status){
     document.querySelectorAll('.step').forEach(function(el){ el.classList.remove('done', 'active'); });
     return;
   }
-  const currentIndex = order.indexOf(status);
+  const stepperStatus = (status === 'in_transit' || status === 'delivered') ? 'shipped' : status;
+  const currentIndex = order.indexOf(stepperStatus);
   const ids = { funded: 'stepFunded', shipped: 'stepShipped', released: 'stepReleased' };
 
   order.forEach(function(key, i){
@@ -888,7 +972,7 @@ async function markShipped(txnId, btn){
   window.location.reload();
 }
 
-async function releaseFunds(txnId, dealId, btn){
+async function releaseFunds(txnId, dealId, btn, releaseCode){
   btn.disabled = true;
   btn.textContent = 'RELEASING…';
 
@@ -903,13 +987,21 @@ async function releaseFunds(txnId, dealId, btn){
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + (await supabaseClient.auth.getSession()).data.session.access_token
       },
-      body: JSON.stringify({ transactionId: txnId })
+      body: JSON.stringify({ transactionId: txnId, releaseCode: releaseCode || undefined })
     });
     if(!res.ok){
       const data = await res.json().catch(() => ({}));
-      alert('Could not release funds on Escrow.com: ' + (data.error || res.status));
+      // A wrong release code is an expected, ordinary outcome — show it
+      // inline next to the field rather than in an alert box.
+      const codeError = document.getElementById('codeError');
+      if((data.codeInvalid || data.codeRequired) && codeError){
+        codeError.textContent = data.error || 'That code doesn\u2019t match. Double-check with the seller.';
+        codeError.classList.remove('hidden');
+      } else {
+        alert(data.error || ('Could not release funds: ' + res.status));
+      }
       btn.disabled = false;
-      btn.textContent = 'Confirm Receipt & Release Funds';
+      btn.textContent = releaseCode ? 'Release Funds Now' : 'Confirm Receipt & Release Funds';
       return;
     }
   } catch (escrowErr) {
@@ -942,18 +1034,441 @@ function buildPayoutNote(){
     </div>`;
 }
 
+
+// =====================================================================
+// SHIPPING PANEL
+//
+// Everything a shipped order needs, on the order page: the carrier
+// timeline, the seller's label + packing checklist, the ship-by clock,
+// and evidence upload for both sides.
+//
+// Nothing here writes a status. Shipment rows are readable by the two
+// parties but only writable by the server functions, so a seller cannot
+// mark their own parcel as delivered from the browser.
+// =====================================================================
+
+var SHIP_STATUS_TEXT = {
+  awaiting_label:   'Waiting for the seller to create a label',
+  label_created:    'Label created — waiting for carrier pickup',
+  in_transit:       'In transit',
+  out_for_delivery: 'Out for delivery',
+  delivered:        'Delivered',
+  exception:        'Delivery problem reported',
+  returned:         'Returned to sender',
+  cancelled:        'Shipment cancelled'
+};
+
+var SHIP_TIER_RULES = {
+  standard:  { label:'Standard',  video:false, doubleBox:false, adultSig:false, hours:72, days:2 },
+  protected: { label:'Protected', video:true,  doubleBox:true,  adultSig:true,  hours:48, days:3 },
+  vault:     { label:'Vault',     video:true,  doubleBox:true,  adultSig:true,  hours:48, days:5 }
+};
+
+function shipEscape(v){
+  return String(v == null ? '' : v).replace(/[&<>"']/g, function(c){
+    return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+  });
+}
+
+function shipFormatDate(v){
+  if(!v) return '';
+  try {
+    return new Date(v).toLocaleString(undefined, {
+      month:'short', day:'numeric', hour:'numeric', minute:'2-digit'
+    });
+  } catch(e){ return ''; }
+}
+
+async function loadShipmentPanel(txn, isBuyer, isSeller){
+  var panel = document.getElementById('shipPanel');
+  if(!panel) return;
+
+  var shipment = null;
+  try {
+    var res = await supabaseClient
+      .from('shipments')
+      .select('*')
+      .eq('transaction_id', txn.id)
+      .maybeSingle();
+    shipment = res.data;
+  } catch(e){
+    shipment = null;
+  }
+
+  // No shipment row means this is an in-person handoff. Leave the panel
+  // hidden entirely rather than showing an empty shipping card.
+  if(!shipment){
+    panel.classList.add('hidden');
+    return;
+  }
+
+  txn.__shipment = shipment;
+
+  var events = [];
+  try {
+    var evRes = await supabaseClient
+      .from('shipment_events')
+      .select('status,description,location,occurred_at')
+      .eq('shipment_id', shipment.id)
+      .order('occurred_at', { ascending:false });
+    events = evRes.data || [];
+  } catch(e){ events = []; }
+
+  var rules = SHIP_TIER_RULES[shipment.tier] || SHIP_TIER_RULES.standard;
+
+  panel.innerHTML =
+      renderShipStatusCard(shipment, events, rules)
+    + (isSeller ? renderSellerShipCard(shipment, txn, rules) : '')
+    + renderEvidenceCard(shipment, isBuyer, isSeller, rules);
+
+  panel.classList.remove('hidden');
+
+  wireSellerShipCard(shipment, txn, rules);
+  wireEvidenceCard(shipment, isBuyer, isSeller);
+  await refreshEvidenceList(shipment);
+}
+
+function renderShipStatusCard(shipment, events, rules){
+  var tierClass = shipment.tier === 'vault' ? 'ship-tier vault' : 'ship-tier';
+
+  var timeline = '';
+  if(events.length){
+    timeline = '<div class="ship-timeline">' + events.map(function(ev, i){
+      return '<div class="ship-ev' + (i === 0 ? ' current' : '') + '">'
+        + '<div class="ship-ev-status">' + shipEscape(SHIP_STATUS_TEXT[ev.status] || ev.status) + '</div>'
+        + '<div class="ship-ev-sub">' + shipEscape(shipFormatDate(ev.occurred_at))
+        + (ev.location ? ' &middot; ' + shipEscape(ev.location) : '')
+        + '</div>'
+        + (ev.description ? '<div class="ship-ev-sub" style="text-transform:none;letter-spacing:0;">' + shipEscape(ev.description) + '</div>' : '')
+        + '</div>';
+    }).join('') + '</div>';
+  }
+
+  var trackLine = shipment.tracking_number
+    ? '<p class="ship-meta"><strong>' + shipEscape(shipment.carrier || 'Carrier') + '</strong>'
+      + (shipment.service ? ' &middot; ' + shipEscape(shipment.service) : '') + '</p>'
+      + '<div class="ship-track">' + shipEscape(shipment.tracking_number) + '</div>'
+    : '<p class="ship-meta">No tracking number yet — the seller has not created the label.</p>';
+
+  var sigLine = shipment.adult_signature_required
+    ? 'Adult signature required on delivery'
+    : 'Signature required on delivery';
+
+  var deliveredLine = '';
+  if(shipment.delivered_at){
+    deliveredLine = '<p class="ship-meta" style="margin-top:10px;">Delivered ' + shipEscape(shipFormatDate(shipment.delivered_at))
+      + (shipment.delivery_signed_by ? ', signed by <strong>' + shipEscape(shipment.delivery_signed_by) + '</strong>' : '')
+      + '.</p>';
+  }
+
+  return ''
+    + '<div class="ship-card">'
+    +   '<div class="ship-head">'
+    +     '<div class="ship-title">Shipment</div>'
+    +     '<div class="' + tierClass + '">' + shipEscape(rules.label) + ' Protection</div>'
+    +   '</div>'
+    +   '<p class="ship-meta"><strong>' + shipEscape(SHIP_STATUS_TEXT[shipment.status] || shipment.status) + '</strong></p>'
+    +   trackLine
+    +   deliveredLine
+    +   '<p class="ship-meta" style="margin-top:12px;">' + sigLine + '. '
+    +     'Buyer inspection window: ' + rules.days + ' days from delivery.</p>'
+    +   (shipment.hold_at_location
+          ? '<p class="ship-meta">Held for pickup at a carrier location.</p>' : '')
+    +   timeline
+    + '</div>';
+}
+
+function renderSellerShipCard(shipment, txn, rules){
+  // Already labelled: show the label and the ship-by clock.
+  if(shipment.tracking_number){
+    var deadline = '';
+    if(shipment.ship_by && !shipment.first_scan_at){
+      var late = new Date(shipment.ship_by).getTime() < Date.now();
+      deadline = '<div class="ship-deadline' + (late ? ' late' : '') + '"><p>'
+        + (late
+            ? '<strong>Your ship-by deadline has passed.</strong> The buyer can now cancel this order for a full refund. Get it scanned in as soon as you can.'
+            : '<strong>Ship by ' + shipEscape(shipFormatDate(shipment.ship_by)) + '.</strong> The clock stops at the carrier\u2019s first scan, not when you print the label.')
+        + '</p></div>';
+    }
+    return '<div class="ship-card">'
+      + '<div class="ship-head"><div class="ship-title">Your label</div></div>'
+      + '<p class="ship-meta">Your prepaid label is ready. Print it, attach it, and drop the package at any '
+      + shipEscape(shipment.carrier || 'carrier') + ' location.</p>'
+      + deadline
+      + '<a class="ship-btn secondary" style="display:block;box-sizing:border-box;text-align:center;text-decoration:none;" href="'
+      + shipEscape(shipment.label_url) + '" target="_blank" rel="noopener">Open / Print Label</a>'
+      + '</div>';
+  }
+
+  // Escrow not funded yet — the label endpoint would refuse anyway, so
+  // say why here rather than letting them click into an error.
+  if(txn.status !== 'funded'){
+    return '<div class="ship-card">'
+      + '<div class="ship-head"><div class="ship-title">Your label</div></div>'
+      + '<p class="ship-meta">Your shipping label unlocks the moment the buyer\u2019s payment is confirmed in escrow. '
+      + '<strong>Do not ship before then</strong> \u2014 if anyone pressures you to, that is the scam.</p>'
+      + '</div>';
+  }
+
+  var checklist = ''
+    + '<ul class="ship-checklist">'
+    + (rules.doubleBox ? '<li>Double-box it: item in an inner box, inner box inside a plain, sturdy outer box with void fill.</li>' : '<li>Pack it in a plain, unbranded outer box with enough void fill that nothing shifts.</li>')
+    + '<li>Clear packing tape over every seam \u2014 it makes it obvious if the box is slit open and resealed in transit.</li>'
+    + (rules.video ? '<li><strong>Record one continuous, unedited video</strong> of the item going into the box, the box being sealed, and the label going on. Do not stop recording and do not edit it.</li>' : '<li>Photograph the item, the packed box and the label before you seal it.</li>')
+    + '<li>Nothing on the outside should say what is inside \u2014 no brand names, no logos.</li>'
+    + '<li>Include every accessory listed. Missing accessories are the most common "not as described" claim.</li>'
+    + '</ul>';
+
+  var confirmBox = rules.video
+    ? '<label class="ship-confirm"><input type="checkbox" id="packConfirm">'
+      + '<span>I confirm I have packed this order to the requirements above and recorded a continuous packing video.</span></label>'
+    : '';
+
+  return '<div class="ship-card">'
+    + '<div class="ship-head"><div class="ship-title">Pack &amp; ship</div>'
+    + '<div class="ship-tier">Ship within ' + rules.hours + 'h</div></div>'
+    + '<p class="ship-meta">Payment is confirmed in escrow. Pack the order to the '
+    + shipEscape(rules.label) + ' standard below, then generate your prepaid label.</p>'
+    + checklist
+    + confirmBox
+    + '<button class="ship-btn" id="getLabelBtn">Generate My Shipping Label</button>'
+    + '<div class="ship-err hidden" id="labelErr"></div>'
+    + '</div>';
+}
+
+function wireSellerShipCard(shipment, txn, rules){
+  var btn = document.getElementById('getLabelBtn');
+  if(!btn) return;
+
+  btn.addEventListener('click', async function(){
+    var errEl = document.getElementById('labelErr');
+    var confirmEl = document.getElementById('packConfirm');
+    errEl.classList.add('hidden');
+
+    if(rules.video && confirmEl && !confirmEl.checked){
+      errEl.textContent = 'Please confirm the packing checklist first. This is what protects you if the buyer later disputes what was in the box.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Creating label\u2026';
+
+    try {
+      var session = (await supabaseClient.auth.getSession()).data.session;
+      if(!session){ throw new Error('Your session has expired. Please sign in again.'); }
+
+      var res = await fetch('/.netlify/functions/create-shipping-label', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + session.access_token },
+        body: JSON.stringify({
+          shipmentId: shipment.id,
+          packingChecklistConfirmed: !!(confirmEl && confirmEl.checked)
+        })
+      });
+      var data = await res.json().catch(function(){ return {}; });
+
+      if(!res.ok){
+        errEl.textContent = data.error || ('Could not create the label (' + res.status + ').');
+        errEl.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'Generate My Shipping Label';
+        return;
+      }
+      window.location.reload();
+    } catch(err){
+      errEl.textContent = err.message || 'Could not reach the shipping service. Please try again.';
+      errEl.classList.remove('hidden');
+      btn.disabled = false;
+      btn.textContent = 'Generate My Shipping Label';
+    }
+  });
+}
+
+function renderEvidenceCard(shipment, isBuyer, isSeller, rules){
+  // Sellers file packing evidence; buyers file unboxing evidence. Neither
+  // can file under the other's role — the database enforces that too.
+  var role = isSeller ? 'seller' : 'buyer';
+
+  var copy = isSeller
+    ? 'File your packing photos or video against this order. Once filed, evidence cannot be edited or deleted \u2014 that permanence is exactly what makes it worth something in a dispute.'
+    : 'Film one continuous video as you open the sealed box, starting before you touch the seal. If you ever need to claim the box was empty or the item was swapped, this video is the entire claim.';
+
+  var show = isSeller
+    ? ['awaiting_label','label_created','in_transit'].indexOf(shipment.status) !== -1 || rules.video
+    : ['in_transit','out_for_delivery','delivered','exception'].indexOf(shipment.status) !== -1;
+
+  if(!show) return '';
+
+  return '<div class="ship-card">'
+    + '<div class="ship-head"><div class="ship-title">'
+    + (isSeller ? 'Packing evidence' : 'Unboxing evidence') + '</div></div>'
+    + '<p class="ship-meta">' + copy + '</p>'
+    + '<div class="ship-upload-row">'
+    +   '<input type="file" id="evidenceFile" accept="image/*,video/*">'
+    +   '<button class="ship-btn secondary" id="evidencePickBtn" style="width:auto;margin-top:0;">Choose file</button>'
+    +   '<span id="evidenceName" style="font-size:12px;color:var(--stone,#8D8F94);"></span>'
+    + '</div>'
+    + '<button class="ship-btn" id="evidenceUploadBtn" disabled data-role="' + role + '">Upload evidence</button>'
+    + '<div class="ship-err hidden" id="evidenceErr"></div>'
+    + '<div class="ship-evidence-list" id="evidenceList"></div>'
+    + '</div>';
+}
+
+function wireEvidenceCard(shipment, isBuyer, isSeller){
+  var pick = document.getElementById('evidencePickBtn');
+  var input = document.getElementById('evidenceFile');
+  var uploadBtn = document.getElementById('evidenceUploadBtn');
+  var nameEl = document.getElementById('evidenceName');
+  var errEl = document.getElementById('evidenceErr');
+  if(!pick || !input || !uploadBtn) return;
+
+  pick.addEventListener('click', function(){ input.click(); });
+
+  input.addEventListener('change', function(){
+    var f = input.files && input.files[0];
+    if(!f){ uploadBtn.disabled = true; nameEl.textContent = ''; return; }
+    // The bucket caps at 200MB; catch it here so the user isn't told only
+    // after a long upload has already failed.
+    if(f.size > 200 * 1024 * 1024){
+      errEl.textContent = 'That file is over the 200MB limit. Try a shorter video or lower recording quality.';
+      errEl.classList.remove('hidden');
+      uploadBtn.disabled = true;
+      return;
+    }
+    errEl.classList.add('hidden');
+    nameEl.textContent = f.name;
+    uploadBtn.disabled = false;
+  });
+
+  uploadBtn.addEventListener('click', async function(){
+    var f = input.files && input.files[0];
+    if(!f) return;
+    errEl.classList.add('hidden');
+    uploadBtn.disabled = true;
+    uploadBtn.textContent = 'Uploading\u2026';
+
+    try {
+      var user = (await supabaseClient.auth.getUser()).data.user;
+      if(!user) throw new Error('Your session has expired. Please sign in again.');
+
+      var isVideo = /^video\//.test(f.type);
+      var role = uploadBtn.getAttribute('data-role');
+      var kind = role === 'seller'
+        ? (isVideo ? 'packing_video' : 'packing_photo')
+        : (isVideo ? 'unboxing_video' : 'unboxing_photo');
+
+      var ext = (f.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
+      // Path must start with the shipment id — storage policy keys off it.
+      var path = shipment.id + '/' + role + '-' + Date.now() + '.' + ext;
+
+      var up = await supabaseClient.storage
+        .from('shipment-evidence')
+        .upload(path, f, { upsert:false, contentType: f.type || undefined });
+      if(up.error) throw new Error(up.error.message);
+
+      var ins = await supabaseClient.from('shipment_evidence').insert({
+        shipment_id: shipment.id,
+        uploaded_by: user.id,
+        role: role,
+        kind: kind,
+        file_url: path
+      });
+      if(ins.error) throw new Error(ins.error.message);
+
+      input.value = '';
+      nameEl.textContent = '';
+      uploadBtn.textContent = 'Upload evidence';
+      await refreshEvidenceList(shipment);
+    } catch(err){
+      errEl.textContent = err.message || 'Upload failed. Please try again.';
+      errEl.classList.remove('hidden');
+      uploadBtn.disabled = false;
+      uploadBtn.textContent = 'Upload evidence';
+    }
+  });
+}
+
+async function refreshEvidenceList(shipment){
+  var listEl = document.getElementById('evidenceList');
+  if(!listEl) return;
+  try {
+    var res = await supabaseClient
+      .from('shipment_evidence')
+      .select('role,kind,created_at')
+      .eq('shipment_id', shipment.id)
+      .order('created_at', { ascending:true });
+    var rows = res.data || [];
+    if(!rows.length){ listEl.textContent = 'No evidence filed yet.'; return; }
+    listEl.innerHTML = rows.map(function(r){
+      var label = r.kind.replace(/_/g, ' ');
+      return '&middot; ' + shipEscape(r.role) + ' ' + shipEscape(label)
+        + ' \u2014 ' + shipEscape(shipFormatDate(r.created_at));
+    }).join('<br>');
+  } catch(e){
+    listEl.textContent = '';
+  }
+}
+
+// The release code used to live on the transaction row itself — which both
+// parties can read. That meant the buyer could lift the code straight out of
+// the page data and release funds without ever meeting the seller, making the
+// whole in-person proof decorative. It now lives in its own table that only
+// the seller can read, and it is verified server-side on release.
+//
+// loadReleaseCode() runs once before the action area renders, so the two
+// builders below can stay synchronous and keep working inside template
+// strings. The seller gets the real code; the buyer gets only a boolean
+// telling the page that this is an in-person handoff.
+async function loadReleaseCode(txn, isSeller){
+  txn.__releaseCode = null;
+  txn.__hasReleaseCode = false;
+  try {
+    if(isSeller){
+      const { data } = await supabaseClient
+        .from('transaction_release_codes')
+        .select('code')
+        .eq('transaction_id', txn.id)
+        .maybeSingle();
+      if(data && data.code){
+        txn.__releaseCode = data.code;
+        txn.__hasReleaseCode = true;
+      }
+      return;
+    }
+    // A buyer cannot read the code table at all (RLS blocks it), so we
+    // infer the handoff type from the listing instead.
+    if(txn.deal_id){
+      const { data } = await supabaseClient
+        .from('deals')
+        .select('fulfilment')
+        .eq('id', txn.deal_id)
+        .maybeSingle();
+      txn.__hasReleaseCode = !data || !data.fulfilment || data.fulfilment !== 'shipping';
+    }
+  } catch(e){
+    // Never let this break the page; worst case the code entry is hidden
+    // and the buyer uses the ordinary confirm-receipt button.
+  }
+}
+
 function buildCodeBox(txn){
-  if(!txn.release_code) return '';
+  if(!txn.__releaseCode) return '';
+  const safe = String(txn.__releaseCode).replace(/[&<>"']/g, function(c){
+    return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+  });
   return `
     <div class="code-box">
       <div class="code-box-label">Your Release Code</div>
-      <div class="code-digits">${txn.release_code}</div>
+      <div class="code-digits">${safe}</div>
       <div class="code-warning">Only share this in person, after you've both confirmed the item and are satisfied with the trade. Entering it releases your funds immediately.</div>
     </div>`;
 }
 
 function buildCodeEntry(txn){
-  if(!txn.release_code) return '';
+  // Shown only for in-person handoffs. The buyer's browser never holds the
+  // code — it is posted to the server and compared there.
+  if(!txn.__hasReleaseCode) return '';
   return `
     <div class="or-divider">or, for in-person trades</div>
     <div class="code-entry">
@@ -970,12 +1485,15 @@ function setupCodeEntry(txn){
   btn.addEventListener('click', function(){
     const entered = document.getElementById('codeInput').value.trim();
     const errorEl = document.getElementById('codeError');
-    if(entered === txn.release_code){
-      errorEl.classList.add('hidden');
-      releaseFunds(txn.id, txn.deal_id, btn);
-    } else {
+    if(!entered){
+      errorEl.textContent = 'Enter the code the seller gives you at the handoff.';
       errorEl.classList.remove('hidden');
+      return;
     }
+    errorEl.classList.add('hidden');
+    // The comparison happens on the server. This browser has no idea
+    // whether the code is right, which is exactly the point.
+    releaseFunds(txn.id, txn.deal_id, btn, entered);
   });
 }
 
@@ -1045,16 +1563,32 @@ function renderActionArea(txn, isBuyer, isSeller){
     } else {
       area.innerHTML = `<div class="waiting-note"><span>Funds are secured in escrow, awaiting shipment.</span></div>`;
     }
-  } else if(status === 'shipped'){
+  } else if(status === 'shipped' || status === 'in_transit' || status === 'delivered'){
     if(isBuyer){
-      area.innerHTML = `<button class="action-btn" id="releaseBtn">Confirm Receipt & Release Funds</button>` + buildCodeEntry(txn);
-      document.getElementById('releaseBtn').addEventListener('click', function(){ releaseFunds(txn.id, txn.deal_id, this); });
-      setupCodeEntry(txn);
+      const ship = txn.__shipment;
+      // On a shipped order, funds cannot be released until the carrier
+      // itself confirms delivery. Showing a button that the server will
+      // refuse just teaches people the site is broken.
+      if(ship && ship.status !== 'delivered'){
+        area.innerHTML = `
+          <div class="waiting-note">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+            <span>Your payment stays in escrow until this is delivered and you've checked it. Confirm Receipt unlocks once the carrier records delivery — track every scan above.</span>
+          </div>`;
+      } else {
+        area.innerHTML = `<button class="action-btn" id="releaseBtn">Confirm Receipt &amp; Release Funds</button>` + buildCodeEntry(txn);
+        document.getElementById('releaseBtn').addEventListener('click', function(){ releaseFunds(txn.id, txn.deal_id, this); });
+        setupCodeEntry(txn);
+      }
     } else if(isSeller){
       area.innerHTML = `
         <div class="waiting-note">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
-          <span>Item marked as shipped. Waiting for the buyer to confirm receipt and release funds.</span>
+          <span>${txn.__shipment
+            ? (txn.__shipment.status === 'delivered'
+                ? 'Delivered. The buyer is in their inspection window \u2014 funds release once they confirm.'
+                : 'In transit with the carrier. Funds release after delivery and the buyer\u2019s confirmation.')
+            : 'Item marked as shipped. Waiting for the buyer to confirm receipt and release funds.'}</span>
         </div>` + buildCodeBox(txn) + buildPayoutNote();
     } else {
       area.innerHTML = `<div class="waiting-note"><span>Item shipped, awaiting buyer confirmation.</span></div>`;
@@ -1176,12 +1710,14 @@ async function loadTransaction(){
     document.getElementById('roleTag').textContent = isBuyer ? 'You are the buyer' : (isSeller ? 'You are the seller' : 'Viewing as observer');
 
     updateStepper(txn.status);
-    document.getElementById('safetyNote').classList.toggle('hidden', txn.status !== 'funded' && txn.status !== 'shipped');
+    document.getElementById('safetyNote').classList.toggle('hidden', ['funded','shipped','in_transit','delivered'].indexOf(txn.status) === -1);
 
     const headlines = {
       pending_payment: 'Confirming your payment.',
       funded: 'Funds secured in escrow.',
       shipped: 'Item confirmed and on its way to release.',
+      in_transit: 'In transit — tracked, with signature required on delivery.',
+      delivered: 'Delivered. Inspect the item, then confirm receipt to release payment.',
       released: 'Trade complete.',
       disputed: 'Under review.',
       cancelled: 'This trade did not go through.'
@@ -1190,6 +1726,8 @@ async function loadTransaction(){
       pending_payment: 'This trade is reserved for you — the listing has been taken off the marketplace while payment is confirmed.',
       funded: 'The buyer\'s payment is held safely. Nothing moves until the item is verified — in person or on arrival — and the buyer confirms.',
       shipped: 'The seller has confirmed the handoff. The buyer will release funds once the item is verified and as described.',
+      in_transit: 'The carrier has the package and has scanned it in. Every scan appears below as it happens.',
+      delivered: 'The carrier confirmed delivery. The buyer now has their inspection window to check the item before funds release.',
       released: 'Funds have been released to the seller. This trade is complete and archived.',
       disputed: 'This trade has been flagged and paused for manual review.',
       cancelled: 'Another buyer completed payment first. You were not charged — nothing further is needed here.'
@@ -1201,6 +1739,8 @@ async function loadTransaction(){
     document.getElementById('amtFee').textContent = formatMoney(txn.fee || 0);
     document.getElementById('amtTotal').textContent = formatMoney(txn.total || 0);
 
+    await loadReleaseCode(txn, isSeller);
+    await loadShipmentPanel(txn, isBuyer, isSeller);
     renderActionArea(txn, isBuyer, isSeller);
     checkAndShowReviewBox(txn, isBuyer);
     setupMessageLink(txn, isBuyer, isSeller);

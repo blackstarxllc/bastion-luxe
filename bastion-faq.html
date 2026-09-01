@@ -41,8 +41,8 @@
   .wordmark:visited{ color:var(--ivory) !important; }
   .wordmark em{ color:var(--brass); font-style:italic; }
   .wordmark:link em{ color:var(--brass) !important; }
-  .footer-wordmark:link, .footer-wordmark:visited{ color:var(--stone-dim) !important; }
-  .footer-wordmark:link em, .footer-wordmark:visited em{ color:var(--brass-dim) !important; }
+  .footer-wordmark, .footer-wordmark:link, .footer-wordmark:visited{ color:var(--ivory) !important; }
+  .footer-wordmark em, .footer-wordmark:link em, .footer-wordmark:visited em{ color:var(--brass) !important; font-style:italic; }
   .wordmark:visited em{ color:var(--brass) !important; }
   header a.back-pill{
     color:var(--stone); text-decoration:none;
@@ -161,15 +161,83 @@
 
   <details>
     <summary>Is it safer to meet in person, or ship the item?</summary>
-    <div class="answer">Both are supported and both are protected the same way. For in-person trades, Bastion generates a private release code only the seller sees — the buyer enters it once they've inspected the item in person, releasing funds on the spot. For shipped items, the buyer has an inspection window to confirm the item before releasing funds.</div>
+    <div class="answer">Both are supported and both are protected the same way. For in-person trades, Bastion generates a private release code only the seller sees — the buyer enters it once they've inspected the item in person, releasing funds on the spot. For shipped items, funds can't be released until the carrier itself confirms delivery, and the buyer then gets an inspection window to check the item before confirming. See <a href="/bastion-shipping.html" style="color:var(--brass);">Shipping</a> for the full walkthrough.</div>
+  </details>
+
+  <h2>Shipping</h2>
+
+  <details>
+    <summary>How does shipping work on Bastion?</summary>
+    <div class="answer">Your payment goes into escrow first. Bastion then generates a prepaid, tracked shipping label bound to that specific order — the seller never types in their own tracking number. The carrier's own scans move the order forward, someone has to sign for it on delivery, and you get an inspection window to check the item before you confirm and the seller gets paid. The full step-by-step is on the <a href="/bastion-shipping.html" style="color:var(--brass);">Shipping page</a>.</div>
+  </details>
+
+  <details>
+    <summary>Why does Bastion make the label instead of letting the seller use their own?</summary>
+    <div class="answer">Because a tracking number a seller types in proves nothing. It could belong to any parcel going anywhere — including an empty envelope sent to the right zip code. A label Bastion generated is tied to this order, this destination and this declared weight, so when the carrier scans it, that scan actually means something in a dispute.</div>
+  </details>
+
+  <details>
+    <summary>How much is shipping, and who pays it?</summary>
+    <div class="answer">The buyer pays it, and you see the exact live carrier rate at checkout before committing — quoted for your real address and the seller's actual package dimensions. There's no padded flat rate, no estimate, and nothing added afterwards.</div>
+  </details>
+
+  <details>
+    <summary>Does someone have to sign for the package?</summary>
+    <div class="answer">Yes, always. Signature on delivery is mandatory on every Bastion shipment, so nothing gets left on a doorstep. On orders over $1,000 it's adult signature, which means the carrier has to hand it to a person rather than release it unattended.</div>
+  </details>
+
+  <details>
+    <summary>Why do I have to film myself packing or opening the box?</summary>
+    <div class="answer">It's the single most effective way to end an argument before it starts. A continuous, unedited video of the item going into a sealed box — or of a sealed box being opened — settles almost every "it arrived empty" or "you sent me the wrong thing" claim instantly. Sellers record packing on orders over $1,000; buyers are strongly encouraged to film unboxing on any order. Record in one take and don't edit it, or it proves nothing.</div>
+  </details>
+
+  <details>
+    <summary>Can I change my delivery address after I've bought something?</summary>
+    <div class="answer">No. Your address is copied onto the order and locked at purchase. That's on purpose — it means nobody who gets into your account later can quietly redirect a parcel the seller has already packed. If you need a different address, cancel the order and buy again.</div>
+  </details>
+
+  <details>
+    <summary>Can I ship to a PO box?</summary>
+    <div class="answer">No, at any value. PO boxes, general delivery and freight-forwarding addresses can't take a signature from an identifiable person, which is exactly where high-value parcels tend to disappear. It has to be a street address, or a carrier pickup location on Protected and Vault orders.</div>
+  </details>
+
+  <details>
+    <summary>What if my package is lost, damaged, or arrives tampered with?</summary>
+    <div class="answer">Report the issue on your order page rather than confirming receipt. Your payment stays frozen in escrow — it does not release on a delivery scan alone. Bastion assembles the full record automatically: every carrier scan, the signature, the packing video, the unboxing video and the messages between you, and a real person reviews it.</div>
+  </details>
+
+  <details>
+    <summary>Is my shipment insured?</summary>
+    <div class="answer">We want to be straight with you: no, Bastion does not sell or promise you an insurance policy. The carrier records a declared value matching the item price, but that's a record of worth, not a policy. Your actual protection is the escrow — your money doesn't leave it until you have the item in hand and confirm it.</div>
+  </details>
+
+  <details>
+    <summary>How fast does the seller have to ship?</summary>
+    <div class="answer">48 hours on Protected and Vault orders, 72 hours on Standard, measured from when escrow confirms funding. The clock stops at the carrier's first physical scan, not when the label is printed. If a seller misses it, you can cancel for a full refund and it counts against their shipping record.</div>
+  </details>
+
+  <details>
+    <summary>Does Bastion authenticate the item before it ships?</summary>
+    <div class="answer">No, and we won't pretend otherwise. Bastion is the marketplace, the identity check, the escrow, the logistics and the evidence trail — we're not watchmakers or gemologists. If authenticity matters to you on a particular item, arrange independent third-party authentication and inspect before you confirm receipt. What we do enforce is everything around it: who the parties are, that the money is held, that the parcel is tracked and signed for, and that both sides have a documented record.</div>
+  </details>
+
+  <details>
+    <summary>Do you ship internationally?</summary>
+    <div class="answer">Not yet — Bastion ships within the United States only for now. International is planned, and it'll come with customs and duties handled properly rather than bolted on as an afterthought.</div>
+  </details>
+
+  <details>
+    <summary>Can I still meet in person instead?</summary>
+    <div class="answer">Absolutely, and nothing about that has changed. In-person handoffs are how Bastion started and they're still fully supported, with the private seller release code. Sellers choose per listing whether it's meetup, shipping, or both.</div>
   </details>
 
 </main>
 
 <footer style="max-width:740px;margin:0 auto;padding:40px 24px 48px;border-top:1px solid rgba(241,236,225,0.08);display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center;justify-content:space-between;">
-  <a href="bastion-marketplace.html" class="footer-wordmark" style="font-family:'Fraunces', serif; font-size:16px; color:var(--stone-dim); text-decoration:none;">Bast<em style="color:var(--brass-dim);">ion</em></a>
+  <a href="bastion-marketplace.html" class="footer-wordmark" style="font-family:'Fraunces', serif; font-size:16px; text-decoration:none;">Bast<em>ion</em></a>
   <div style="display:flex; flex-wrap:wrap; gap:24px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase;">
     <a href="/bastion-about.html" style="color:var(--stone); text-decoration:none;">Built on Trust</a>
+    <a href="/bastion-shipping.html" style="color:var(--stone); text-decoration:none;">Shipping</a>
     <a href="/bastion-safety.html" style="color:var(--stone); text-decoration:none;">Safety Center</a>
     <a href="/bastion-support.html" style="color:var(--stone); text-decoration:none;">Support</a>
     <a href="/bastion-terms.html" style="color:var(--stone); text-decoration:none;">Terms</a>

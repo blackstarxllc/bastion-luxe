@@ -24,7 +24,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { transactionId } = JSON.parse(event.body || '{}');
+    const { transactionId, releaseCode } = JSON.parse(event.body || '{}');
     if (!transactionId) {
       return { statusCode: 400, body: JSON.stringify({ error: 'transactionId is required' }) };
     }
@@ -99,11 +99,80 @@ exports.handler = async (event) => {
     if (txn.status === 'disputed') {
       return { statusCode: 409, body: JSON.stringify({ error: 'This transaction is under dispute and cannot be released until it is resolved.' }) };
     }
-    if (txn.status !== 'funded' && txn.status !== 'shipped') {
+    if (!['funded', 'shipped', 'in_transit', 'delivered'].includes(txn.status)) {
       return {
         statusCode: 409,
         body: JSON.stringify({ error: 'This transaction is not in a releasable state yet (current status: ' + (txn.status || 'unknown') + ').' }),
       };
+    }
+
+    // ------------------------------------------------------------------
+    // SERVER-SIDE RELEASE CODE VERIFICATION
+    //
+    // This used to be compared in the buyer's own browser against a
+    // release_code that was sitting on the transaction row the buyer could
+    // read. That made the in-person handoff proof decorative: the buyer
+    // could read the code straight out of the page data without ever
+    // meeting the seller.
+    //
+    // The code now lives in transaction_release_codes, which only the
+    // seller can read, and the comparison happens here where the buyer
+    // cannot see either side of it.
+    // ------------------------------------------------------------------
+    const codeRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/transaction_release_codes?transaction_id=eq.${encodeURIComponent(transactionId)}&select=code`,
+      {
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      }
+    );
+    const codeRows = await codeRes.json().catch(() => []);
+    const expectedCode = codeRows && codeRows[0] && codeRows[0].code;
+
+    if (expectedCode) {
+      // This is an in-person handoff. The buyer must present the seller's code.
+      const supplied = String(releaseCode || '').trim().toUpperCase();
+      if (!supplied) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({ error: 'Enter the release code the seller gives you at the handoff.', codeRequired: true }),
+        };
+      }
+      if (supplied !== String(expectedCode).trim().toUpperCase()) {
+        console.error('release-escrow-transaction: release code mismatch', { transactionId });
+        return {
+          statusCode: 403,
+          body: JSON.stringify({ error: 'That release code is not correct.', codeInvalid: true }),
+        };
+      }
+    } else {
+      // No release code means this is a shipped order. Funds cannot be
+      // released before the carrier has actually confirmed delivery —
+      // otherwise a buyer could release on a promise and a seller could
+      // pressure them into it.
+      const shipRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/shipments?transaction_id=eq.${encodeURIComponent(transactionId)}&select=status,delivered_at`,
+        {
+          headers: {
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          },
+        }
+      );
+      const shipRows = await shipRes.json().catch(() => []);
+      const shipment = shipRows && shipRows[0];
+
+      if (shipment && shipment.status !== 'delivered') {
+        return {
+          statusCode: 409,
+          body: JSON.stringify({
+            error: 'This order has not been confirmed delivered by the carrier yet. Funds cannot be released before delivery.',
+            notDelivered: true,
+          }),
+        };
+      }
     }
 
     if (!txn.escrow_transaction_id || !txn.escrow_item_id) {

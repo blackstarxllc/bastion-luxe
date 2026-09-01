@@ -805,8 +805,8 @@
     }
   }
   .notif-empty{ padding:24px 16px; text-align:center; color:var(--stone-dim); font-size:12.5px; }
-  .footer-wordmark:link, .footer-wordmark:visited{ color:var(--stone-dim) !important; }
-  .footer-wordmark:link em, .footer-wordmark:visited em{ color:var(--brass-dim) !important; }
+  .footer-wordmark, .footer-wordmark:link, .footer-wordmark:visited{ color:var(--ivory) !important; }
+  .footer-wordmark em, .footer-wordmark:link em, .footer-wordmark:visited em{ color:var(--brass) !important; font-style:italic; }
   body::before{
     content:"";
     position:fixed;
@@ -817,6 +817,76 @@
     pointer-events:none;
   }
   select option{ background:var(--ink-soft); color:var(--ivory); }
+
+  /* ---------- Shipping checkout ---------- */
+  .ship-co-overlay{
+    position:fixed; inset:0; background:rgba(5,5,7,0.82);
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+    display:none; align-items:center; justify-content:center;
+    z-index:1200; padding:20px; overflow-y:auto;
+  }
+  .ship-co-overlay.visible{ display:flex; }
+  .ship-co-modal{
+    background:var(--surface,#15171B); border:1px solid rgba(199,162,104,0.22);
+    border-radius:14px; padding:26px 24px; width:100%; max-width:460px;
+    max-height:90vh; overflow-y:auto;
+  }
+  .ship-co-title{
+    font-family:'Fraunces', serif; font-style:italic; font-weight:450;
+    font-size:22px; color:var(--ivory,#F1ECE1); margin-bottom:8px;
+  }
+  .ship-co-sub{ font-size:13px; line-height:1.6; color:var(--stone,#8D8F94); margin:0 0 20px; }
+  .ship-co-sub a{ color:var(--brass,#C7A268); }
+  .ship-co-label{
+    font-family:'IBM Plex Mono', monospace; font-size:9.5px; letter-spacing:0.15em;
+    text-transform:uppercase; color:var(--brass,#C7A268); margin-bottom:10px;
+  }
+  .ship-co-addr, .ship-co-rate{
+    display:flex; gap:11px; align-items:flex-start;
+    border:1px solid var(--hairline,rgba(241,236,225,0.08)); border-radius:10px;
+    padding:13px 14px; margin-bottom:9px; cursor:pointer;
+    font-size:13px; line-height:1.55; color:#D8D3C6;
+    transition:border-color .2s ease;
+  }
+  .ship-co-addr:hover, .ship-co-rate:hover{ border-color:rgba(199,162,104,0.35); }
+  .ship-co-addr input, .ship-co-rate input{ margin-top:3px; accent-color:var(--brass,#C7A268); flex-shrink:0; }
+  .ship-co-addr strong, .ship-co-rate strong{ color:var(--ivory,#F1ECE1); font-weight:500; }
+  .ship-co-rate{ align-items:center; }
+  .ship-co-rate span{ flex:1; }
+  .ship-co-rate em{ font-style:normal; font-size:11.5px; color:var(--stone-dim,#5B5D62); }
+  .ship-co-rate b{ color:var(--brass,#C7A268); font-family:'IBM Plex Mono', monospace; font-size:13.5px; }
+  .ship-co-field{ margin-bottom:13px; }
+  .ship-co-field label{
+    display:block; font-size:11.5px; color:var(--stone,#8D8F94); margin-bottom:6px;
+  }
+  .ship-co-field label span{ color:var(--stone-dim,#5B5D62); }
+  .ship-co-field input{
+    width:100%; box-sizing:border-box; padding:11px 13px;
+    background:var(--field,#1B1E23); border:1px solid var(--field-border,#2A2D33);
+    border-radius:8px; color:var(--ivory,#F1ECE1); font-family:'Inter',sans-serif; font-size:14px;
+  }
+  .ship-co-field input:focus{ outline:none; border-color:rgba(199,162,104,0.5); }
+  .ship-co-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .ship-co-tier{
+    margin-top:16px; padding:11px 13px; border-radius:9px;
+    background:rgba(199,162,104,0.07); border:1px solid rgba(199,162,104,0.22);
+    font-size:12px; color:var(--ivory,#F1ECE1); line-height:1.55;
+  }
+  .ship-co-note{ font-size:11.5px; color:var(--stone,#8D8F94); line-height:1.55; margin:10px 0 0; }
+  .ship-co-err{ margin-top:12px; font-size:12.5px; color:#C9776B; line-height:1.55; }
+  .ship-co-actions{ display:flex; gap:10px; margin-top:20px; }
+  .ship-co-btn{
+    flex:1; padding:13px 16px; border:none; border-radius:8px; cursor:pointer;
+    background:linear-gradient(120deg,#E9CB98 0%,#C7A268 45%,#B08A4F 75%,#D9B87E 100%);
+    color:#171308; font-family:'IBM Plex Mono', monospace; font-size:11px;
+    letter-spacing:0.08em; text-transform:uppercase; font-weight:600;
+  }
+  .ship-co-btn.secondary{
+    background:transparent; border:1px solid var(--field-border,#2A2D33);
+    color:var(--stone,#8D8F94); flex:0 0 auto; padding:13px 20px;
+  }
+  .ship-co-btn:disabled{ opacity:0.5; cursor:not-allowed; }
+  .ship-co-modal .hidden{ display:none; }
 </style>
   <script>
     if ("serviceWorker" in navigator) {
@@ -991,10 +1061,11 @@
 </div>
 
 <footer style="max-width:1180px;margin:0 auto;padding:40px 24px 48px;border-top:1px solid rgba(241,236,225,0.08);display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center;justify-content:space-between;">
-  <a href="bastion-marketplace.html" class="footer-wordmark" style="font-family:'Fraunces', serif; font-size:16px; color:var(--stone-dim); text-decoration:none;">Bast<em style="font-style:italic; color:var(--brass-dim);">ion</em></a>
+  <a href="bastion-marketplace.html" class="footer-wordmark" style="font-family:'Fraunces', serif; font-size:16px; text-decoration:none;">Bast<em>ion</em></a>
   <div style="display:flex; flex-wrap:wrap; gap:24px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase;">
     <a href="/bastion-about.html" style="color:var(--stone); text-decoration:none;">Built on Trust</a>
     <a href="/bastion-faq.html" style="color:var(--stone); text-decoration:none;">FAQ</a>
+    <a href="/bastion-shipping.html" style="color:var(--stone); text-decoration:none;">Shipping</a>
     <a href="/bastion-safety.html" style="color:var(--stone); text-decoration:none;">Safety Center</a>
     <a href="/bastion-support.html" style="color:var(--stone); text-decoration:none;">Support</a>
     <a href="/bastion-terms.html" style="color:var(--stone); text-decoration:none;">Terms</a>
@@ -1015,6 +1086,252 @@ function escapeHtml(str){
   const div = document.createElement('div');
   div.textContent = str == null ? '' : String(str);
   return div.innerHTML;
+}
+
+
+// =====================================================================
+// SHIPPING CHECKOUT
+//
+// Runs between "yes, buy it" and the transaction being created, but only
+// when the listing can actually ship. Collects the destination, gets live
+// carrier rates for it, and lets the buyer pick a service.
+//
+// The address is saved to the buyer's account and then SNAPSHOTTED onto
+// the shipment by the server. Editing the saved address later cannot
+// redirect a parcel that's already on its way.
+// =====================================================================
+
+function shipMoney(n){
+  return '$' + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 });
+}
+
+function shipHtmlEscape(v){
+  return String(v == null ? '' : v).replace(/[&<>"']/g, function(c){
+    return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+  });
+}
+
+// Returns null if the buyer cancelled, or { addressId, rateToken, rate, holdAtLocation }.
+async function runShippingCheckout(deal){
+  var overlay = document.getElementById('shipCheckoutOverlay');
+  if(!overlay) return null;
+
+  var savedAddresses = [];
+  try {
+    var res = await supabaseClient
+      .from('shipping_addresses')
+      .select('*')
+      .order('is_default', { ascending:false })
+      .order('created_at', { ascending:false });
+    savedAddresses = res.data || [];
+  } catch(e){ savedAddresses = []; }
+
+  return new Promise(function(resolve){
+    var state = { addressId:null, rateToken:null, rate:null, holdAtLocation:false };
+
+    function close(result){
+      overlay.classList.remove('visible');
+      overlay.innerHTML = '';
+      document.body.style.overflow = '';
+      resolve(result);
+    }
+
+    function savedOptionsHtml(){
+      if(!savedAddresses.length) return '';
+      return '<div class="ship-co-label">Deliver to</div>'
+        + savedAddresses.map(function(a){
+            return '<label class="ship-co-addr">'
+              + '<input type="radio" name="shipAddr" value="' + shipHtmlEscape(a.id) + '">'
+              + '<span><strong>' + shipHtmlEscape(a.full_name) + '</strong><br>'
+              + shipHtmlEscape(a.line1) + (a.line2 ? ', ' + shipHtmlEscape(a.line2) : '') + '<br>'
+              + shipHtmlEscape(a.city) + ', ' + shipHtmlEscape(a.state) + ' ' + shipHtmlEscape(a.postal_code)
+              + '</span></label>';
+          }).join('')
+        + '<label class="ship-co-addr"><input type="radio" name="shipAddr" value="__new__">'
+        + '<span><strong>Use a different address</strong></span></label>';
+    }
+
+    overlay.innerHTML =
+      '<div class="ship-co-modal">'
+      + '<div class="ship-co-title">Where should this go?</div>'
+      + '<p class="ship-co-sub">Signature is required on delivery, so use an address where someone can sign. '
+      + 'Your address locks once you buy \u2014 <a href="/bastion-shipping.html" target="_blank">why</a>.</p>'
+      + '<div id="shipCoSaved">' + savedOptionsHtml() + '</div>'
+      + '<div id="shipCoForm" class="' + (savedAddresses.length ? 'hidden' : '') + '">'
+      +   '<div class="ship-co-field"><label>Full name</label><input id="coName" type="text" maxlength="120" autocomplete="name"></div>'
+      +   '<div class="ship-co-field"><label>Street address</label><input id="coLine1" type="text" maxlength="160" autocomplete="address-line1"></div>'
+      +   '<div class="ship-co-field"><label>Apt, suite, etc. <span>(optional)</span></label><input id="coLine2" type="text" maxlength="120" autocomplete="address-line2"></div>'
+      +   '<div class="ship-co-row">'
+      +     '<div class="ship-co-field"><label>City</label><input id="coCity" type="text" maxlength="80" autocomplete="address-level2"></div>'
+      +     '<div class="ship-co-field"><label>State</label><input id="coState" type="text" maxlength="2" style="text-transform:uppercase;" autocomplete="address-level1"></div>'
+      +   '</div>'
+      +   '<div class="ship-co-row">'
+      +     '<div class="ship-co-field"><label>ZIP code</label><input id="coZip" type="text" inputmode="numeric" maxlength="10" autocomplete="postal-code"></div>'
+      +     '<div class="ship-co-field"><label>Phone</label><input id="coPhone" type="tel" maxlength="24" autocomplete="tel"></div>'
+      +   '</div>'
+      + '</div>'
+      + '<div class="ship-co-err hidden" id="shipCoErr"></div>'
+      + '<div id="shipCoRates"></div>'
+      + '<div class="ship-co-actions">'
+      +   '<button class="ship-co-btn secondary" id="shipCoCancel">Cancel</button>'
+      +   '<button class="ship-co-btn" id="shipCoNext">Get shipping rates</button>'
+      + '</div>'
+      + '</div>';
+
+    overlay.classList.add('visible');
+    document.body.style.overflow = 'hidden';
+
+    var errEl = document.getElementById('shipCoErr');
+    var formEl = document.getElementById('shipCoForm');
+    var ratesEl = document.getElementById('shipCoRates');
+    var nextBtn = document.getElementById('shipCoNext');
+
+    overlay.querySelectorAll('input[name="shipAddr"]').forEach(function(r){
+      r.addEventListener('change', function(){
+        formEl.classList.toggle('hidden', r.value !== '__new__');
+        ratesEl.innerHTML = '';
+        state.rateToken = null;
+        nextBtn.textContent = 'Get shipping rates';
+      });
+    });
+
+    document.getElementById('shipCoCancel').addEventListener('click', function(){ close(null); });
+
+    function showErr(msg){
+      errEl.textContent = msg;
+      errEl.classList.remove('hidden');
+    }
+
+    async function resolveAddress(){
+      var picked = overlay.querySelector('input[name="shipAddr"]:checked');
+      if(picked && picked.value !== '__new__'){
+        return picked.value;
+      }
+      var name  = document.getElementById('coName').value.trim();
+      var line1 = document.getElementById('coLine1').value.trim();
+      var line2 = document.getElementById('coLine2').value.trim();
+      var city  = document.getElementById('coCity').value.trim();
+      var st    = document.getElementById('coState').value.trim().toUpperCase();
+      var zip   = document.getElementById('coZip').value.trim();
+      var phone = document.getElementById('coPhone').value.trim();
+
+      if(!name || !line1 || !city || !st || !zip){
+        showErr('Please fill in your name, street address, city, state and ZIP.');
+        return null;
+      }
+      if(!/^\d{5}(-\d{4})?$/.test(zip)){
+        showErr('That ZIP code doesn\u2019t look right.');
+        return null;
+      }
+      if(!/^[A-Z]{2}$/.test(st)){
+        showErr('Enter your state as two letters, like TX.');
+        return null;
+      }
+      // Caught server-side too, but saying it here saves a round trip.
+      if(/\bp\.?\s*o\.?\s*box\b|\bgeneral\s*delivery\b/i.test(line1 + ' ' + line2)){
+        showErr('Bastion can\u2019t ship to PO boxes or general delivery \u2014 protected shipments need a street address where someone can sign.');
+        return null;
+      }
+
+      var user = (await supabaseClient.auth.getUser()).data.user;
+      if(!user){ showErr('Your session has expired. Please sign in again.'); return null; }
+
+      var ins = await supabaseClient.from('shipping_addresses').insert({
+        user_id: user.id, full_name:name, line1:line1, line2:line2 || null,
+        city:city, state:st, postal_code:zip, country:'US', phone:phone || null,
+        is_default: savedAddresses.length === 0
+      }).select().single();
+
+      if(ins.error){ showErr('Could not save that address: ' + ins.error.message); return null; }
+      return ins.data.id;
+    }
+
+    nextBtn.addEventListener('click', async function(){
+      errEl.classList.add('hidden');
+
+      // Second press: they've picked a rate, so we're done here.
+      if(state.rateToken){
+        close(state);
+        return;
+      }
+
+      nextBtn.disabled = true;
+      nextBtn.textContent = 'Checking rates\u2026';
+
+      try {
+        var addressId = await resolveAddress();
+        if(!addressId){
+          nextBtn.disabled = false;
+          nextBtn.textContent = 'Get shipping rates';
+          return;
+        }
+        state.addressId = addressId;
+
+        var addrRow = await supabaseClient
+          .from('shipping_addresses').select('*').eq('id', addressId).single();
+        if(addrRow.error) throw new Error(addrRow.error.message);
+        var a = addrRow.data;
+
+        var session = (await supabaseClient.auth.getSession()).data.session;
+        if(!session) throw new Error('Your session has expired. Please sign in again.');
+
+        var qres = await fetch('/.netlify/functions/shipping-quote', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + session.access_token },
+          body: JSON.stringify({
+            dealId: deal.id,
+            address: {
+              name:a.full_name, line1:a.line1, line2:a.line2, city:a.city,
+              state:a.state, postal_code:a.postal_code, country:a.country, phone:a.phone
+            }
+          })
+        });
+        var q = await qres.json().catch(function(){ return {}; });
+
+        if(!qres.ok){
+          showErr(q.error || ('Could not get shipping rates (' + qres.status + ').'));
+          nextBtn.disabled = false;
+          nextBtn.textContent = 'Get shipping rates';
+          return;
+        }
+
+        ratesEl.innerHTML =
+          '<div class="ship-co-tier">' + shipHtmlEscape(q.tierLabel) + ' protection \u00b7 '
+          + (q.adultSignatureRequired ? 'adult signature' : 'signature') + ' required \u00b7 '
+          + shipHtmlEscape(q.inspectionDays) + '-day inspection window</div>'
+          + '<div class="ship-co-label" style="margin-top:14px;">Choose a service</div>'
+          + q.rates.map(function(r, i){
+              return '<label class="ship-co-rate">'
+                + '<input type="radio" name="shipRate" value="' + shipHtmlEscape(r.rateToken) + '" data-amount="' + shipHtmlEscape(r.amount) + '"' + (i === 0 ? ' checked' : '') + '>'
+                + '<span><strong>' + shipHtmlEscape(r.carrier) + ' ' + shipHtmlEscape(r.service || '') + '</strong>'
+                + (r.estimatedDays ? '<br><em>about ' + shipHtmlEscape(r.estimatedDays) + ' business days</em>' : '')
+                + '</span>'
+                + '<b>' + shipMoney(r.amount) + '</b></label>';
+            }).join('')
+          + (q.packingVideoRequired
+              ? '<p class="ship-co-note">This order is above the video threshold \u2014 the seller must record a continuous packing video before their label is issued.</p>'
+              : '');
+
+        function syncRate(){
+          var sel = overlay.querySelector('input[name="shipRate"]:checked');
+          if(!sel) return;
+          state.rateToken = sel.value;
+          state.rate = Number(sel.getAttribute('data-amount'));
+          nextBtn.textContent = 'Continue \u00b7 ' + shipMoney(state.rate) + ' shipping';
+        }
+        overlay.querySelectorAll('input[name="shipRate"]').forEach(function(r){
+          r.addEventListener('change', syncRate);
+        });
+        syncRate();
+
+        nextBtn.disabled = false;
+      } catch(err){
+        showErr(err.message || 'Something went wrong getting shipping rates.');
+        nextBtn.disabled = false;
+        nextBtn.textContent = 'Get shipping rates';
+      }
+    });
+  });
 }
 
 function showConfirmModal(title, bodyHtml, confirmLabel, hideCancelBtn){
@@ -1738,7 +2055,25 @@ async function loadDeal(){
           return;
         }
 
-        const releaseCode = String(Math.floor(100000 + Math.random() * 900000));
+        // ----- Shipping step -------------------------------------------
+        // Only for listings that can actually ship. Meetup-only listings
+        // go straight through, exactly as before.
+        var shipChoice = null;
+        var dealFulfilment = data.fulfilment || 'meetup';
+        if(dealFulfilment !== 'meetup'){
+          shipChoice = await runShippingCheckout(data);
+          if(!shipChoice){
+            btn.disabled = false;
+            btn.textContent = originalText;
+            return;
+          }
+        }
+
+        // The release code is no longer generated here. It used to be
+        // written onto the transaction row — which the buyer can read —
+        // so a buyer could lift it out of the page data and release funds
+        // without ever meeting the seller. A database trigger now creates
+        // it server-side, into a table only the seller can read.
 
         // Recompute using the freshly-confirmed price from the check right
         // above — the server-side trigger enforces the real charged amount
@@ -1758,8 +2093,7 @@ async function loadDeal(){
             price: confirmedPrice,
             fee: effectiveFee,
             total: effectiveTotal,
-            status: 'pending_payment',
-            release_code: releaseCode
+            status: 'pending_payment'
           }])
           .select()
           .single();
@@ -1785,6 +2119,32 @@ async function loadDeal(){
         // loudly to the console and to Netlify's function logs so the team
         // can catch and fix it without the buyer ever seeing anything look
         // broken.
+        // Create the shipment BEFORE escrow, so the destination is locked
+        // in and snapshotted before any money is committed against it.
+        if(shipChoice){
+          try {
+            const shipSession = await supabaseClient.auth.getSession();
+            const shipRes = await fetch('/.netlify/functions/create-shipment', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + shipSession.data.session.access_token
+              },
+              body: JSON.stringify({
+                transactionId: txn.id,
+                addressId: shipChoice.addressId,
+                holdAtLocation: !!shipChoice.holdAtLocation
+              })
+            });
+            if(!shipRes.ok){
+              const shipErr = await shipRes.json().catch(function(){ return {}; });
+              console.error('Shipment creation failed:', shipRes.status, shipErr);
+            }
+          } catch (shipCreateErr) {
+            console.error('Shipment creation failed:', shipCreateErr);
+          }
+        }
+
         try {
           const sessionRes = await supabaseClient.auth.getSession();
           const escrowRes = await fetch('/.netlify/functions/create-escrow-transaction', {
@@ -1852,6 +2212,8 @@ loadDeal();
     </div>
   </div>
 </div>
+
+<div class="ship-co-overlay" id="shipCheckoutOverlay"></div>
 
 </body>
 </html>

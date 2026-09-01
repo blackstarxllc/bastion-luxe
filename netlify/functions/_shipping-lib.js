@@ -1,0 +1,424 @@
+// netlify/functions/_shipping-lib.js
+//
+// Shared plumbing for every shipping function. Kept in one place so the
+// carrier provider, the tier rules, and the auth checks can never drift
+// apart between endpoints.
+//
+// PROVIDER ABSTRACTION
+// --------------------
+// Bastion talks to exactly one shipping provider at a time, chosen by the
+// SHIPPING_PROVIDER env var. Today that's Shippo or EasyPost. Both expose
+// the same three things we need — rates, labels, tracking webhooks — so the
+// rest of the codebase never needs to know which one is behind it. Adding a
+// third provider later means adding a case here, not touching any page.
+
+const PROVIDER = (process.env.SHIPPING_PROVIDER || 'shippo').toLowerCase();
+const SHIPPING_TEST_MODE = process.env.SHIPPING_TEST_MODE === 'true';
+
+// ---------------------------------------------------------------
+// Protection tiers.
+//
+// These mirror public.shipping_tier_for_value() in Postgres. They are
+// duplicated deliberately: the database enforces them for anything written
+// directly, and the function enforces them before money or a label moves.
+// If you change one, change both.
+// ---------------------------------------------------------------
+function tierForValue(value) {
+  const v = Number(value) || 0;
+  if (v >= 10000) return 'vault';
+  if (v >= 1000) return 'protected';
+  return 'standard';
+}
+
+function tierRules(tier) {
+  switch (tier) {
+    case 'vault':
+      return {
+        label: 'Vault',
+        signatureRequired: true,
+        adultSignatureRequired: true,
+        packingVideoRequired: true,
+        doubleBoxRequired: true,
+        allowPoBox: false,
+        allowHoldAtLocation: true,
+        shipByHours: 48,
+        inspectionSeconds: 432000, // 5 days
+        minCarrierService: 'express',
+      };
+    case 'protected':
+      return {
+        label: 'Protected',
+        signatureRequired: true,
+        adultSignatureRequired: true,
+        packingVideoRequired: true,
+        doubleBoxRequired: true,
+        allowPoBox: false,
+        allowHoldAtLocation: true,
+        shipByHours: 48,
+        inspectionSeconds: 259200, // 3 days
+        minCarrierService: 'standard',
+      };
+    default:
+      return {
+        label: 'Standard',
+        signatureRequired: true,
+        adultSignatureRequired: false,
+        packingVideoRequired: false,
+        doubleBoxRequired: false,
+        allowPoBox: false,
+        allowHoldAtLocation: false,
+        shipByHours: 72,
+        inspectionSeconds: 172800, // 2 days
+        minCarrierService: 'standard',
+      };
+  }
+}
+
+// ---------------------------------------------------------------
+// Destination screening.
+//
+// PO boxes, general delivery and freight forwarders are where high-value
+// parcels go to disappear with no recoverable recipient. Blocked on every
+// tier, not just the expensive ones.
+// ---------------------------------------------------------------
+const BLOCKED_ADDRESS_PATTERNS = [
+  /\bp\.?\s*o\.?\s*box\b/i,
+  /\bpost\s*office\s*box\b/i,
+  /\bpostal\s*box\b/i,
+  /\bgeneral\s*delivery\b/i,
+  /\bposte\s*restante\b/i,
+];
+
+function screenDestination(addr) {
+  const haystack = [addr.line1, addr.line2].filter(Boolean).join(' ');
+  for (const pattern of BLOCKED_ADDRESS_PATTERNS) {
+    if (pattern.test(haystack)) {
+      return {
+        ok: false,
+        reason:
+          'Bastion cannot ship to PO boxes or general delivery. Protected shipments must go to a street address where someone can sign for them, or to a carrier pickup location.',
+      };
+    }
+  }
+  if (!addr.line1 || !addr.city || !addr.state || !addr.postal_code) {
+    return { ok: false, reason: 'That address is missing a required field.' };
+  }
+  if ((addr.country || 'US').toUpperCase() !== 'US') {
+    return {
+      ok: false,
+      reason:
+        'Bastion currently ships within the United States only. International shipping is coming later.',
+    };
+  }
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------
+// Supabase helpers (service role — server only, never the browser)
+// ---------------------------------------------------------------
+function supabaseEnv() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error('Supabase environment variables are not configured');
+  return { url, key };
+}
+
+function serviceHeaders(key) {
+  return {
+    apikey: key,
+    Authorization: 'Bearer ' + key,
+    'Content-Type': 'application/json',
+  };
+}
+
+async function sbSelect(path) {
+  const { url, key } = supabaseEnv();
+  const res = await fetch(url + '/rest/v1/' + path, { headers: serviceHeaders(key) });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error('Supabase read failed (' + res.status + '): ' + detail.slice(0, 300));
+  }
+  return res.json();
+}
+
+async function sbInsert(table, body, returning) {
+  const { url, key } = supabaseEnv();
+  const res = await fetch(url + '/rest/v1/' + table, {
+    method: 'POST',
+    headers: Object.assign({}, serviceHeaders(key), {
+      Prefer: returning ? 'return=representation' : 'return=minimal',
+    }),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error('Supabase insert failed (' + res.status + '): ' + detail.slice(0, 300));
+  }
+  return returning ? res.json() : null;
+}
+
+async function sbPatch(table, filter, body, returning) {
+  const { url, key } = supabaseEnv();
+  const res = await fetch(url + '/rest/v1/' + table + '?' + filter, {
+    method: 'PATCH',
+    headers: Object.assign({}, serviceHeaders(key), {
+      Prefer: returning ? 'return=representation' : 'return=minimal',
+    }),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error('Supabase update failed (' + res.status + '): ' + detail.slice(0, 300));
+  }
+  return returning ? res.json() : null;
+}
+
+// Verify the caller's Supabase session and return their real user id.
+// Every state-changing endpoint runs this first. There is no path that
+// trusts a user id sent in the request body.
+async function requireUser(event) {
+  const raw = event.headers.authorization || event.headers.Authorization;
+  if (!raw || !raw.startsWith('Bearer ')) {
+    const err = new Error('You need to be signed in to do that.');
+    err.statusCode = 401;
+    throw err;
+  }
+  const { url, key } = supabaseEnv();
+  const res = await fetch(url + '/auth/v1/user', {
+    headers: { apikey: key, Authorization: raw },
+  });
+  if (!res.ok) {
+    const err = new Error('Your session has expired. Please sign in again.');
+    err.statusCode = 401;
+    throw err;
+  }
+  const user = await res.json();
+  if (!user || !user.id) {
+    const err = new Error('Your session has expired. Please sign in again.');
+    err.statusCode = 401;
+    throw err;
+  }
+  return user;
+}
+
+async function logAlert(source, message, context) {
+  console.error('[' + source + ']', message, context || {});
+  try {
+    const { url, key } = supabaseEnv();
+    await fetch(url + '/rest/v1/system_alerts', {
+      method: 'POST',
+      headers: Object.assign({}, serviceHeaders(key), { Prefer: 'return=minimal' }),
+      body: JSON.stringify({ source, message, context: context || {} }),
+    });
+  } catch (e) {
+    console.error('could not write system_alerts:', e.message);
+  }
+}
+
+// ---------------------------------------------------------------
+// Provider: rate quoting
+// ---------------------------------------------------------------
+function providerAuthHeader() {
+  if (PROVIDER === 'easypost') {
+    const key = process.env.EASYPOST_API_KEY;
+    if (!key) throw new Error('EASYPOST_API_KEY is not configured');
+    return 'Basic ' + Buffer.from(key + ':').toString('base64');
+  }
+  const key = process.env.SHIPPO_API_KEY;
+  if (!key) throw new Error('SHIPPO_API_KEY is not configured');
+  return 'ShippoToken ' + key;
+}
+
+// Bastion's own return/origin identity on the label.
+//
+// The sender name is deliberately a neutral corporate identifier, never
+// "Bastion Luxury Marketplace". A label that advertises what's inside is a
+// shopping list for anyone handling the box.
+function senderIdentity(fromPostal) {
+  return {
+    name: process.env.SHIP_FROM_NAME || 'B.M. LLC',
+    street1: process.env.SHIP_FROM_STREET1 || '',
+    city: process.env.SHIP_FROM_CITY || '',
+    state: process.env.SHIP_FROM_STATE || '',
+    zip: fromPostal || process.env.SHIP_FROM_POSTAL || '',
+    country: 'US',
+    phone: process.env.SHIP_FROM_PHONE || '',
+    email: process.env.SHIP_FROM_EMAIL || '',
+  };
+}
+
+async function fetchRates({ from, to, parcel, declaredValue, tier }) {
+  const rules = tierRules(tier);
+
+  if (PROVIDER === 'easypost') {
+    const res = await fetch('https://api.easypost.com/v2/shipments', {
+      method: 'POST',
+      headers: { Authorization: providerAuthHeader(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        shipment: {
+          to_address: {
+            name: to.name, street1: to.line1, street2: to.line2 || '',
+            city: to.city, state: to.state, zip: to.postal_code,
+            country: to.country || 'US', phone: to.phone || '',
+          },
+          from_address: {
+            name: from.name, street1: from.street1, city: from.city,
+            state: from.state, zip: from.zip, country: 'US', phone: from.phone,
+          },
+          parcel: {
+            length: parcel.length, width: parcel.width,
+            height: parcel.height, weight: parcel.weight_oz,
+          },
+          options: {
+            delivery_confirmation: rules.adultSignatureRequired
+              ? 'ADULT_SIGNATURE'
+              : 'SIGNATURE',
+          },
+        },
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error('Rate lookup failed: ' + (data.error && data.error.message ? data.error.message : res.status));
+    }
+    return {
+      providerShipmentId: data.id,
+      rates: (data.rates || []).map((r) => ({
+        id: r.id,
+        carrier: r.carrier,
+        service: r.service,
+        amount: Number(r.rate),
+        days: r.delivery_days,
+      })),
+    };
+  }
+
+  // Shippo
+  const res = await fetch('https://api.goshippo.com/shipments/', {
+    method: 'POST',
+    headers: { Authorization: providerAuthHeader(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      address_from: {
+        name: from.name, street1: from.street1, city: from.city,
+        state: from.state, zip: from.zip, country: 'US', phone: from.phone,
+      },
+      address_to: {
+        name: to.name, street1: to.line1, street2: to.line2 || '',
+        city: to.city, state: to.state, zip: to.postal_code,
+        country: to.country || 'US', phone: to.phone || '',
+      },
+      parcels: [{
+        length: String(parcel.length), width: String(parcel.width),
+        height: String(parcel.height), distance_unit: 'in',
+        weight: String(parcel.weight_oz), mass_unit: 'oz',
+      }],
+      extra: {
+        signature_confirmation: rules.adultSignatureRequired ? 'ADULT' : 'STANDARD',
+optional_declared_value: declaredValue ? String(declaredValue) : undefined,
+      },
+      async: false,
+      test: SHIPPING_TEST_MODE,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error('Rate lookup failed: ' + (data.detail || JSON.stringify(data).slice(0, 200)));
+  }
+  return {
+    providerShipmentId: data.object_id,
+    rates: (data.rates || []).map((r) => ({
+      id: r.object_id,
+      carrier: r.provider,
+      service: r.servicelevel && r.servicelevel.name,
+      amount: Number(r.amount),
+      days: r.estimated_days,
+    })),
+  };
+}
+
+async function buyLabel(rateId) {
+  if (PROVIDER === 'easypost') {
+    const parts = String(rateId).split('|');
+    const shipmentId = parts[0];
+    const realRateId = parts[1] || parts[0];
+    const res = await fetch('https://api.easypost.com/v2/shipments/' + shipmentId + '/buy', {
+      method: 'POST',
+      headers: { Authorization: providerAuthHeader(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rate: { id: realRateId } }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error('Label purchase failed: ' + (data.error && data.error.message ? data.error.message : res.status));
+    }
+    return {
+      trackingNumber: data.tracking_code,
+      labelUrl: data.postage_label && data.postage_label.label_url,
+      carrier: data.selected_rate && data.selected_rate.carrier,
+      service: data.selected_rate && data.selected_rate.service,
+      cost: data.selected_rate ? Number(data.selected_rate.rate) : null,
+      providerShipmentId: data.id,
+    };
+  }
+
+  const res = await fetch('https://api.goshippo.com/transactions/', {
+    method: 'POST',
+    headers: { Authorization: providerAuthHeader(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      rate: rateId,
+      label_file_type: 'PDF_4x6',
+      async: false,
+      test: SHIPPING_TEST_MODE,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.status === 'ERROR') {
+    const msg = (data.messages && data.messages[0] && data.messages[0].text) || data.detail || res.status;
+    throw new Error('Label purchase failed: ' + msg);
+  }
+  return {
+    trackingNumber: data.tracking_number,
+    labelUrl: data.label_url,
+    carrier: data.rate && data.rate.provider,
+    service: data.rate && data.rate.servicelevel && data.rate.servicelevel.name,
+    cost: data.rate ? Number(data.rate.amount) : null,
+    providerShipmentId: data.object_id,
+  };
+}
+
+// Normalise the many carrier vocabularies into Bastion's own five states.
+function normaliseTrackingStatus(raw) {
+  const s = String(raw || '').toUpperCase();
+  if (['DELIVERED'].includes(s)) return 'delivered';
+  if (['OUT_FOR_DELIVERY', 'OUT FOR DELIVERY'].includes(s)) return 'out_for_delivery';
+  if (['TRANSIT', 'IN_TRANSIT', 'PRE_TRANSIT'].includes(s)) return 'in_transit';
+  if (['RETURNED', 'RETURN_TO_SENDER'].includes(s)) return 'returned';
+  if (['FAILURE', 'ERROR', 'EXCEPTION', 'UNKNOWN'].includes(s)) return 'exception';
+  return null;
+}
+
+function json(statusCode, body) {
+  return {
+    statusCode,
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+    body: JSON.stringify(body),
+  };
+}
+
+module.exports = {
+  PROVIDER,
+  tierForValue,
+  tierRules,
+  screenDestination,
+  supabaseEnv,
+  serviceHeaders,
+  sbSelect,
+  sbInsert,
+  sbPatch,
+  requireUser,
+  logAlert,
+  senderIdentity,
+  fetchRates,
+  buyLabel,
+  normaliseTrackingStatus,
+  json,
+};

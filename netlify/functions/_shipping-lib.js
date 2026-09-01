@@ -229,21 +229,38 @@ function providerAuthHeader() {
   return 'ShippoToken ' + key;
 }
 
-// Bastion's own return/origin identity on the label.
+// The label's sender identity.
 //
-// The sender name is deliberately a neutral corporate identifier, never
-// "Bastion Luxury Marketplace". A label that advertises what's inside is a
-// shopping list for anyone handling the box.
-function senderIdentity(fromPostal) {
+// IMPORTANT — this is per-seller, not one fixed business address.
+//
+// Every seller on Bastion ships from their own real location. Using one
+// global address for every label (an earlier version of this function did
+// exactly that) produces an invalid parcel: a carrier requires the street/
+// city/state/ZIP to actually match a real place, and Bastion's registered
+// business address is a registered-agent address that no parcel is ever
+// physically dropped off at. Pairing that street with a seller's real ZIP
+// creates a combination that doesn't exist, which carriers reject or
+// mis-rate.
+//
+// So the PHYSICAL address (street/city/state/zip) always comes from the
+// seller's own real address, stored privately per listing. The only thing
+// Bastion overrides is the NAME on the label — "B.M. LLC" instead of the
+// seller's real name — which is what actually protects their privacy
+// without breaking the label. Phone/email fall back to Bastion's own
+// business contact only if the seller didn't provide one, so a label is
+// never missing a required field.
+function senderIdentity(sellerAddress) {
+  const addr = sellerAddress || {};
   return {
     name: process.env.SHIP_FROM_NAME || 'B.M. LLC',
-    street1: process.env.SHIP_FROM_STREET1 || '',
-    city: process.env.SHIP_FROM_CITY || '',
-    state: process.env.SHIP_FROM_STATE || '',
-    zip: fromPostal || process.env.SHIP_FROM_POSTAL || '',
+    street1: addr.street1 || '',
+    street2: addr.street2 || '',
+    city: addr.city || '',
+    state: addr.state || '',
+    zip: addr.zip || '',
     country: 'US',
-    phone: process.env.SHIP_FROM_PHONE || '',
-    email: process.env.SHIP_FROM_EMAIL || '',
+    phone: addr.phone || process.env.SHIP_FROM_PHONE || '',
+    email: addr.email || process.env.SHIP_FROM_EMAIL || '',
   };
 }
 

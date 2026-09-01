@@ -84,11 +84,28 @@ exports.handler = async (event) => {
       });
     }
 
-    const from = lib.senderIdentity(deal.ships_from_postal);
-    if (!from.zip) {
-      await lib.logAlert('shipping_quote', 'No origin postal code available for quote', { dealId });
+    // Real per-seller origin address, not a fixed business address — see
+    // the comment on senderIdentity() in _shipping-lib.js for why this
+    // matters. Stored privately, same treatment as the anti-fraud serial
+    // number: a buyer never needs to see a seller's street address.
+    const privateRes = await lib.sbSelect(
+      'listing_private?deal_id=eq.' + encodeURIComponent(dealId) +
+      '&select=ships_from_street1,ships_from_street2,ships_from_city,ships_from_state'
+    );
+    const priv = privateRes && privateRes[0];
+
+    const from = lib.senderIdentity({
+      street1: priv && priv.ships_from_street1,
+      street2: priv && priv.ships_from_street2,
+      city: priv && priv.ships_from_city,
+      state: priv && priv.ships_from_state,
+      zip: deal.ships_from_postal,
+    });
+
+    if (!from.zip || !from.street1 || !from.city || !from.state) {
+      await lib.logAlert('shipping_quote', 'Seller has not set a complete shipping origin address', { dealId });
       return lib.json(422, {
-        error: 'This listing has no shipping origin set, so shipping cannot be quoted yet.',
+        error: 'The seller has not finished setting up their shipping origin address for this listing, so shipping cannot be quoted yet.',
       });
     }
 

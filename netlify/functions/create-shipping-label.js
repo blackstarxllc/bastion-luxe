@@ -96,7 +96,7 @@ exports.handler = async (event) => {
 
     const deals = await lib.sbSelect(
       'deals?id=eq.' + encodeURIComponent(txn.deal_id) +
-      '&select=item_weight_oz,item_length_in,item_width_in,item_height_in,ships_from_postal'
+      '&select=item_weight_oz,item_length_in,item_width_in,item_height_in'
     );
     const deal = deals && deals[0];
     if (!deal) return lib.json(404, { error: 'That listing no longer exists.' });
@@ -115,7 +115,17 @@ exports.handler = async (event) => {
     // the cheapest compliant service rather than failing the seller.
     let token = rateToken;
     if (!token) {
-      const from = lib.senderIdentity(shipment.from_postal || deal.ships_from_postal);
+      // Use the address snapshotted onto the shipment at purchase time, not
+      // a fresh listing lookup — this is the exact origin the buyer's rate
+      // was quoted against, and stays correct even if the seller has since
+      // edited their listing's address.
+      const from = lib.senderIdentity({
+        street1: shipment.from_street1,
+        street2: shipment.from_street2,
+        city: shipment.from_city,
+        state: shipment.from_state,
+        zip: shipment.from_postal,
+      });
       const requote = await lib.fetchRates({
         from,
         to: {

@@ -601,8 +601,27 @@
       <div class="photo-hint" style="margin-bottom:14px;">Measure the packed box, not the item. These set the real carrier price the buyer sees — if they're wrong, the carrier bills the difference later.</div>
 
       <div class="field">
-        <label for="shipsFromPostal">Ships from ZIP code</label>
-        <input id="shipsFromPostal" type="text" inputmode="numeric" maxlength="10" placeholder="e.g. 78701">
+        <label for="shipsFromStreet1">Ships from \u2014 street address</label>
+        <input id="shipsFromStreet1" type="text" maxlength="160" placeholder="e.g. 123 Main St" autocomplete="address-line1">
+        <div class="photo-hint" style="margin-top:7px;">Kept private \u2014 buyers never see this. It's required to build a valid, correctly priced shipping label; your listing still only ever shows your general city/state.</div>
+      </div>
+      <div class="field">
+        <label for="shipsFromStreet2">Apt, suite, etc. <span style="color:var(--stone-dim,#5B5D62); font-weight:400;">(optional)</span></label>
+        <input id="shipsFromStreet2" type="text" maxlength="120" autocomplete="address-line2">
+      </div>
+      <div class="detail-row-2">
+        <div class="field">
+          <label for="shipsFromCity">City</label>
+          <input id="shipsFromCity" type="text" maxlength="80" autocomplete="address-level2">
+        </div>
+        <div class="field">
+          <label for="shipsFromState">State</label>
+          <input id="shipsFromState" type="text" maxlength="2" style="text-transform:uppercase;" autocomplete="address-level1">
+        </div>
+      </div>
+      <div class="field">
+        <label for="shipsFromPostal">ZIP code</label>
+        <input id="shipsFromPostal" type="text" inputmode="numeric" maxlength="10" placeholder="e.g. 78701" autocomplete="postal-code">
       </div>
 
       <div class="detail-row-2">
@@ -903,9 +922,10 @@ async function loadForEdit(){
   document.getElementById('description').value = data.description || '';
   document.getElementById('itemCity').value = data.city || '';
 
-  // Shipping fields on edit. serial_number is deliberately NOT selected
-  // by '*' for anyone but the owner (column privileges), so fetch it
-  // through the guarded RPC rather than assuming it came back.
+  // Shipping fields on edit. serial_number and the real origin address are
+  // deliberately NOT selected by '*' for anyone but the owner (they live in
+  // listing_private, not on the deal itself), so fetch them together
+  // through the guarded RPC rather than assuming they came back with data.
   document.getElementById('fulfilment').value = data.fulfilment || 'meetup';
   document.getElementById('shipsFromPostal').value = data.ships_from_postal || '';
   document.getElementById('itemWeightOz').value = data.item_weight_oz || '';
@@ -913,11 +933,16 @@ async function loadForEdit(){
   document.getElementById('itemWidthIn').value  = data.item_width_in || '';
   document.getElementById('itemHeightIn').value = data.item_height_in || '';
   try {
-    const serialRes = await supabaseClient.rpc('get_my_listing_serial', { p_deal_id: editId });
-    if(!serialRes.error && serialRes.data){
-      document.getElementById('serialNumber').value = serialRes.data;
+    const privateRes = await supabaseClient.rpc('get_my_listing_private', { p_deal_id: editId });
+    if(!privateRes.error && privateRes.data){
+      const pd = privateRes.data;
+      if(pd.serial_number) document.getElementById('serialNumber').value = pd.serial_number;
+      if(pd.ships_from_street1) document.getElementById('shipsFromStreet1').value = pd.ships_from_street1;
+      if(pd.ships_from_street2) document.getElementById('shipsFromStreet2').value = pd.ships_from_street2;
+      if(pd.ships_from_city) document.getElementById('shipsFromCity').value = pd.ships_from_city;
+      if(pd.ships_from_state) document.getElementById('shipsFromState').value = pd.ships_from_state;
     }
-  } catch(e){ /* not fatal — the field simply stays blank */ }
+  } catch(e){ /* not fatal — these fields simply stay blank */ }
   document.getElementById('fulfilment').dispatchEvent(new Event('change'));
   document.getElementById('itemState').value = data.state || '';
   document.getElementById('acceptsOffersCheckbox').checked = data.accepts_offers !== false;
@@ -1118,15 +1143,33 @@ document.getElementById('listingForm').addEventListener('submit', async function
     }
 
     const fulfilment = document.getElementById('fulfilment').value || 'meetup';
+    const shipsFromStreet1 = document.getElementById('shipsFromStreet1').value.trim() || null;
+    const shipsFromStreet2 = document.getElementById('shipsFromStreet2').value.trim() || null;
+    const shipsFromCity = document.getElementById('shipsFromCity').value.trim() || null;
+    const shipsFromState = document.getElementById('shipsFromState').value.trim().toUpperCase() || null;
     const shipsFromPostal = document.getElementById('shipsFromPostal').value.trim() || null;
     const weightOz = parseFloat(document.getElementById('itemWeightOz').value) || null;
     const lengthIn = parseFloat(document.getElementById('itemLengthIn').value) || null;
     const widthIn  = parseFloat(document.getElementById('itemWidthIn').value) || null;
     const heightIn = parseFloat(document.getElementById('itemHeightIn').value) || null;
 
-    // A shippable listing with no dimensions can never be quoted, so the
-    // buyer would hit a dead end at checkout. Catch it here instead.
+    // A shippable listing needs a REAL, complete origin address, not just a
+    // ZIP. The carrier picks up from wherever this listing says — a fake or
+    // incomplete address either gets the label rejected outright or quotes
+    // the buyer a rate that has nothing to do with reality.
     if(fulfilment !== 'meetup'){
+      if(!shipsFromStreet1 || !shipsFromCity){
+        setStatus('Enter the street address and city you\u2019ll actually be shipping from.', 'bad');
+        btn.disabled = false; btn.textContent = originalText;
+        document.getElementById('shipsFromStreet1').focus();
+        return;
+      }
+      if(!shipsFromState || !/^[A-Z]{2}$/.test(shipsFromState)){
+        setStatus('Enter your shipping-origin state as two letters, like TX.', 'bad');
+        btn.disabled = false; btn.textContent = originalText;
+        document.getElementById('shipsFromState').focus();
+        return;
+      }
       if(!shipsFromPostal || !/^\d{5}(-\d{4})?$/.test(shipsFromPostal)){
         setStatus('Enter a valid 5-digit ZIP code you\u2019ll be shipping from.', 'bad');
         btn.disabled = false; btn.textContent = originalText;
@@ -1177,23 +1220,32 @@ document.getElementById('listingForm').addEventListener('submit', async function
       return;
     }
 
-    // The serial number is stored separately from the listing itself, in a
-    // table only the seller and admins can read. Buyers must never see it —
-    // it's the control that settles a swap-fraud claim, and it's worthless
-    // the moment a would-be fraudster can read it off the listing.
+    // The serial number and the real shipping-origin address both live
+    // separately from the listing itself, in a table only the seller and
+    // admins can read. Buyers must never see either — the serial number is
+    // the anti-swap-fraud control, and the address is only there to build a
+    // valid carrier label. Neither belongs on a public listing row.
     try {
       const serialValue = document.getElementById('serialNumber').value.trim();
       const savedDealId = (data && data[0] && data[0].id) || editId;
-      if(savedDealId && (serialValue || editId)){
+      const isShippable = fulfilment !== 'meetup';
+      if(savedDealId && (serialValue || editId || isShippable)){
         await supabaseClient
           .from('listing_private')
-          .upsert({ deal_id: savedDealId, serial_number: serialValue || null, updated_at: new Date().toISOString() },
-                  { onConflict: 'deal_id' });
+          .upsert({
+            deal_id: savedDealId,
+            serial_number: serialValue || null,
+            ships_from_street1: isShippable ? shipsFromStreet1 : null,
+            ships_from_street2: isShippable ? shipsFromStreet2 : null,
+            ships_from_city: isShippable ? shipsFromCity : null,
+            ships_from_state: isShippable ? shipsFromState : null,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'deal_id' });
       }
-    } catch(serialErr){
+    } catch(privateErr){
       // Not fatal: the listing itself saved fine. Log it rather than making
-      // the seller redo the whole form over one optional field.
-      console.error('Could not save the private serial number:', serialErr);
+      // the seller redo the whole form over these fields.
+      console.error('Could not save the private listing data:', privateErr);
     }
 
     setStatus(editId ? 'Changes saved — redirecting…' : 'Listed successfully — redirecting to the marketplace…', 'ok');

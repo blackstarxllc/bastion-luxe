@@ -80,6 +80,19 @@ exports.handler = async (event) => {
       return lib.json(409, { error: 'This listing is in-person handoff only.' });
     }
 
+    // Snapshot the seller's real origin address now, at the same moment the
+    // buyer's destination gets snapshotted — so the label is always built
+    // from exactly the address the shipping quote was calculated against,
+    // even if the seller edits their listing later.
+    const privateRes = await lib.sbSelect(
+      'listing_private?deal_id=eq.' + encodeURIComponent(txn.deal_id) +
+      '&select=ships_from_street1,ships_from_street2,ships_from_city,ships_from_state'
+    );
+    const priv = privateRes && privateRes[0];
+    if (!priv || !priv.ships_from_street1 || !priv.ships_from_city || !priv.ships_from_state || !deal.ships_from_postal) {
+      return lib.json(422, { error: 'The seller has not finished setting up a complete shipping origin address for this listing.' });
+    }
+
     const itemValue = Number(txn.price) || 0;
     const tier = lib.tierForValue(itemValue);
     const rules = lib.tierRules(tier);
@@ -100,6 +113,10 @@ exports.handler = async (event) => {
       to_phone: addr.phone,
       hold_at_location: wantsHold,
       from_postal: deal.ships_from_postal,
+      from_street1: priv.ships_from_street1,
+      from_street2: priv.ships_from_street2 || null,
+      from_city: priv.ships_from_city,
+      from_state: priv.ships_from_state,
       tier,
       signature_required: rules.signatureRequired,
       adult_signature_required: rules.adultSignatureRequired,

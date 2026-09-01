@@ -150,8 +150,8 @@ exports.handler = async (event) => {
           inspection_period: 259200, // 3 days, in seconds — buyer's window to inspect before funds auto-release
           quantity: 1,
           schedule: [
-            { reference: 'sale-item', amount: itemPrice, payer_customer: buyerEmail, beneficiary_customer: sellerEmail },
-            { parent_reference: 'sale-item', amount: bastionFee, payer_customer: buyerEmail, beneficiary_customer: ESCROW_EMAIL },
+            { amount: itemPrice, payer_customer: buyerEmail, beneficiary_customer: sellerEmail },
+            { amount: bastionFee, payer_customer: buyerEmail, beneficiary_customer: ESCROW_EMAIL, type: 'broker_fee' },
           ],
         },
       ],
@@ -169,6 +169,10 @@ exports.handler = async (event) => {
     });
 
     const escrowData = await createRes.json();
+
+    if (createRes.ok) {
+      console.log('create-escrow-transaction: Escrow.com accepted the transaction', JSON.stringify(escrowData).slice(0, 1500));
+    }
 
     if (!createRes.ok) {
       console.error('create-escrow-transaction: Escrow.com rejected the request', {
@@ -200,6 +204,13 @@ exports.handler = async (event) => {
         escrow_transaction_id: escrowData.id,
         escrow_status: escrowData.status || 'created',
         escrow_item_id: escrowData.items && escrowData.items[0] ? escrowData.items[0].id : null,
+        // Capture a direct link to this transaction on Escrow.com's own
+        // site, IF their response actually includes one — checking every
+        // reasonable field name since the exact response shape hasn't
+        // been confirmed against live documentation. Never fabricated:
+        // if none of these are present, this stays null and the buyer
+        // falls back to checking their email instead.
+        escrow_transaction_url: escrowData.url || escrowData.transaction_url || escrowData.landing_url || escrowData.checkout_url || escrowData.hosted_url || null,
       }),
     });
 

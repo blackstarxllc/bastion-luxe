@@ -987,13 +987,17 @@ function renderActionArea(txn, isBuyer, isSeller){
   if(status === 'pending_payment'){
     disputeLink.classList.add('hidden');
     document.getElementById('disputeForm').classList.add('hidden');
+    const hasDirectLink = !isSeller && txn.escrow_transaction_url;
     area.innerHTML = `
       <div class="waiting-note">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
         <span>${isSeller
           ? "The buyer has started this purchase, but the payment hasn't been confirmed as received yet. We'll update this the moment it's verified — please don't hand off the item until this shows as funded."
-          : "Check the email on your Bastion account — Escrow.com should have sent a message with a link to log in and complete your payment there. This page will update automatically once that's done; it won't happen just by waiting here."}</span>
-      </div>`;
+          : (hasDirectLink
+              ? 'Click below to complete your payment securely on Escrow.com. This page will update automatically once that\'s done.'
+              : "Check the email on your Bastion account — Escrow.com should have sent a message with a link to log in and complete your payment there. This page will update automatically once that's done; it won't happen just by waiting here.")}</span>
+      </div>
+      ${hasDirectLink ? '<a class="action-btn" style="display:block; box-sizing:border-box; text-align:center; text-decoration:none; margin-top:16px;" href="' + String(txn.escrow_transaction_url).replace(/"/g, '&quot;') + '" target="_blank" rel="noopener">Complete Payment on Escrow.com →</a>' : ''}`;
     return;
   }
 

@@ -1,0 +1,21 @@
+-- ALREADY APPLIED to the live Bastion database on 2026-09-02.
+--
+-- 1. DEAD TABLE REMOVED: public.user_reports
+--    Verified 0 rows and referenced by no page, function, policy or
+--    trigger. The live reporting flow uses public.reports (written from
+--    bastion-deal-detail.html, resolved in bastion-admin.html).
+--    user_reports was an earlier duplicate that was never wired up.
+--    Two similarly-named tables where only one is real is precisely how a
+--    future change gets written against the wrong one and silently does
+--    nothing.
+--
+--    drop table if exists public.user_reports cascade;
+--
+-- NOTE — no schema change was needed for the privacy policy update in this
+-- same batch, but it is recorded here because it closes a real compliance
+-- gap: the policy disclosed data sharing with the escrow provider and the
+-- database host, but never mentioned that buyer delivery addresses and
+-- seller origin addresses are transmitted to shipping carriers, or that
+-- packing/unboxing evidence is retained. Both are now disclosed explicitly
+-- in bastion-privacy.html, along with the fact that serial numbers and
+-- seller origin addresses are never shown to buyers.

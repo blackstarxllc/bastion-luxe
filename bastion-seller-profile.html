@@ -401,6 +401,22 @@
       scroll-behavior:auto !important;
     }
   }
+
+  /* Sold items read as archive, not inventory: desaturated, with an
+     explicit tag so there's no chance of mistaking one for available. */
+  .mini-card.is-sold{ opacity:0.62; }
+  .mini-card.is-sold:hover{ opacity:0.85; }
+  .mini-card.is-sold .mini-photo{ position:relative; }
+  .sold-tag{
+    position:absolute; top:6px; left:6px;
+    background:rgba(10,11,13,0.82);
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+    border:1px solid rgba(241,236,225,0.18);
+    color:var(--stone); border-radius:3px;
+    font-family:'IBM Plex Mono', monospace; font-size:8.5px;
+    letter-spacing:0.12em; text-transform:uppercase;
+    padding:3px 7px;
+  }
 </style>
   <script>
     if ("serviceWorker" in navigator) {
@@ -483,6 +499,11 @@
   <div class="section">
     <div class="section-title">Active Listings</div>
     <div class="listings-grid" id="listingsGrid"></div>
+
+    <div id="soldSection" class="hidden">
+      <div class="section-title" style="margin-top:34px;">Sold</div>
+      <div class="listings-grid" id="soldGrid"></div>
+    </div>
   </div>
 
   <div class="section">
@@ -623,26 +644,46 @@ async function loadSellerProfile(){
     document.getElementById('sellerMeta').innerHTML = metaHtml;
     setupReportButton(sellerId, sellerLabel);
 
-    document.getElementById('statListings').textContent = listings.length;
+    // Sold items are history, not inventory. Previously everything was
+    // dumped into one grid labelled "listings" — so the count included
+    // items that had already shipped to their new owner, and a buyer could
+    // click into a sold listing from a seller's profile as though it were
+    // still for sale. Split into what's actually available now, and a
+    // track record underneath it.
+    const activeListings = listings.filter(function(d){ return d.status !== 'sold'; });
+    const soldListings = listings.filter(function(d){ return d.status === 'sold'; });
+
+    document.getElementById('statListings').textContent = activeListings.length;
     document.getElementById('statTrades').textContent = tradeCount;
     document.getElementById('statRating').textContent = avgRating != null ? avgRating.toFixed(1) : '—';
 
+    function miniCard(d, isSold){
+      const name = escapeHtml(d.item_name || 'Untitled item');
+      const photo = d.image_url ? '<img src="'+escapeHtml(d.image_url)+'" alt="'+name+'">' : '<span class="seal-tiny">B</span>';
+      return `
+        <div class="mini-card${isSold ? ' is-sold' : ''}" onclick="window.location.href='bastion-deal-detail.html?id=${encodeURIComponent(d.id)}'">
+          <div class="mini-photo">${photo}${isSold ? '<span class="sold-tag">Sold</span>' : ''}</div>
+          <div>
+            <div class="mini-name">${name}</div>
+            <div class="mini-price">${formatMoney(d.price)}</div>
+          </div>
+        </div>`;
+    }
+
     const grid = document.getElementById('listingsGrid');
-    if(listings.length === 0){
+    if(activeListings.length === 0){
       grid.innerHTML = '<div class="empty-note">No active listings right now.</div>';
     } else {
-      grid.innerHTML = listings.map(function(d){
-        const name = escapeHtml(d.item_name || 'Untitled item');
-        const photo = d.image_url ? '<img src="'+escapeHtml(d.image_url)+'" alt="'+name+'">' : '<span class="seal-tiny">B</span>';
-        return `
-          <div class="mini-card" onclick="window.location.href='bastion-deal-detail.html?id=${encodeURIComponent(d.id)}'">
-            <div class="mini-photo">${photo}</div>
-            <div>
-              <div class="mini-name">${name}</div>
-              <div class="mini-price">${formatMoney(d.price)}</div>
-            </div>
-          </div>`;
-      }).join('');
+      grid.innerHTML = activeListings.map(function(d){ return miniCard(d, false); }).join('');
+    }
+
+    const soldSection = document.getElementById('soldSection');
+    const soldGrid = document.getElementById('soldGrid');
+    if(soldListings.length === 0){
+      soldSection.classList.add('hidden');
+    } else {
+      soldSection.classList.remove('hidden');
+      soldGrid.innerHTML = soldListings.map(function(d){ return miniCard(d, true); }).join('');
     }
 
     const reviewsList = document.getElementById('reviewsList');

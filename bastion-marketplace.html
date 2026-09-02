@@ -1092,9 +1092,16 @@ async function loadDeals(){
   const grid = document.getElementById('grid');
   await loadFavorites();
   try{
+    // Sold items leave the marketplace. This query had NO status filter at
+    // all, so a listing that had completed, been paid out, and shipped to
+    // its new owner stayed on the board forever — it just rendered a grey
+    // "Sold" tag. That's clutter on the main browsing surface and it makes
+    // an active marketplace look stale. Completed sales now live on the
+    // seller's profile as history, which is where a track record belongs.
     const { data, error } = await supabaseClient
       .from(TABLE_NAME)
       .select('*')
+      .neq('status', 'sold')
       .order('created_at', { ascending: false });
 
     if(error){

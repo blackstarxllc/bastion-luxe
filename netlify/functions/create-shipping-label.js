@@ -145,13 +145,59 @@ exports.handler = async (event) => {
         );
         if (expressish.length) candidates = expressish;
       }
-      candidates.sort((a, b) => a.amount - b.amount);
       if (!candidates.length) {
         return lib.json(422, { error: 'No carrier service is currently available for this shipment.' });
       }
+
+      // ------------------------------------------------------------------
+      // Buy the service the BUYER PAID FOR, not the cheapest one available.
+      //
+      // This previously sorted by price and took candidates[0]. Since the
+      // buyer's selection was never persisted, a buyer could pay for a
+      // 2-day service and receive ground, with the price difference
+      // disappearing into the payout. Rate tokens are short-lived and
+      // escrow funding can take days, so the durable key is the carrier +
+      // service level recorded at purchase, re-matched against a fresh
+      // quote here.
+      // ------------------------------------------------------------------
+      let picked = null;
+      if (shipment.chosen_service) {
+        const wantService = String(shipment.chosen_service).trim().toLowerCase();
+        const wantCarrier = String(shipment.chosen_carrier || '').trim().toLowerCase();
+        picked = candidates.find((r) =>
+          String(r.service || '').trim().toLowerCase() === wantService &&
+          (!wantCarrier || String(r.carrier || '').trim().toLowerCase() === wantCarrier)
+        );
+        // Same service, any carrier, before giving up on the choice.
+        if (!picked) {
+          picked = candidates.find((r) =>
+            String(r.service || '').trim().toLowerCase() === wantService
+          );
+        }
+        if (!picked) {
+          // The carrier no longer offers what the buyer bought. Falling back
+          // silently would hand them a slower service than they paid for, so
+          // this is recorded for review rather than swallowed.
+          await lib.logAlert('shipping_label',
+            'Buyer\u2019s chosen service is no longer available \u2014 fell back to cheapest compliant rate',
+            {
+              shipmentId,
+              chosenCarrier: shipment.chosen_carrier,
+              chosenService: shipment.chosen_service,
+              quotedCost: shipment.quoted_cost,
+              available: candidates.map((r) => (r.carrier || '') + ' ' + (r.service || '')).join(' | ').slice(0, 400),
+            });
+        }
+      }
+
+      if (!picked) {
+        candidates.sort((a, b) => a.amount - b.amount);
+        picked = candidates[0];
+      }
+
       token = lib.PROVIDER === 'easypost'
-        ? requote.providerShipmentId + '|' + candidates[0].id
-        : candidates[0].id;
+        ? requote.providerShipmentId + '|' + picked.id
+        : picked.id;
     }
 
     let label;
@@ -202,6 +248,21 @@ exports.handler = async (event) => {
       label_created_at: new Date().toISOString(),
       ship_by: shipBy,
     });
+
+    // If the label cost materially more than the buyer was charged, the
+    // seller absorbs the gap. Surface it rather than letting it accumulate
+    // invisibly across many orders.
+    if (shipment.quoted_cost && label.cost) {
+      const drift = Number(label.cost) - Number(shipment.quoted_cost);
+      if (Math.abs(drift) >= 3) {
+        await lib.logAlert('shipping_label', 'Label cost drifted from the rate quoted to the buyer', {
+          shipmentId,
+          quotedToBuyer: shipment.quoted_cost,
+          actualLabelCost: label.cost,
+          drift: drift.toFixed(2),
+        });
+      }
+    }
 
     await lib.sbInsert('shipment_events', {
       shipment_id: shipmentId,

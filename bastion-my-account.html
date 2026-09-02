@@ -637,6 +637,47 @@
     .ledger-name{ font-size:13px; }
     .ledger-value{ font-size:13px; }
   }
+
+  /* ===============================================================
+     ACCOUNT TABS
+     Five stacked sections became an unreadable column the moment an
+     account had real content in each. Tabs keep every section one
+     click away without any of them competing for the same screen.
+     =============================================================== */
+  .acct-tabs{
+    display:flex; gap:2px; margin:38px 0 0;
+    border-bottom:1px solid var(--hairline);
+    overflow-x:auto; scrollbar-width:none;
+  }
+  .acct-tabs::-webkit-scrollbar{ display:none; }
+  .acct-tab{
+    flex:0 0 auto;
+    background:none; border:none; cursor:pointer;
+    color:var(--stone); padding:13px 18px;
+    font-family:'IBM Plex Mono', monospace; font-size:10.5px;
+    letter-spacing:0.11em; text-transform:uppercase;
+    position:relative; white-space:nowrap;
+    transition:color 0.25s cubic-bezier(0.22,0.61,0.36,1);
+  }
+  .acct-tab::after{
+    content:""; position:absolute; left:0; right:0; bottom:-1px; height:1px;
+    background:var(--brass); transform:scaleX(0); transform-origin:center;
+    transition:transform 0.3s cubic-bezier(0.22,0.61,0.36,1);
+  }
+  .acct-tab:hover{ color:var(--ivory); }
+  .acct-tab.active{ color:var(--brass); }
+  .acct-tab.active::after{ transform:scaleX(1); }
+  .acct-tab-count{
+    display:inline-block; margin-left:6px;
+    color:var(--stone-dim); font-size:9.5px;
+  }
+  .acct-tab.active .acct-tab-count{ color:var(--brass-dim); }
+
+  .acct-panel{ margin-top:26px; animation:panelIn 0.35s cubic-bezier(0.22,0.61,0.36,1); }
+  @keyframes panelIn{
+    from{ opacity:0; transform:translateY(6px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
 </style>
   <script>
     if ("serviceWorker" in navigator) {
@@ -728,23 +769,30 @@
 
   <div style="margin-top:36px; border-top:1px solid var(--hairline);"></div>
 
-  <div class="section">
-    <div class="section-head">
-      <div class="section-title">Saved Items</div>
-      <div class="section-count" id="savedCount"></div>
-    </div>
-    <div class="item-grid" id="savedList"></div>
-  </div>
+  <!-- Tabbed panels. These five sections previously stacked vertically, so
+       an account with real content became an unreadable column hundreds of
+       rows long. Only one is visible at a time now; all the underlying
+       element ids are unchanged so every existing render and event handler
+       keeps working. -->
+  <nav class="acct-tabs" id="acctTabs" role="tablist">
+    <button class="acct-tab active" data-panel="panelListings" role="tab" type="button">
+      Listings <span class="acct-tab-count" id="tabCountListings"></span>
+    </button>
+    <button class="acct-tab" data-panel="panelTransactions" role="tab" type="button">
+      History <span class="acct-tab-count" id="tabCountTransactions"></span>
+    </button>
+    <button class="acct-tab" data-panel="panelOffers" role="tab" type="button">
+      Offers <span class="acct-tab-count" id="tabCountOffers"></span>
+    </button>
+    <button class="acct-tab" data-panel="panelSaved" role="tab" type="button">
+      Saved <span class="acct-tab-count" id="tabCountSaved"></span>
+    </button>
+    <button class="acct-tab" data-panel="panelSearches" role="tab" type="button">
+      Searches <span class="acct-tab-count" id="tabCountSearches"></span>
+    </button>
+  </nav>
 
-  <div class="section">
-    <div class="section-head">
-      <div class="section-title">Saved Searches</div>
-      <div class="section-count" id="savedSearchesCount"></div>
-    </div>
-    <div class="item-grid" id="savedSearchesList"></div>
-  </div>
-
-  <div class="section">
+  <div class="acct-panel" id="panelListings">
     <div class="section-head">
       <div class="section-title">My Listings</div>
       <div class="section-count" id="listingsCount"></div>
@@ -758,7 +806,7 @@
     <div class="item-grid" id="listingsList"></div>
   </div>
 
-  <div class="section">
+  <div class="acct-panel hidden" id="panelOffers">
     <div class="section-head">
       <div class="section-title">My Offers</div>
       <div class="section-count" id="offersCount"></div>
@@ -766,9 +814,25 @@
     <div class="item-grid" id="offersList"></div>
   </div>
 
-  <div class="section">
+  <div class="acct-panel hidden" id="panelSaved">
     <div class="section-head">
-      <div class="section-title">My Transactions</div>
+      <div class="section-title">Saved Items</div>
+      <div class="section-count" id="savedCount"></div>
+    </div>
+    <div class="item-grid" id="savedList"></div>
+  </div>
+
+  <div class="acct-panel hidden" id="panelSearches">
+    <div class="section-head">
+      <div class="section-title">Saved Searches</div>
+      <div class="section-count" id="savedSearchesCount"></div>
+    </div>
+    <div class="item-grid" id="savedSearchesList"></div>
+  </div>
+
+  <div class="acct-panel hidden" id="panelTransactions">
+    <div class="section-head">
+      <div class="section-title">Transaction History</div>
       <div class="section-count" id="transactionsCount"></div>
     </div>
     <div class="ledger-toolbar" id="transactionsFilterWrap">
@@ -1590,6 +1654,56 @@ loadAccount();
 // Notifications: see bastion-notifications.js
 </script>
 
-<script src="bastion-notifications.js"></script>
+<script src="bastion-notifications.js">
+// ---------------------------------------------------------------
+// Account tab switching. Panels are hidden rather than unmounted, so
+// every existing render function and event listener keeps working
+// against the same element ids whether its panel is visible or not.
+// ---------------------------------------------------------------
+(function(){
+  const tabs = document.querySelectorAll('.acct-tab');
+  if(!tabs.length) return;
+  tabs.forEach(function(tab){
+    tab.addEventListener('click', function(){
+      const target = tab.getAttribute('data-panel');
+      tabs.forEach(function(t){ t.classList.toggle('active', t === tab); });
+      document.querySelectorAll('.acct-panel').forEach(function(panel){
+        panel.classList.toggle('hidden', panel.id !== target);
+      });
+      // Re-trigger the entrance animation on the panel now showing.
+      const shown = document.getElementById(target);
+      if(shown){
+        shown.style.animation = 'none';
+        void shown.offsetWidth;
+        shown.style.animation = '';
+      }
+    });
+  });
+})();
+
+// Mirror each section's count into its tab, so the counts are visible
+// without having to open every tab to find where anything is.
+function syncAccountTabCounts(){
+  const pairs = [
+    ['listingsCount', 'tabCountListings'],
+    ['transactionsCount', 'tabCountTransactions'],
+    ['offersCount', 'tabCountOffers'],
+    ['savedCount', 'tabCountSaved'],
+    ['savedSearchesCount', 'tabCountSearches']
+  ];
+  pairs.forEach(function(pair){
+    const src = document.getElementById(pair[0]);
+    const dst = document.getElementById(pair[1]);
+    if(!src || !dst) return;
+    const n = (src.textContent || '').match(/\d+/);
+    dst.textContent = n ? n[0] : '';
+  });
+}
+// The counts are written by several independent async loaders, so poll
+// briefly rather than trying to hook each one.
+setTimeout(syncAccountTabCounts, 600);
+setTimeout(syncAccountTabCounts, 1600);
+setTimeout(syncAccountTabCounts, 3200);
+</script>
 </body>
 </html>

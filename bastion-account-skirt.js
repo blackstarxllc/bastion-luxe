@@ -16,8 +16,13 @@
     '.account-skirt.open{transform:translateX(0);}' +
     '.skirt-handle{position:absolute;top:50%;left:-34px;transform:translateY(-50%);width:68px;height:68px;border-radius:50%;background:rgba(15,13,11,.68);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid rgba(199,162,104,.4);box-shadow:0 8px 28px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transition:border-color .25s ease,box-shadow .25s ease;touch-action:none;}' +
     '.skirt-handle:hover{border-color:rgba(199,162,104,.75);box-shadow:0 8px 32px rgba(199,162,104,.18);}' +
-    '.skirt-handle-mark{width:44px;height:44px;color:var(--brass);opacity:.55;transition:opacity .25s ease;}' +
-    '.skirt-handle:hover .skirt-handle-mark,.account-skirt.open .skirt-handle-mark{opacity:.95;}' +
+    '.skirt-handle-mark{width:44px;height:44px;color:var(--brass);opacity:.62;transition:opacity .25s ease,filter .25s ease;filter:drop-shadow(0 0 3px rgba(199,162,104,.35));animation:skirtEmblemGlow 4.2s ease-in-out infinite;}' +
+    '@keyframes skirtEmblemGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(199,162,104,.3));opacity:.62;}50%{filter:drop-shadow(0 0 9px rgba(199,162,104,.62));opacity:.88;}}' +
+    '.skirt-handle:hover .skirt-handle-mark,.account-skirt.open .skirt-handle-mark{opacity:1;animation:none;filter:drop-shadow(0 0 11px rgba(199,162,104,.75));}' +
+    '.skirt-handle{animation:skirtHousingGlow 4.2s ease-in-out infinite;}' +
+    '@keyframes skirtHousingGlow{0%,100%{box-shadow:0 8px 28px rgba(0,0,0,.5),0 0 0 rgba(199,162,104,0);border-color:rgba(199,162,104,.4);}50%{box-shadow:0 8px 28px rgba(0,0,0,.5),0 0 18px rgba(199,162,104,.22);border-color:rgba(199,162,104,.62);}}' +
+    '.skirt-handle:hover,.account-skirt.open .skirt-handle{animation:none;}' +
+    '@media (prefers-reduced-motion: reduce){.skirt-handle-mark,.skirt-handle{animation:none !important;}}' +
     '.skirt-panel{height:100%;overflow-y:auto;background:rgba(14,12,10,.32);-webkit-backdrop-filter:blur(22px) saturate(160%);backdrop-filter:blur(22px) saturate(160%);border-left:1px solid rgba(199,162,104,.28);box-shadow:-30px 0 60px rgba(0,0,0,.25);padding:64px 20px 40px;}' +
     '.skirt-panel-title{font-family:"Fraunces",serif;font-style:italic;font-weight:450;font-size:18px;color:var(--ivory);margin-bottom:18px;text-shadow:0 1px 12px rgba(0,0,0,.6);}' +
     '.skirt-search{position:relative;margin-bottom:6px;}' +

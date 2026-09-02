@@ -1,0 +1,38 @@
+-- ALREADY APPLIED to the live Bastion database on 2026-09-02.
+--
+-- ============================================================
+-- THE BUYER'S CHOSEN SHIPPING SERVICE WAS NEVER PERSISTED
+-- (real money + consumer protection bug)
+-- ============================================================
+-- At checkout the buyer selects a specific carrier and service level and
+-- is charged that exact rate — it goes into transactions.total and on to
+-- Escrow.com. But the selection lived only in a JS variable on the deal
+-- page. create-shipment never received it, nothing stored it, and the
+-- transaction page calls create-shipping-label with no rateToken at all,
+-- so the label function fell through to its re-quote path and bought
+-- whichever compliant service was CHEAPEST at that moment.
+--
+-- Net effect: a buyer could pay for FedEx 2Day and receive Ground. The
+-- price difference vanished into the seller's payout and the buyer
+-- silently received a slower service than the one they selected and paid
+-- for. That is a consumer-protection problem, not just an accounting
+-- discrepancy.
+--
+-- FIX:
+--   alter table public.shipments
+--     add column if not exists chosen_carrier text,
+--     add column if not exists chosen_service text,
+--     add column if not exists quoted_cost numeric;
+--
+-- Rate tokens are short-lived and escrow funding can take days, so the
+-- token alone is not durable. create-shipping-label now re-quotes and
+-- MATCHES the stored carrier + service rather than sorting by price:
+--   1. exact carrier + service match
+--   2. same service, any carrier
+--   3. cheapest compliant — and this path writes a system_alert, because
+--      silently downgrading a service the buyer paid for should never be
+--      invisible.
+--
+-- It also compares label.cost against quoted_cost and raises a
+-- system_alert when they drift by $3 or more in either direction, so
+-- shortfalls don't accumulate unnoticed across many orders.

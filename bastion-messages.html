@@ -218,13 +218,23 @@
     font-family:'IBM Plex Mono', monospace; font-size:10px;
     color:var(--stone-dim); flex-shrink:0;
   }
-  .convo-item{
-    font-family:'IBM Plex Mono', monospace; font-size:10px;
-    color:var(--stone-dim); margin-top:3px;
+  /* The row previously stacked three lines under the handle — name, then
+     "Re: <item>", then the message snippet. At any real inbox length that
+     reads as a wall of text and the handle stops being scannable. The item
+     is now a single quiet tag on the same line as the snippet, capped in
+     width so a long listing title can't push the preview off the row. */
+  .convo-item-tag{
+    flex-shrink:0; max-width:96px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    font-family:'IBM Plex Mono', monospace; font-size:9px;
+    letter-spacing:0.06em; text-transform:uppercase;
+    color:var(--brass-dim);
+    border:1px solid rgba(199,162,104,0.22); border-radius:2px;
+    padding:2px 6px;
   }
   .convo-snippet{
-    display:flex; align-items:center; gap:5px;
-    font-size:12.5px; color:var(--stone); margin-top:4px;
+    display:flex; align-items:center; gap:7px;
+    font-size:12.5px; color:var(--stone); margin-top:6px;
     white-space:nowrap; overflow:hidden;
   }
   .convo-snippet span{ overflow:hidden; text-overflow:ellipsis; }
@@ -740,8 +750,10 @@ async function loadInbox(){
             '<span class="convo-name">' + escapeHtml(label) + '</span>' +
             '<span class="convo-time">' + timeAgo(c.last_message_at) + '</span>' +
           '</div>' +
-          (itemName ? '<div class="convo-item">Re: ' + escapeHtml(itemName) + '</div>' : '') +
-          '<div class="convo-snippet' + (isUnread ? ' unread' : '') + '">' + snippetText + '</div>' +
+          '<div class="convo-snippet' + (isUnread ? ' unread' : '') + '">' +
+            (itemName ? '<span class="convo-item-tag" title="' + escapeHtml(itemName) + '">' + escapeHtml(itemName) + '</span>' : '') +
+            snippetText +
+          '</div>' +
         '</div>' +
         (isUnread ? '<span class="unread-dot"></span>' : '') +
       '</div>';

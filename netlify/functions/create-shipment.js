@@ -29,7 +29,7 @@ exports.handler = async (event) => {
       return lib.json(400, { error: 'Could not read that request.' });
     }
 
-    const { transactionId, addressId, holdAtLocation } = body;
+    const { transactionId, addressId, holdAtLocation, chosenCarrier, chosenService, quotedCost } = body;
     if (!transactionId) return lib.json(400, { error: 'transactionId is required' });
     if (!addressId) return lib.json(400, { error: 'A shipping address is required' });
 
@@ -121,6 +121,12 @@ exports.handler = async (event) => {
       signature_required: rules.signatureRequired,
       adult_signature_required: rules.adultSignatureRequired,
       declared_value: itemValue,
+      // The buyer paid for a SPECIFIC service level. Persist it so the
+      // label is bought as the service they chose, not as whatever happens
+      // to be cheapest when the seller gets round to printing it.
+      chosen_carrier: chosenCarrier || null,
+      chosen_service: chosenService || null,
+      quoted_cost: Number(quotedCost) > 0 ? Number(quotedCost) : null,
       status: 'awaiting_label',
     }, true);
 

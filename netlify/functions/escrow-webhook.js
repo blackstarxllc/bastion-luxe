@@ -27,6 +27,8 @@
 // Netlify's function logs where nobody is watching in real time.
 // ==================================================================
 
+const { tierRules } = require('./_shipping-lib');
+
 const ESCROW_API_BASE = process.env.ESCROW_LIVE_MODE === 'true'
   ? 'https://api.escrow.com/2017-09-01'
   : 'https://api.escrow-sandbox.com/2017-09-01';
@@ -218,7 +220,70 @@ exports.handler = async (event) => {
       return { statusCode: 200, body: JSON.stringify({ received: true, synced: false }) };
     }
 
+    // ------------------------------------------------------------------
+    // BUG FIXED HERE: the seller's ship-by deadline used to be calculated
+    // only when the seller clicked "generate my label" — meaning a seller
+    // could delay indefinitely with zero deadline pressure, and the
+    // deadline had nothing to do with when funding actually happened. The
+    // shipping FAQ and Terms of Service both explicitly promise the clock
+    // is "measured from when escrow confirms funding" — this is that exact
+    // moment. Start it here, once, the first time a linked shipment sees
+    // funding confirmed. create-shipping-label.js still computes its own
+    // ship_by as a fallback for any shipment that somehow reaches label
+    // creation without one already set, but this is now the primary path.
+    // ------------------------------------------------------------------
+    // patchRes's body can only be read once — read it here, before the
+    // ship-by block, and reuse the same parsed value below (it used to be
+    // read a second time further down, which throws on an already-consumed
+    // response body; the .catch(() => []) swallowed that silently, so
+    // `updated` was always empty and every single funding event logged a
+    // false "no Bastion transaction matched" alert into system_alerts).
     const updated = await patchRes.json().catch(() => []);
+
+    if (bastionStatus === 'funded') {
+      try {
+        const txnId = Array.isArray(updated) && updated[0] ? updated[0].id : null;
+        if (txnId) {
+          const shipRes = await fetch(
+            SUPABASE_URL + '/rest/v1/shipments?transaction_id=eq.' + encodeURIComponent(txnId) +
+              '&ship_by=is.null&select=id,tier',
+            {
+              headers: {
+                apikey: SUPABASE_SERVICE_ROLE_KEY,
+                Authorization: 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
+              },
+            }
+          );
+          const shipRows = await shipRes.json().catch(() => []);
+          const shipment = shipRows && shipRows[0];
+          if (shipment) {
+            const rules = tierRules(shipment.tier);
+            const shipBy = new Date(Date.now() + rules.shipByHours * 3600 * 1000).toISOString();
+            await fetch(
+              SUPABASE_URL + '/rest/v1/shipments?id=eq.' + encodeURIComponent(shipment.id),
+              {
+                method: 'PATCH',
+                headers: {
+                  apikey: SUPABASE_SERVICE_ROLE_KEY,
+                  Authorization: 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
+                  'Content-Type': 'application/json',
+                  Prefer: 'return=minimal',
+                },
+                body: JSON.stringify({ ship_by: shipBy }),
+              }
+            );
+          }
+        }
+      } catch (shipByErr) {
+        // Not fatal to the escrow sync itself — but worth knowing about,
+        // since a shipment silently missing its deadline is exactly the
+        // failure mode this fix exists to close.
+        await logAlert('Could not start the ship-by deadline on funding', {
+          escrowTransactionId, error: shipByErr.message,
+        });
+      }
+    }
+
     if (!Array.isArray(updated) || updated.length === 0) {
       await logAlert('No Bastion transaction matched this Escrow.com transaction id', { escrowTransactionId });
     }

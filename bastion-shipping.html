@@ -154,6 +154,25 @@
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
     opacity:0.035; mix-blend-mode:overlay; pointer-events:none;
   }
+
+  /* ---------------------------------------------------------------
+     Respect the OS-level "reduce motion" setting.
+
+     Only the auth page honoured this before. Animation is a nice touch,
+     but for users with vestibular sensitivity it can cause genuine
+     nausea and dizziness — and the setting exists precisely so they can
+     say so once, system-wide, instead of per site. Transitions are cut
+     to near-zero rather than removed outright so focus and hover states
+     still read as responsive.
+     --------------------------------------------------------------- */
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+      animation-duration:0.01ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:0.01ms !important;
+      scroll-behavior:auto !important;
+    }
+  }
 </style>
 </head>
 <body>

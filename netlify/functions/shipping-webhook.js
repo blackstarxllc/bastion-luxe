@@ -96,21 +96,48 @@ exports.handler = async (event) => {
     }
 
     // --- Record the scan (append-only chain of custody) ----------------
-    // Deduped on (status, occurred_at) so provider retries don't produce
-    // a duplicate history that would look tampered-with in a dispute.
+    //
+    // BUG FIXED HERE: this used to dedupe on an exact match of
+    // (status, occurred_at). When a carrier response has no timestamp —
+    // which happens — the code fell back to `new Date().toISOString()`,
+    // generating a brand-new value on every single call. That meant the
+    // dedup match NEVER fired for any event missing a carrier timestamp:
+    // every webhook retry (providers explicitly deliver "at least once",
+    // so retries are expected, not rare) would insert a fresh duplicate
+    // row. A tracking timeline padded with near-identical duplicate scans
+    // at slightly different timestamps is exactly what tampering would
+    // look like — the opposite of what an append-only chain of custody is
+    // supposed to guarantee in a dispute.
+    //
+    // Fixed by deduping on (status, location, description) instead, which
+    // does not depend on a timestamp existing or being stable across calls.
+    // A genuine repeat delivery of the same scan has identical status,
+    // location and description. A genuinely new scan — the package moving
+    // to a new facility under the same status — will differ in location or
+    // description and is correctly kept as a new row.
     const occurredAt = verified.occurredAt || new Date().toISOString();
-    const existingEvents = await lib.sbSelect(
+    const eventLocation = verified.location || null;
+    const eventDescription = verified.description || null;
+
+    let dedupeFilter =
       'shipment_events?shipment_id=eq.' + encodeURIComponent(shipment.id) +
-      '&status=eq.' + encodeURIComponent(newStatus) +
-      '&occurred_at=eq.' + encodeURIComponent(occurredAt) + '&select=id'
-    );
+      '&status=eq.' + encodeURIComponent(newStatus);
+    dedupeFilter += eventLocation
+      ? '&location=eq.' + encodeURIComponent(eventLocation)
+      : '&location=is.null';
+    dedupeFilter += eventDescription
+      ? '&description=eq.' + encodeURIComponent(eventDescription)
+      : '&description=is.null';
+    dedupeFilter += '&select=id';
+
+    const existingEvents = await lib.sbSelect(dedupeFilter);
 
     if (!existingEvents || !existingEvents.length) {
       await lib.sbInsert('shipment_events', {
         shipment_id: shipment.id,
         status: newStatus,
-        description: verified.description || null,
-        location: verified.location || null,
+        description: eventDescription,
+        location: eventLocation,
         occurred_at: occurredAt,
         raw: verified.raw || null,
       });
@@ -238,8 +265,19 @@ async function syncTransaction(shipment, newStatus, occurredAt) {
     notifyTitle = 'Your item is on its way';
     notifyBody = 'The carrier has scanned the package in. You can follow every scan on your order page.';
   } else if (newStatus === 'out_for_delivery') {
-    notifyTitle = 'Out for delivery today';
-    notifyBody = 'Your package is out for delivery. Remember: film one continuous video as you open the sealed box.';
+    // This bucket now also covers AVAILABLE_FOR_PICKUP (see
+    // normaliseTrackingStatus in _shipping-lib.js), which is a materially
+    // different situation for the buyer: nothing is arriving at their door
+    // today, a package is waiting for THEM to go get it at a carrier
+    // location. Using the home-delivery wording there would have told a
+    // "hold at location" buyer to expect a delivery that was never coming.
+    if (shipment.hold_at_location) {
+      notifyTitle = 'Your package is ready for pickup';
+      notifyBody = 'Your held package has arrived and is ready for pickup at the carrier location. Bring ID matching the name on the shipment. Remember: film one continuous video as you open the sealed box.';
+    } else {
+      notifyTitle = 'Out for delivery today';
+      notifyBody = 'Your package is out for delivery. Remember: film one continuous video as you open the sealed box.';
+    }
   } else if (newStatus === 'delivered') {
     patch.status = 'delivered';
     notifyTitle = 'Delivered — please inspect';

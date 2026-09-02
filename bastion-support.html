@@ -131,6 +131,25 @@
     pointer-events:none;
   }
   select option{ background:var(--ink-soft); color:var(--ivory); }
+
+  /* ---------------------------------------------------------------
+     Respect the OS-level "reduce motion" setting.
+
+     Only the auth page honoured this before. Animation is a nice touch,
+     but for users with vestibular sensitivity it can cause genuine
+     nausea and dizziness — and the setting exists precisely so they can
+     say so once, system-wide, instead of per site. Transitions are cut
+     to near-zero rather than removed outright so focus and hover states
+     still read as responsive.
+     --------------------------------------------------------------- */
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+      animation-duration:0.01ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:0.01ms !important;
+      scroll-behavior:auto !important;
+    }
+  }
 </style>
 </head>
 <body>

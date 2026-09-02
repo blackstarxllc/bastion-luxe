@@ -1,0 +1,87 @@
+-- ALREADY APPLIED to the live Bastion database on 2026-09-02.
+-- Kept here as the permanent record.
+--
+-- VERIFIED LIVE via direct query against production (xokyqobttfhugdponfpg).
+--
+-- ============================================================
+-- 1. SHIPPING COST WAS NEVER CHARGED TO THE BUYER  (real money bug)
+-- ============================================================
+-- The checkout flow quoted the buyer a live carrier rate, displayed it to
+-- them ("Continue · $14.20 shipping"), and then discarded it. The
+-- transaction total was only price + protection fee, and that total is
+-- what gets sent to Escrow.com.
+--
+-- Net effect: the buyer was never charged for shipping, so the SELLER
+-- silently absorbed postage out of their own proceeds — directly
+-- contradicting both the Shipping page and the FAQ, which each state
+-- plainly that the buyer pays shipping.
+--
+--   alter table public.transactions
+--     add column if not exists shipping_cost numeric not null default 0;
+--
+-- enforce_transaction_pricing() now folds shipping_cost into total:
+--     new.total := new.price + new.fee + shipping_cost;
+--
+-- The protection fee is deliberately still calculated on the ITEM PRICE
+-- ONLY — Bastion does not take a percentage of postage.
+--
+-- protect_transaction_columns() was also updated to freeze shipping_cost
+-- alongside price/fee/total, so a buyer cannot PATCH it to 0 after the
+-- fact.
+--
+-- In create-escrow-transaction.js, shipping is now its own escrow line
+-- item paid to the SELLER (they buy the postage when generating a label).
+--
+-- ⚠ CONSEQUENCE: there are now up to THREE escrow items (goods, Shipping,
+-- broker fee). The escrow_item_id selection previously matched on
+-- `type !== 'broker_fee'`, which is no longer sufficient because the
+-- Shipping item is ALSO type 'general_merchandise'. If Escrow.com returned
+-- it first, the release call would have targeted the shipping line instead
+-- of the goods. It now matches the goods item by exact title.
+--
+-- ============================================================
+-- 2. CLIENT/SERVER PROTECTION FEE MISMATCH  (real money bug)
+-- ============================================================
+-- Not a schema change, but recorded here because it's the same class of
+-- problem. feeRateForPrice() in bastion-deal-detail.html and
+-- bastion-create-listing.html disagreed with
+-- public.calculate_protection_fee() at EVERY tier:
+--
+--   price band      client showed    database charged
+--   under $1,000    1%               6%
+--   $1k – $2k       4%               6%
+--   $2k – $10k      4%               5%
+--   $10k – $50k     3.5%             4.5%
+--   $50k+           3%               3%   (only matching band)
+--
+-- The database is authoritative — enforce_transaction_pricing() recomputes
+-- price, fee and total on insert — so buyers were quoted a materially
+-- lower fee than they were actually charged. On a $500 item: $5 displayed,
+-- $30 taken. Both client copies now match the database exactly, verified
+-- across all tier boundaries.
+--
+-- ============================================================
+-- 3. DEAD COLUMN CLEANUP ON public.deals
+-- ============================================================
+-- Each verified NULL on every row (or a meaningless constant) AND
+-- referenced nowhere in any page, function, or policy before dropping:
+--
+--   listing_id            0/5 set — FK to the `listings` table already
+--                         dropped on 2026-09-01
+--   item                  0/5 set — superseded by item_name
+--   mode                  0/5 set — superseded by `fulfilment`
+--   buyer_id              0/5 set — a deal has no buyer; the buyer lives on
+--                         the transaction. Actively misleading: it sounds
+--                         authoritative and is always NULL
+--   escrow_transaction_id 0/5 set — escrow linkage belongs on, and is
+--                         correctly stored on, the transaction
+--   stage                 constant 1 on all rows, no reader anywhere
+--
+-- `status` is the live field and was untouched.
+--
+--   alter table public.deals drop column if exists listing_id;
+--   alter table public.deals drop column if exists item;
+--   alter table public.deals drop column if exists mode;
+--   alter table public.deals drop column if exists buyer_id;
+--   alter table public.deals drop column if exists escrow_transaction_id;
+--   alter table public.deals drop column if exists stage;

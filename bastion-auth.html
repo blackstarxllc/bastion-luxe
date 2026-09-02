@@ -192,6 +192,49 @@
     100%{ stroke:var(--brass); stroke-width:1; }
   }
 
+  /* ---------------------------------------------------------------
+     Compass rotation.
+
+     The seal reads as a compass rose, so the natural motion is a slow
+     bearing sweep — not a spin. 60 seconds per revolution is roughly
+     the pace of a second hand, deliberate enough to notice only if you
+     look, which is the point: it should feel like a precision
+     instrument idling, not a loading spinner.
+
+     The engraved ring text and the tick marks rotate. The monogram and
+     the fixed north marker do NOT — a compass housing turns around a
+     stationary needle, and rotating the "B" would just look like the
+     whole logo was tumbling.
+
+     transform-box/transform-origin are both required: SVG children
+     default to rotating about the document origin, not their own
+     centre, which throws the mark off-canvas entirely.
+     --------------------------------------------------------------- */
+  #ticks, .seal-ring-text{
+    transform-box:view-box;
+    transform-origin:100px 100px;
+    animation:compassSweep 60s linear infinite;
+  }
+  @keyframes compassSweep{
+    from{ transform:rotate(0deg); }
+    to{ transform:rotate(360deg); }
+  }
+  /* The outer hairline ring counter-rotates almost imperceptibly, which
+     keeps the two layers from reading as one flat rotating disc. */
+  .seal-ring{
+    transform-box:view-box;
+    transform-origin:100px 100px;
+    animation:compassCounter 90s linear infinite;
+  }
+  @keyframes compassCounter{
+    from{ transform:rotate(0deg); }
+    to{ transform:rotate(-360deg); }
+  }
+  /* Settle the sweep on hover — a compass finding its bearing. */
+  .seal:hover #ticks, .seal:hover .seal-ring-text, .seal:hover .seal-ring{
+    animation-play-state:paused;
+  }
+
   .process{
     position:relative; z-index:1;
     display:flex;

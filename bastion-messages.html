@@ -289,64 +289,104 @@
     color:var(--stone-dim);
     margin:14px 0 10px;
   }
+  /* ---------------------------------------------------------------
+     Message bubbles.
+
+     The previous treatment — 14px radius, a bright solid gold gradient
+     fill on your own messages — read as playful and consumer-grade
+     rather than considered. High-contrast saturated fills and heavily
+     rounded corners are the visual grammar of casual chat apps.
+
+     This version keeps the same palette but changes the register:
+     a 4px radius with a single squared tail corner, your own messages
+     carried by a restrained brass-tinted surface and a hairline rule
+     rather than a saturated fill, and slightly looser line-height for
+     readability. Quieter, and it lets the content lead.
+     --------------------------------------------------------------- */
   .bubble{
-    max-width:68%; padding:10px 14px; border-radius:14px; font-size:13.5px; line-height:1.55;
-    margin-top:7px;
-    animation:bubbleIn 0.18s ease;
+    max-width:64%; padding:11px 15px; border-radius:4px;
+    font-size:13.5px; line-height:1.62;
+    margin-top:8px; position:relative;
+    animation:bubbleIn 0.22s cubic-bezier(0.22, 0.61, 0.36, 1);
   }
-  @keyframes bubbleIn{ from{ opacity:0; transform:translateY(4px); } to{ opacity:1; transform:translateY(0); } }
+  @keyframes bubbleIn{ from{ opacity:0; transform:translateY(5px); } to{ opacity:1; transform:translateY(0); } }
   .bubble.mine{
     align-self:flex-end;
-    background:linear-gradient(135deg, #D4B27E, var(--brass));
-    color:var(--brass-ink);
-    border-bottom-right-radius:3px;
+    background:rgba(199,162,104,0.10);
+    border:1px solid rgba(199,162,104,0.30);
+    color:var(--ivory);
+    border-bottom-right-radius:0;
+  }
+  /* A single hairline of true brass along the edge — enough to signal
+     ownership at a glance without flooding the bubble with colour. */
+  .bubble.mine::after{
+    content:""; position:absolute; right:-1px; top:8px; bottom:8px;
+    width:2px; background:var(--brass); border-radius:2px;
   }
   .bubble.theirs{
     align-self:flex-start; background:var(--field); color:var(--ivory);
-    border:1px solid var(--hairline); border-bottom-left-radius:3px;
+    border:1px solid var(--hairline); border-bottom-left-radius:0;
   }
-  .bubble.image-bubble{ padding:6px; background:none; border:none; }
-  .bubble.image-bubble.mine, .bubble.image-bubble.theirs{ background:none; border:none; }
+  .bubble.image-bubble, .bubble.video-bubble{ padding:5px; background:none; border:none; }
+  .bubble.image-bubble.mine, .bubble.image-bubble.theirs,
+  .bubble.video-bubble.mine, .bubble.video-bubble.theirs{ background:none; border:none; }
+  .bubble.image-bubble.mine::after, .bubble.video-bubble.mine::after{ display:none; }
   .bubble-image{
-    max-width:220px; max-height:280px; border-radius:10px;
+    max-width:240px; max-height:300px; border-radius:4px;
     display:block; cursor:zoom-in; object-fit:cover;
+    border:1px solid var(--hairline);
   }
-  .bubble-time{ display:block; font-family:'IBM Plex Mono', monospace; font-size:9px; margin-top:5px; opacity:0.65; }
-  .bubble-time.image-time{ text-align:right; margin-top:4px; opacity:0.55; color:var(--stone-dim); }
+  .bubble-video{
+    max-width:240px; max-height:320px; border-radius:4px;
+    display:block; background:#000;
+    border:1px solid var(--hairline);
+  }
+  .bubble-time{
+    display:block; font-family:'IBM Plex Mono', monospace; font-size:9px;
+    margin-top:6px; opacity:0.55; letter-spacing:0.06em;
+  }
+  .bubble-time.image-time{ text-align:right; margin-top:5px; opacity:0.5; color:var(--stone-dim); }
 
   .thread-input-row{
     display:flex; gap:8px; align-items:flex-end;
     padding:16px 22px; border-top:1px solid var(--hairline);
     flex-shrink:0;
   }
+  /* Composer. Circles and pill inputs are casual-chat grammar; squared
+     controls with hairline borders read as instrument panel rather than
+     toy. The send button keeps the brass gradient because it is the one
+     affirmative action in the room and should be obvious. */
   .attach-btn{
     flex-shrink:0;
-    width:42px; height:42px; border-radius:50%;
+    width:40px; height:40px; border-radius:4px;
     background:none; border:1px solid var(--field-border);
     color:var(--stone);
     display:flex; align-items:center; justify-content:center;
     cursor:pointer;
-    transition:border-color 0.2s ease, color 0.2s ease;
+    transition:border-color 0.2s cubic-bezier(0.22,0.61,0.36,1), color 0.2s ease, background 0.2s ease;
   }
-  .attach-btn:hover{ border-color:var(--brass); color:var(--brass); }
-  .attach-btn svg{ width:17px; height:17px; }
+  .attach-btn:hover{ border-color:var(--brass); color:var(--brass); background:rgba(199,162,104,0.06); }
+  .attach-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .attach-btn svg{ width:16px; height:16px; }
   .thread-input-row textarea{
     flex:1; resize:none; background:var(--field); border:1px solid var(--field-border);
-    color:var(--ivory); border-radius:18px; padding:11px 16px;
-    font-family:'Inter', sans-serif; font-size:13.5px; outline:none;
-    min-height:42px; max-height:120px;
-    transition:border-color 0.2s ease;
+    color:var(--ivory); border-radius:4px; padding:11px 15px;
+    font-family:'Inter', sans-serif; font-size:13.5px; line-height:1.55; outline:none;
+    min-height:40px; max-height:120px;
+    transition:border-color 0.2s cubic-bezier(0.22,0.61,0.36,1);
   }
   .thread-input-row textarea:focus{ border-color:var(--brass); }
+  .thread-input-row textarea::placeholder{ color:var(--stone-dim); }
   .send-btn{
-    background:linear-gradient(120deg, #E9CB98 0%, var(--brass) 45%, #B08A4F 75%, #D9B87E 100%); color:var(--brass-ink); border:none;
-    border-radius:50%; width:42px; height:42px; flex-shrink:0;
+    background:linear-gradient(120deg, #E9CB98 0%, var(--brass) 45%, #B08A4F 75%, #D9B87E 100%);
+    color:var(--brass-ink); border:none;
+    border-radius:4px; width:40px; height:40px; flex-shrink:0;
     display:flex; align-items:center; justify-content:center;
-    cursor:pointer; transition:background 0.2s ease, transform 0.15s ease;
+    cursor:pointer; transition:opacity 0.2s ease, transform 0.15s cubic-bezier(0.22,0.61,0.36,1);
   }
-  .send-btn svg{ width:17px; height:17px; }
-  .send-btn:hover:not(:disabled){ background:#D4B27E; transform:scale(1.04); }
-  .send-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .send-btn svg{ width:16px; height:16px; }
+  .send-btn:hover:not(:disabled){ opacity:0.9; transform:translateY(-1px); }
+  .send-btn:disabled{ opacity:0.35; cursor:not-allowed; }
 
   .image-upload-status{
     padding:0 22px 12px;
@@ -556,7 +596,7 @@
         <div class="thread-body" id="threadBody"></div>
 
         <div id="imageUploadStatus" class="image-upload-status hidden">
-          <span class="mini-spinner"></span><span>Sending photo…</span>
+          <span class="mini-spinner"></span><span id="uploadStatusLabel">Sending photo…</span>
         </div>
 
         <div class="thread-input-row">
@@ -564,6 +604,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M21 15l-5-5-9 9"/></svg>
           </button>
           <input type="file" id="imageInput" accept="image/*" class="hidden">
+          <button class="attach-btn" id="attachVideoBtn" type="button" aria-label="Attach a video">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="6" width="13" height="12" rx="2"/><path d="M15.5 10.5l6-3.5v10l-6-3.5z"/></svg>
+          </button>
+          <input type="file" id="videoInput" accept="video/*" class="hidden">
           <textarea id="messageInput" placeholder="Write a message…" maxlength="2000" rows="1"></textarea>
           <button class="send-btn" id="sendBtn" aria-label="Send">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
@@ -659,7 +703,7 @@ async function loadInbox(){
   const [profilesRes, unreadRes, msgsRes] = await Promise.all([
     supabaseClient.from('profiles').select('id,handle').in('id', otherIds),
     supabaseClient.from('messages').select('conversation_id').in('conversation_id', convoIds).is('read_at', null).neq('sender_id', currentUserId),
-    supabaseClient.from('messages').select('conversation_id,body,image_url,created_at').in('conversation_id', convoIds).order('created_at', { ascending: false })
+    supabaseClient.from('messages').select('conversation_id,body,image_url,video_url,created_at').in('conversation_id', convoIds).order('created_at', { ascending: false })
   ]);
 
   const handleMap = {};
@@ -680,8 +724,11 @@ async function loadInbox(){
     const snippet = snippetMap[c.id];
     const isUnread = unreadSet.has(c.id);
     const cameraIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/></svg>';
+    const videoIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="6" width="13" height="12" rx="2"/><path d="M15.5 10.5l6-3.5v10l-6-3.5z"/></svg>';
     const snippetText = snippet
-      ? (snippet.body ? '<span>' + escapeHtml(snippet.body) + '</span>' : (snippet.image_url ? cameraIcon + '<span>Photo</span>' : ''))
+      ? (snippet.body ? '<span>' + escapeHtml(snippet.body) + '</span>'
+          : (snippet.video_url ? videoIcon + '<span>Video</span>'
+          : (snippet.image_url ? cameraIcon + '<span>Photo</span>' : '')))
       : '<span>No messages yet.</span>';
 
     return '' +
@@ -761,7 +808,16 @@ function appendBubble(msg, mine){
 
   const div = document.createElement('div');
 
-  if(msg.image_url){
+  if(msg.video_url){
+    // playsinline matters on iOS: without it, Safari hijacks playback into
+    // a fullscreen player, which yanks the person out of the conversation
+    // every time they tap a clip.
+    div.className = 'bubble video-bubble ' + (mine ? 'mine' : 'theirs');
+    div.innerHTML =
+      '<video src="' + escapeHtml(msg.video_url) + '" class="bubble-video" controls preload="metadata" playsinline></video>' +
+      (msg.body ? '<div style="margin-top:6px; padding:0 4px;">' + escapeHtml(msg.body).replace(/\n/g, '<br>') + '</div>' : '') +
+      '<span class="bubble-time image-time">' + timeAgo(msg.created_at) + '</span>';
+  } else if(msg.image_url){
     div.className = 'bubble image-bubble ' + (mine ? 'mine' : 'theirs');
     div.innerHTML =
       '<img src="' + escapeHtml(msg.image_url) + '" alt="Shared photo" class="bubble-image" onclick="window.open(this.src, \'_blank\')">' +
@@ -930,28 +986,45 @@ document.getElementById('attachBtn').addEventListener('click', function(){
   document.getElementById('imageInput').click();
 });
 
-document.getElementById('imageInput').addEventListener('change', async function(){
-  const file = this.files && this.files[0];
-  this.value = '';
+document.getElementById('attachVideoBtn').addEventListener('click', function(){
+  document.getElementById('videoInput').click();
+});
+
+// One shared upload path for both photos and video. These were going to be
+// near-identical forty-line blocks; a single function means a fix to the
+// upload flow can't land in one and get missed in the other.
+async function sendAttachment(file, kind){
   if(!file || !conversationId) return;
 
-  if(!file.type.startsWith('image/')){
-    alert('Please choose an image file.');
-    return;
-  }
-  const MAX_BYTES = 8 * 1024 * 1024;
-  if(file.size > MAX_BYTES){
-    alert('That image is too large — please choose one under 8MB.');
+  const isVideo = kind === 'video';
+  const noun = isVideo ? 'video' : 'photo';
+
+  if(!file.type.startsWith(isVideo ? 'video/' : 'image/')){
+    alert('Please choose ' + (isVideo ? 'a video' : 'an image') + ' file.');
     return;
   }
 
-  const attachBtn = document.getElementById('attachBtn');
+  // Matches the storage bucket's own limits, so a rejection surfaces here
+  // with a useful message instead of as an opaque failure after a long
+  // upload the user already waited through.
+  const MAX_BYTES = isVideo ? 50 * 1024 * 1024 : 8 * 1024 * 1024;
+  if(file.size > MAX_BYTES){
+    alert('That ' + noun + ' is too large — please keep it under ' + (isVideo ? '50MB' : '8MB') + '.');
+    return;
+  }
+
+  const photoBtn = document.getElementById('attachBtn');
+  const videoBtn = document.getElementById('attachVideoBtn');
   const uploadStatus = document.getElementById('imageUploadStatus');
-  attachBtn.disabled = true;
+  const statusLabel = document.getElementById('uploadStatusLabel');
+  photoBtn.disabled = true;
+  videoBtn.disabled = true;
+  if(statusLabel) statusLabel.textContent = 'Sending ' + noun + '\u2026';
   uploadStatus.classList.remove('hidden');
 
   try{
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    const fallbackExt = isVideo ? 'mp4' : 'jpg';
+    const ext = (file.name.split('.').pop() || fallbackExt).toLowerCase().replace(/[^a-z0-9]/g, '') || fallbackExt;
     const path = conversationId + '/' + crypto.randomUUID() + '.' + ext;
 
     const { error: uploadError } = await supabaseClient.storage
@@ -959,21 +1032,24 @@ document.getElementById('imageInput').addEventListener('change', async function(
       .upload(path, file, { contentType: file.type });
 
     if(uploadError){
-      alert('Could not send photo: ' + uploadError.message);
+      alert('Could not send ' + noun + ': ' + uploadError.message);
       return;
     }
 
     const { data: urlData } = supabaseClient.storage.from('message-photos').getPublicUrl(path);
-    const imageUrl = urlData.publicUrl;
+    const publicUrl = urlData.publicUrl;
+
+    const row = { conversation_id: conversationId, sender_id: currentUserId, body: '' };
+    if(isVideo){ row.video_url = publicUrl; } else { row.image_url = publicUrl; }
 
     const { data, error } = await supabaseClient
       .from('messages')
-      .insert([{ conversation_id: conversationId, sender_id: currentUserId, body: '', image_url: imageUrl }])
+      .insert([row])
       .select()
       .single();
 
     if(error){
-      alert('Could not send photo: ' + error.message);
+      alert('Could not send ' + noun + ': ' + error.message);
       return;
     }
 
@@ -981,11 +1057,24 @@ document.getElementById('imageInput').addEventListener('change', async function(
     lastMessageTime = data.created_at;
     scrollThreadToBottom();
   } catch(err){
-    alert('Could not send photo: ' + (err.message || String(err)));
+    alert('Could not send ' + noun + ': ' + (err.message || String(err)));
   } finally {
-    attachBtn.disabled = false;
+    photoBtn.disabled = false;
+    videoBtn.disabled = false;
     uploadStatus.classList.add('hidden');
   }
+}
+
+document.getElementById('imageInput').addEventListener('change', async function(){
+  const file = this.files && this.files[0];
+  this.value = '';
+  await sendAttachment(file, 'image');
+});
+
+document.getElementById('videoInput').addEventListener('change', async function(){
+  const file = this.files && this.files[0];
+  this.value = '';
+  await sendAttachment(file, 'video');
 });
 
 // Notifications: see bastion-notifications.js

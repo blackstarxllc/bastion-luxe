@@ -1,0 +1,166 @@
+<!--
+  BASTION — COMPASS SEAL MARK (Concept 01-A, selected)
+
+  Drop-in SVG. No images, no external files — scales cleanly from a 16px
+  favicon to a full-page hero without going blurry.
+
+  ── HOW IT MOVES ──────────────────────────────────────────────────────
+  The tick ring and the engraved ring text rotate. The outer hairline ring
+  counter-rotates more slowly, so the two layers don't read as one flat
+  spinning disc.
+
+  The "B" and the north marker deliberately DO NOT move. A compass housing
+  turns around a stationary needle — rotating the monogram would just look
+  like the whole logo was tumbling.
+
+  60s per revolution is roughly the pace of a second hand: deliberate
+  enough that you only notice it if you look, which is the point. It should
+  read as a precision instrument idling, not a loading spinner.
+
+  ── REQUIRED FOR CORRECT ROTATION ─────────────────────────────────────
+  transform-box:view-box AND transform-origin:100px 100px are both
+  mandatory. SVG children default to rotating about the document origin
+  rather than their own centre, which throws the mark completely
+  off-canvas. Do not remove either property.
+
+  ── SIZING ────────────────────────────────────────────────────────────
+  Set width/height on .bastion-seal (currently 168px). The viewBox handles
+  the rest. Below roughly 64px the ring text becomes unreadable — use the
+  static favicon variant at the bottom of this file instead.
+
+  ── COLOURS ───────────────────────────────────────────────────────────
+  Uses the site's existing CSS variables where available and falls back to
+  literal hex, so this works standalone or dropped into any Bastion page.
+
+  ── ACCESSIBILITY ─────────────────────────────────────────────────────
+  The prefers-reduced-motion block is not optional. Continuous rotation can
+  cause genuine nausea for people with vestibular sensitivity, and the OS
+  setting exists so they can say so once, system-wide.
+-->
+
+<style>
+  .bastion-seal{ width:168px; height:168px; display:block; }
+
+  .bastion-seal .seal-ring{
+    fill:none;
+    stroke:var(--hairline, rgba(241,236,225,0.08));
+    stroke-width:1;
+    transform-box:view-box;
+    transform-origin:100px 100px;
+    animation:bastionCompassCounter 90s linear infinite;
+  }
+  .bastion-seal .seal-core{
+    fill:none;
+    stroke:var(--brass, #C7A268);
+    stroke-width:1;
+  }
+  .bastion-seal .seal-monogram{
+    font-family:'Fraunces', serif;
+    font-weight:300;
+    font-size:46px;
+    fill:var(--ivory, #F1ECE1);
+    text-anchor:middle;
+  }
+  .bastion-seal .seal-ring-text{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9px;
+    letter-spacing:1.25em;
+    fill:var(--brass-dim, #8C6F44);
+    transform-box:view-box;
+    transform-origin:100px 100px;
+    animation:bastionCompassSweep 60s linear infinite;
+  }
+  .bastion-seal .seal-ticks{
+    transform-box:view-box;
+    transform-origin:100px 100px;
+    animation:bastionCompassSweep 60s linear infinite;
+  }
+
+  @keyframes bastionCompassSweep{
+    from{ transform:rotate(0deg); }
+    to{ transform:rotate(360deg); }
+  }
+  @keyframes bastionCompassCounter{
+    from{ transform:rotate(0deg); }
+    to{ transform:rotate(-360deg); }
+  }
+
+  /* Settle the sweep on hover — a compass finding its bearing. */
+  .bastion-seal:hover .seal-ticks,
+  .bastion-seal:hover .seal-ring-text,
+  .bastion-seal:hover .seal-ring{
+    animation-play-state:paused;
+  }
+
+  /* Stamp confirmation — add .stamped to trigger. Used on sign-in. */
+  .bastion-seal.stamped .seal-core{ animation:bastionPulseRing 0.6s ease-out; }
+  @keyframes bastionPulseRing{
+    0%{ stroke:var(--emerald, #2C5C4F); stroke-width:2.4; }
+    100%{ stroke:var(--brass, #C7A268); stroke-width:1; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .bastion-seal .seal-ticks,
+    .bastion-seal .seal-ring-text,
+    .bastion-seal .seal-ring,
+    .bastion-seal.stamped .seal-core{
+      animation-duration:0.01ms !important;
+      animation-iteration-count:1 !important;
+    }
+  }
+</style>
+
+
+<!-- ══ PRIMARY MARK — animated, 64px and above ══════════════════════ -->
+
+<svg class="bastion-seal" viewBox="0 0 200 200" role="img" aria-label="Bastion">
+  <title>Bastion</title>
+
+  <!-- Outer hairline ring — counter-rotates slowly -->
+  <circle class="seal-ring" cx="100" cy="100" r="94"/>
+
+  <!-- Bearing ticks — cardinal points in brass, intercardinals in stone -->
+  <g class="seal-ticks">
+    <line x1="100" y1="8"   x2="100" y2="20"  stroke="#8C6F44" stroke-width="1.5"/>
+    <line x1="192" y1="100" x2="180" y2="100" stroke="#8C6F44" stroke-width="1.5"/>
+    <line x1="100" y1="192" x2="100" y2="180" stroke="#8C6F44" stroke-width="1.5"/>
+    <line x1="8"   y1="100" x2="20"  y2="100" stroke="#8C6F44" stroke-width="1.5"/>
+    <line x1="165" y1="35"  x2="157" y2="43"  stroke="#5B5D62" stroke-width="1"/>
+    <line x1="165" y1="165" x2="157" y2="157" stroke="#5B5D62" stroke-width="1"/>
+    <line x1="35"  y1="165" x2="43"  y2="157" stroke="#5B5D62" stroke-width="1"/>
+    <line x1="35"  y1="35"  x2="43"  y2="43"  stroke="#5B5D62" stroke-width="1"/>
+  </g>
+
+  <!-- Inner core -->
+  <circle class="seal-core" cx="100" cy="100" r="72"/>
+
+  <!-- Monogram — deliberately stationary -->
+  <text class="seal-monogram" x="100" y="118">B</text>
+
+  <!-- Engraved ring text. The id must be unique per page if you place the
+       mark more than once, or every instance will follow the first path. -->
+  <path id="bastionRingPath" d="M 100,20 A 80,80 0 1 1 99.9,20" fill="none"/>
+  <text class="seal-ring-text">
+    <textPath href="#bastionRingPath" startOffset="3%">FUNDED &#183; VERIFIED &#183; RELEASED</textPath>
+  </text>
+
+  <!-- North marker — also stationary, this is the needle -->
+  <path d="M 100,10 L 103,16 L 100,22 L 97,16 Z" fill="#C7A268"/>
+</svg>
+
+
+<!-- ══ COMPACT MARK — static, for favicons / nav / under 64px ═══════════
+     The ring text is unreadable at small sizes and the rotation becomes
+     visual noise rather than detail, so this variant drops both and
+     thickens the strokes to survive being scaled down.
+     Save as its own .svg for a favicon.
+-->
+
+<svg width="32" height="32" viewBox="0 0 200 200" role="img" aria-label="Bastion">
+  <title>Bastion</title>
+  <circle cx="100" cy="100" r="94" fill="none" stroke="#8C6F44" stroke-width="4"/>
+  <circle cx="100" cy="100" r="72" fill="none" stroke="#C7A268" stroke-width="5"/>
+  <text x="100" y="126"
+        style="font-family:'Fraunces',serif;font-weight:400;font-size:82px;fill:#F1ECE1;text-anchor:middle;">B</text>
+  <path d="M 100,4 L 106,16 L 100,28 L 94,16 Z" fill="#C7A268"/>
+</svg>

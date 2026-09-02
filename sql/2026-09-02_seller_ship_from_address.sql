@@ -1,0 +1,111 @@
+-- ALREADY APPLIED to the live Bastion database on 2026-09-02.
+-- Kept here as the permanent record — this file was missing from the
+-- original patch and was added retroactively after a review flagged the gap.
+--
+-- VERIFIED LIVE on 2026-09-02 via direct query against the production
+-- Supabase project (xokyqobttfhugdponfpg):
+--   - listing_private has: ships_from_street1, ships_from_street2,
+--     ships_from_city, ships_from_state (plus the pre-existing deal_id,
+--     serial_number, updated_at)
+--   - shipments has: from_street1, from_street2, from_city, from_state
+--     (plus the pre-existing from_postal)
+--   - function get_my_listing_private(text) exists
+--   - function get_my_listing_serial(text) still exists (superseded, not
+--     dropped — nothing else calls it, left in place rather than risk
+--     breaking something on a guess)
+--
+-- WHY THIS CHANGE EXISTS
+--
+-- The original shipping build used ONE global business address (env vars
+-- SHIP_FROM_STREET1/CITY/STATE/POSTAL) for every label on the platform,
+-- with only the ZIP code swapped per listing. That was wrong: Bastion is a
+-- P2P marketplace, and every seller ships from their own real location —
+-- not from a single fixed address.
+--
+-- It became a concrete bug the moment the business's actual registered
+-- address turned out to be a Wyoming registered-agent address (used for
+-- ownership anonymity), which is not a real shipping origin — no parcel is
+-- ever physically dropped off there. Pairing that street/city/state with an
+-- out-of-state seller's real ZIP would produce an invalid address
+-- combination: carriers either reject the label outright or compute a rate
+-- that has nothing to do with reality.
+--
+-- THE FIX
+--
+-- Every seller now enters their real street address, city, state, and ZIP
+-- when creating a shippable listing (bastion-create-listing.html). It is
+-- stored in listing_private — the same table and the same privacy
+-- treatment as the anti-fraud serial number — because a buyer has no
+-- legitimate need to see a seller's street address; the public listing
+-- still only ever shows general city/state.
+--
+-- The label's sender NAME still shows the neutral "B.M. LLC" for privacy.
+-- Only the physical address underneath it changed to be real, which is
+-- what makes the label valid and correctly priced at all.
+--
+-- shipments.from_street1/street2/city/state are a SNAPSHOT taken at the
+-- moment a shipment is created (create-shipment.js), mirroring how the
+-- buyer's destination is already snapshotted. This means a label is always
+-- built from exactly the address a buyer's rate was quoted against, even
+-- if the seller edits their listing's address afterwards.
+--
+-- ENV VARS NO LONGER USED
+--
+-- SHIP_FROM_STREET1, SHIP_FROM_CITY, SHIP_FROM_STATE, SHIP_FROM_POSTAL are
+-- no longer read by any function as of this change. They can be deleted
+-- from Netlify or simply ignored. SHIP_FROM_PHONE is still read, but only
+-- as a fallback if a seller's own address is missing a phone number.
+--
+-- CONSEQUENCE FOR EXISTING TEST DATA
+--
+-- Any listing created before this fix has only ships_from_postal (a bare
+-- ZIP) saved, with no street/city/state in listing_private. create-shipment.js
+-- now requires the full address and will refuse to create a shipment for
+-- such a listing rather than silently building an invalid label from a
+-- partial address. Those test listings need their shipping fields
+-- re-entered.
+--
+-- ----------------------------------------------------------------
+-- Schema (for reference — already applied, do not re-run):
+-- ----------------------------------------------------------------
+--
+-- alter table public.listing_private
+--   add column if not exists ships_from_street1 text,
+--   add column if not exists ships_from_street2 text,
+--   add column if not exists ships_from_city text,
+--   add column if not exists ships_from_state text;
+--
+-- alter table public.shipments
+--   add column if not exists from_street1 text,
+--   add column if not exists from_street2 text,
+--   add column if not exists from_city text,
+--   add column if not exists from_state text;
+--
+-- create or replace function public.get_my_listing_private(p_deal_id text)
+-- returns jsonb
+-- language plpgsql
+-- stable
+-- security definer
+-- set search_path = public, pg_temp
+-- as $$
+-- declare
+--   result jsonb;
+-- begin
+--   select jsonb_build_object(
+--     'serial_number', lp.serial_number,
+--     'ships_from_street1', lp.ships_from_street1,
+--     'ships_from_street2', lp.ships_from_street2,
+--     'ships_from_city', lp.ships_from_city,
+--     'ships_from_state', lp.ships_from_state
+--   ) into result
+--   from public.listing_private lp
+--   join public.deals d on d.id = lp.deal_id
+--   where lp.deal_id = p_deal_id
+--     and (d.seller_id = (select auth.uid())
+--          or exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.is_admin));
+--   return result;
+-- end;
+-- $$;
+--
+-- revoke execute on function public.get_my_listing_private(text) from public, anon;
+-- grant execute on function public.get_my_listing_private(text) to authenticated;

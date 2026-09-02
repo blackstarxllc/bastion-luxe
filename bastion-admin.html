@@ -232,6 +232,25 @@
     font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.06em;
   }
   .filter-tabs button.active{ border-color:var(--brass); color:var(--brass); background:rgba(199,162,104,0.08); }
+
+  /* ---------------------------------------------------------------
+     Respect the OS-level "reduce motion" setting.
+
+     Only the auth page honoured this before. Animation is a nice touch,
+     but for users with vestibular sensitivity it can cause genuine
+     nausea and dizziness — and the setting exists precisely so they can
+     say so once, system-wide, instead of per site. Transitions are cut
+     to near-zero rather than removed outright so focus and hover states
+     still read as responsive.
+     --------------------------------------------------------------- */
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+      animation-duration:0.01ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:0.01ms !important;
+      scroll-behavior:auto !important;
+    }
+  }
 </style>
 </head>
 <body>
@@ -320,10 +339,17 @@ function shipAdminDate(v){
 
 async function loadShipments(){
   const list = document.getElementById('shipmentsList');
+  // BUG FIXED HERE: this used to only query
+  // ['awaiting_label','label_created','in_transit','out_for_delivery','delivered']
+  // — silently excluding 'exception' and 'returned'. Those are exactly the
+  // two statuses that most need a human's attention (a carrier-reported
+  // problem, or a cancelled/returned label), and this queue was built
+  // specifically to surface things that need attention. A shipment could
+  // sit in 'exception' indefinitely and never once appear here.
   const { data, error } = await supabaseClient
     .from('shipments')
     .select('*')
-    .in('status', ['awaiting_label','label_created','in_transit','out_for_delivery','delivered'])
+    .in('status', ['awaiting_label','label_created','in_transit','out_for_delivery','delivered','exception','returned'])
     .order('created_at', { ascending: false });
 
   if(error){
@@ -335,11 +361,12 @@ async function loadShipments(){
   const enriched = (data || []).map(function(sh){
     const isLate = sh.ship_by && !sh.first_scan_at && new Date(sh.ship_by).getTime() < now;
     const isAwaitingConfirm = sh.status === 'delivered';
-    return Object.assign({}, sh, { _late: isLate, _awaitingConfirm: isAwaitingConfirm });
+    const isProblem = sh.status === 'exception' || sh.status === 'returned';
+    return Object.assign({}, sh, { _late: isLate, _awaitingConfirm: isAwaitingConfirm, _problem: isProblem });
   });
 
   const filtered = shipmentFilterMode === 'attention'
-    ? enriched.filter(function(sh){ return sh._late || sh._awaitingConfirm; })
+    ? enriched.filter(function(sh){ return sh._late || sh._awaitingConfirm || sh._problem; })
     : enriched;
 
   if(!filtered.length){
@@ -351,6 +378,7 @@ async function loadShipments(){
     const badges = []
       .concat(sh._late ? '<span class="ship-badge late">Ship-by deadline passed</span>' : [])
       .concat(sh._awaitingConfirm ? '<span class="ship-badge delivered">Delivered \u2014 awaiting buyer confirmation</span>' : [])
+      .concat(sh._problem ? '<span class="ship-badge late">' + escapeHtml(sh.status === 'returned' ? 'Returned to sender' : 'Carrier reported a problem') + '</span>' : [])
       .concat('<span class="ship-badge">' + escapeHtml((sh.tier || 'standard').toUpperCase()) + '</span>')
       .join('');
 

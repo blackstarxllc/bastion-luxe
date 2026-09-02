@@ -887,6 +887,36 @@
   }
   .ship-co-btn:disabled{ opacity:0.5; cursor:not-allowed; }
   .ship-co-modal .hidden{ display:none; }
+  #shipCoTotal{ margin-top:18px; padding-top:16px; border-top:1px solid var(--hairline,rgba(241,236,225,0.08)); }
+  .ship-co-sum{
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-size:13px; color:var(--stone,#8D8F94); margin-bottom:7px;
+  }
+  .ship-co-sum b{ color:var(--ivory,#F1ECE1); font-weight:500; font-family:'IBM Plex Mono', monospace; font-size:13px; }
+  .ship-co-sum.grand{
+    margin-top:10px; padding-top:11px; border-top:1px solid rgba(241,236,225,0.08);
+    font-size:14px; color:var(--ivory,#F1ECE1);
+  }
+  .ship-co-sum.grand b{ color:var(--brass,#C7A268); font-size:15px; }
+
+  /* ---------------------------------------------------------------
+     Respect the OS-level "reduce motion" setting.
+
+     Only the auth page honoured this before. Animation is a nice touch,
+     but for users with vestibular sensitivity it can cause genuine
+     nausea and dizziness — and the setting exists precisely so they can
+     say so once, system-wide, instead of per site. Transitions are cut
+     to near-zero rather than removed outright so focus and hover states
+     still read as responsive.
+     --------------------------------------------------------------- */
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+      animation-duration:0.01ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:0.01ms !important;
+      scroll-behavior:auto !important;
+    }
+  }
 </style>
   <script>
     if ("serviceWorker" in navigator) {
@@ -1112,7 +1142,7 @@ function shipHtmlEscape(v){
 }
 
 // Returns null if the buyer cancelled, or { addressId, rateToken, rate, holdAtLocation }.
-async function runShippingCheckout(deal){
+async function runShippingCheckout(deal, chargedPrice, chargedFee){
   var overlay = document.getElementById('shipCheckoutOverlay');
   if(!overlay) return null;
 
@@ -1172,6 +1202,7 @@ async function runShippingCheckout(deal){
       + '</div>'
       + '<div class="ship-co-err hidden" id="shipCoErr"></div>'
       + '<div id="shipCoRates"></div>'
+      + '<div id="shipCoTotal" class="hidden"></div>'
       + '<div class="ship-co-actions">'
       +   '<button class="ship-co-btn secondary" id="shipCoCancel">Cancel</button>'
       +   '<button class="ship-co-btn" id="shipCoNext">Get shipping rates</button>'
@@ -1310,13 +1341,42 @@ async function runShippingCheckout(deal){
             }).join('')
           + (q.packingVideoRequired
               ? '<p class="ship-co-note">This order is above the video threshold \u2014 the seller must record a continuous packing video before their label is issued.</p>'
+              : '')
+          // This checkbox previously did not exist anywhere, despite
+          // "hold at location" being fully built server-side and marketed
+          // on the Shipping page and FAQ as a real Protected/Vault option.
+          // A buyer had no way to ever actually request it.
+          + (q.allowHoldAtLocation
+              ? '<label class="ship-co-addr" style="margin-top:14px;"><input type="checkbox" id="shipCoHold">'
+                + '<span><strong>Hold at carrier location instead</strong><br>Skip home delivery \u2014 pick it up yourself with ID once it arrives.</span></label>'
               : '');
+
+        var holdEl = document.getElementById('shipCoHold');
+        if(holdEl){
+          holdEl.addEventListener('change', function(){ state.holdAtLocation = holdEl.checked; });
+        }
 
         function syncRate(){
           var sel = overlay.querySelector('input[name="shipRate"]:checked');
           if(!sel) return;
           state.rateToken = sel.value;
           state.rate = Number(sel.getAttribute('data-amount'));
+
+          // The purchase confirmation modal runs BEFORE this step, so
+          // without this the buyer would never see a total that actually
+          // includes shipping before committing. Show the real breakdown.
+          var totalEl = document.getElementById('shipCoTotal');
+          if(totalEl && typeof chargedPrice === 'number'){
+            var grand = chargedPrice + (chargedFee || 0) + state.rate;
+            totalEl.innerHTML =
+              '<div class="ship-co-label" style="margin-bottom:8px;">Order total</div>'
+              + '<div class="ship-co-sum"><span>Item</span><b>' + shipMoney(chargedPrice) + '</b></div>'
+              + '<div class="ship-co-sum"><span>Protection fee</span><b>' + shipMoney(chargedFee || 0) + '</b></div>'
+              + '<div class="ship-co-sum"><span>Shipping</span><b>' + shipMoney(state.rate) + '</b></div>'
+              + '<div class="ship-co-sum grand"><span>Total held in escrow</span><b>' + shipMoney(grand) + '</b></div>';
+            totalEl.classList.remove('hidden');
+          }
+
           nextBtn.textContent = 'Continue \u00b7 ' + shipMoney(state.rate) + ' shipping';
         }
         overlay.querySelectorAll('input[name="shipRate"]').forEach(function(r){
@@ -1367,10 +1427,21 @@ function formatMoney(n){
   return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// ⚠ MUST MATCH public.calculate_protection_fee() IN POSTGRES EXACTLY.
+//
+// These were badly out of sync: the client showed 1% under $1,000 while the
+// database actually charged 6%, and 4% in the $1k–$10k band against a real
+// 5–6%. The database is authoritative — it recomputes price, fee and total
+// on insert via enforce_transaction_pricing() — so buyers were being quoted
+// a materially lower fee than they were charged. On a $500 item that's $5
+// displayed against $30 taken.
+//
+// If you change the fee schedule, change it in BOTH places, or buyers will
+// silently see the wrong number again.
 function feeRateForPrice(n){
-  if(n < 1000) return 0.01;
-  if(n < 10000) return 0.04;
-  if(n < 50000) return 0.035;
+  if(n < 2000) return 0.06;
+  if(n < 10000) return 0.05;
+  if(n < 50000) return 0.045;
   return 0.03;
 }
 
@@ -2077,7 +2148,7 @@ async function loadDeal(){
         var shipChoice = null;
         var dealFulfilment = data.fulfilment || 'meetup';
         if(dealFulfilment !== 'meetup'){
-          shipChoice = await runShippingCheckout(data);
+          shipChoice = await runShippingCheckout(data, confirmedPrice, confirmedPrice * feeRateForPrice(confirmedPrice));
           if(!shipChoice){
             btn.disabled = false;
             btn.textContent = originalText;
@@ -2097,7 +2168,16 @@ async function loadDeal(){
         // actually happening rather than always showing the listing price.
         const effectiveRate = feeRateForPrice(confirmedPrice);
         const effectiveFee = confirmedPrice * effectiveRate;
-        const effectiveTotal = confirmedPrice + effectiveFee;
+
+        // The buyer pays shipping — that's what the Shipping page and FAQ
+        // both promise. This used to be quoted, shown to the buyer, and
+        // then silently discarded: the transaction total was only
+        // price + fee, so the seller ended up absorbing postage out of
+        // their own proceeds. The server-side pricing trigger recomputes
+        // the real total from this value, so a tampered figure here can't
+        // undercharge; it just needs to be carried through honestly.
+        const effectiveShipping = (shipChoice && Number(shipChoice.rate)) || 0;
+        const effectiveTotal = confirmedPrice + effectiveFee + effectiveShipping;
 
         const { data: txn, error: txnError } = await supabaseClient
           .from('transactions')
@@ -2108,6 +2188,7 @@ async function loadDeal(){
             item_name: name,
             price: confirmedPrice,
             fee: effectiveFee,
+            shipping_cost: effectiveShipping,
             total: effectiveTotal,
             status: 'pending_payment'
           }])

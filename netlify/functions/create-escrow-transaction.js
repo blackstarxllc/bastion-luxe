@@ -124,7 +124,8 @@ exports.handler = async (event) => {
 
     const itemPrice = Number(txn.price || 0);
     const bastionFee = Number(txn.fee || 0);
-    if (itemPrice <= 0 || bastionFee < 0) {
+    const shippingCost = Number(txn.shipping_cost || 0);
+    if (itemPrice <= 0 || bastionFee < 0 || shippingCost < 0) {
       return { statusCode: 400, body: JSON.stringify({ error: 'Transaction is missing a valid price/fee' }) };
     }
 
@@ -179,6 +180,31 @@ exports.handler = async (event) => {
         ],
       },
     ];
+
+    // Shipping is paid by the buyer and passed through to the SELLER,
+    // because the seller is the one who buys the postage when they
+    // generate their label. It is a separate line item so the buyer can
+    // see exactly what they're paying for, and so Bastion's protection fee
+    // is visibly calculated on the item price alone — Bastion does not
+    // take a percentage of postage.
+    //
+    // This was previously missing entirely: the buyer was quoted a
+    // shipping rate at checkout, shown it, and then never charged for it,
+    // which meant the seller silently absorbed the cost out of their own
+    // proceeds. Both the Shipping page and the FAQ state that the buyer
+    // pays shipping, so the code now actually does that.
+    if (shippingCost > 0) {
+      escrowItems.push({
+        title: 'Shipping',
+        description: 'Carrier shipping cost',
+        type: 'general_merchandise',
+        inspection_period: inspectionPeriod,
+        quantity: 1,
+        schedule: [
+          { amount: shippingCost, payer_customer: buyerEmail, beneficiary_customer: sellerEmail },
+        ],
+      });
+    }
 
     // Only add the commission item when there is actually a fee to collect.
     // An item with a zero amount is another way to earn a 422.
@@ -252,14 +278,27 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         escrow_transaction_id: escrowData.id,
         escrow_status: escrowData.status || 'created',
-        // Pick the MERCHANDISE item explicitly. There are now two items on
-        // the transaction (the goods, and Bastion's broker fee), so
-        // items[0] is no longer safe to assume — releasing against the fee
-        // item instead of the goods would be a real money bug.
+        // Pick the GOODS item explicitly, by title.
+        //
+        // There are now up to three items on the transaction: the goods,
+        // Shipping, and Bastion's broker fee. Matching on
+        // `type !== 'broker_fee'` is NOT sufficient any more, because the
+        // Shipping item is also type 'general_merchandise' — if Escrow.com
+        // ever returned it first, the release call would target the
+        // shipping line instead of the actual goods. That is a real money
+        // bug, so this matches the goods item by its exact title (which we
+        // set ourselves, just above) and only falls back to type-matching
+        // if that somehow fails.
         escrow_item_id: (function(){
           var items = escrowData.items || [];
-          var merch = items.find(function(i){ return i.type !== 'broker_fee'; });
-          return merch ? merch.id : (items[0] ? items[0].id : null);
+          var goodsTitle = txn.item_name || 'Item';
+          var goods = items.find(function(i){ return i.title === goodsTitle; });
+          if (!goods) {
+            goods = items.find(function(i){
+              return i.type !== 'broker_fee' && i.title !== 'Shipping';
+            });
+          }
+          return goods ? goods.id : (items[0] ? items[0].id : null);
         })(),
         // Capture a direct link to this transaction on Escrow.com's own
         // site, IF their response actually includes one — checking every

@@ -484,6 +484,25 @@
     pointer-events:none;
   }
   select option{ background:var(--ink-soft); color:var(--ivory); }
+
+  /* ---------------------------------------------------------------
+     Respect the OS-level "reduce motion" setting.
+
+     Only the auth page honoured this before. Animation is a nice touch,
+     but for users with vestibular sensitivity it can cause genuine
+     nausea and dizziness — and the setting exists precisely so they can
+     say so once, system-wide, instead of per site. Transitions are cut
+     to near-zero rather than removed outright so focus and hover states
+     still read as responsive.
+     --------------------------------------------------------------- */
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+      animation-duration:0.01ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:0.01ms !important;
+      scroll-behavior:auto !important;
+    }
+  }
 </style>
   <script>
     if ("serviceWorker" in navigator) {
@@ -988,10 +1007,21 @@ async function loadForEdit(){
 }
 loadForEdit();
 
+// ⚠ MUST MATCH public.calculate_protection_fee() IN POSTGRES EXACTLY.
+//
+// These were badly out of sync: the client showed 1% under $1,000 while the
+// database actually charged 6%, and 4% in the $1k–$10k band against a real
+// 5–6%. The database is authoritative — it recomputes price, fee and total
+// on insert via enforce_transaction_pricing() — so buyers were being quoted
+// a materially lower fee than they were charged. On a $500 item that's $5
+// displayed against $30 taken.
+//
+// If you change the fee schedule, change it in BOTH places, or buyers will
+// silently see the wrong number again.
 function feeRateForPrice(n){
-  if(n < 1000) return 0.01;
-  if(n < 10000) return 0.04;
-  if(n < 50000) return 0.035;
+  if(n < 2000) return 0.06;
+  if(n < 10000) return 0.05;
+  if(n < 50000) return 0.045;
   return 0.03;
 }
 

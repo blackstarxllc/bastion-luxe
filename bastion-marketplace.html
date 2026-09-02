@@ -382,12 +382,18 @@
     background:none;
     border:none;
     cursor:pointer;
-    transition:transform 0.3s ease;
+    /* Custom decelerate curve rather than the browser's default `ease`.
+       Motion that starts fast and settles slowly reads as weighted and
+       engineered; linear or default easing reads as generic. */
+    transition:transform 0.45s cubic-bezier(0.22, 0.61, 0.36, 1);
     display:flex;
     flex-direction:column;
-    animation:cardIn 0.4s ease both;
+    animation:cardIn 0.55s cubic-bezier(0.22, 0.61, 0.36, 1) both;
   }
-  @keyframes cardIn{ from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:translateY(0); } }
+  @keyframes cardIn{
+    from{ opacity:0; transform:translateY(14px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
 
   .card-photo{
     aspect-ratio:4/3;
@@ -398,8 +404,8 @@
     overflow:hidden;
     position:relative;
   }
-  .card-photo img{ width:100%; height:100%; object-fit:cover; transition:transform 0.5s ease; }
-  .card:hover .card-photo img{ transform:scale(1.045); }
+  .card-photo img{ width:100%; height:100%; object-fit:cover; transition:transform 0.7s cubic-bezier(0.22, 0.61, 0.36, 1); }
+  .card:hover .card-photo img{ transform:scale(1.04); }
   .fav-btn{
     position:absolute; top:10px; right:10px;
     width:34px; height:34px;
@@ -729,6 +735,25 @@
     opacity:0.035;
     mix-blend-mode:overlay;
     pointer-events:none;
+  }
+
+  /* ---------------------------------------------------------------
+     Respect the OS-level "reduce motion" setting.
+
+     Only the auth page honoured this before. Animation is a nice touch,
+     but for users with vestibular sensitivity it can cause genuine
+     nausea and dizziness — and the setting exists precisely so they can
+     say so once, system-wide, instead of per site. Transitions are cut
+     to near-zero rather than removed outright so focus and hover states
+     still read as responsive.
+     --------------------------------------------------------------- */
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+      animation-duration:0.01ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:0.01ms !important;
+      scroll-behavior:auto !important;
+    }
   }
 </style>
   <script>

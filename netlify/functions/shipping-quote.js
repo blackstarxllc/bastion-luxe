@@ -166,6 +166,11 @@ exports.handler = async (event) => {
       adultSignatureRequired: rules.adultSignatureRequired,
       packingVideoRequired: rules.packingVideoRequired,
       doubleBoxRequired: rules.doubleBoxRequired,
+      // Was computed and enforced server-side already (see the
+      // address.hold_at_location check above) but never actually returned
+      // to the client — so there was nothing for the checkout UI to key
+      // off of to decide whether to offer the option at all.
+      allowHoldAtLocation: rules.allowHoldAtLocation,
       shipByHours: rules.shipByHours,
       inspectionDays: Math.round(rules.inspectionSeconds / 86400),
       declaredValue: itemValue,

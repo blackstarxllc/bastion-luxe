@@ -173,8 +173,23 @@ exports.handler = async (event) => {
       return lib.json(502, { error: 'The carrier returned an incomplete label. Support has been alerted.' });
     }
 
-    // --- Ship-by deadline starts now ----------------------------------
-    const shipBy = new Date(Date.now() + rules.shipByHours * 3600 * 1000).toISOString();
+    // --- Ship-by deadline -----------------------------------------------
+    // This should already be set by escrow-webhook.js the moment funding
+    // was confirmed — that's what the shipping FAQ and Terms of Service
+    // promise ("measured from when escrow confirms funding"). Calculating
+    // a fresh one HERE, every time, used to silently overwrite that with a
+    // brand-new, more generous deadline starting from whenever the seller
+    // finally got around to clicking this button — which could be days
+    // later, defeating the entire point of a bounded shipping window.
+    //
+    // Fixed: only fill this in if it is somehow still missing (funding
+    // fired, but the deadline-setting step failed for some other reason —
+    // logged as a system_alert when that happens, so it's never silent).
+    // The normal path preserves whatever escrow-webhook.js already set.
+    const shipBy = shipment.ship_by || new Date(Date.now() + rules.shipByHours * 3600 * 1000).toISOString();
+    if (!shipment.ship_by) {
+      await lib.logAlert('shipping_label', 'Shipment had no ship_by deadline at label creation — funding webhook may not have set one', { shipmentId });
+    }
 
     await lib.sbPatch('shipments', 'id=eq.' + encodeURIComponent(shipmentId), {
       tracking_number: label.trackingNumber,

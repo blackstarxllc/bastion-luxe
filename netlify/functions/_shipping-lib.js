@@ -331,7 +331,14 @@ async function fetchRates({ from, to, parcel, declaredValue, tier }) {
       }],
       extra: {
         signature_confirmation: rules.adultSignatureRequired ? 'ADULT' : 'STANDARD',
-optional_declared_value: declaredValue ? String(declaredValue) : undefined,
+        // UNVERIFIED FIELD NAME — this Shippo-specific code path is not
+        // currently active (SHIPPING_PROVIDER=easypost in production) and
+        // goshippo.com's own docs aren't reachable from this environment to
+        // confirm the exact key Shippo expects for a bare declared value
+        // with no insurance product attached. Verify against Shippo's live
+        // API docs before ever switching SHIPPING_PROVIDER to 'shippo' —
+        // do not assume this key is correct just because it's present.
+        optional_declared_value: declaredValue ? String(declaredValue) : undefined,
       },
       async: false,
       test: SHIPPING_TEST_MODE,
@@ -406,10 +413,18 @@ async function buyLabel(rateId) {
 function normaliseTrackingStatus(raw) {
   const s = String(raw || '').toUpperCase();
   if (['DELIVERED'].includes(s)) return 'delivered';
-  if (['OUT_FOR_DELIVERY', 'OUT FOR DELIVERY'].includes(s)) return 'out_for_delivery';
+  // AVAILABLE_FOR_PICKUP was missing entirely, which mattered specifically
+  // because "hold at location" is a named, promoted feature on Protected
+  // and Vault tiers — a buyer using it would carrier-scan into this exact
+  // status and then simply never be told their package was ready, because
+  // the old code fell through to `return null` and did nothing at all.
+  if (['OUT_FOR_DELIVERY', 'OUT FOR DELIVERY', 'AVAILABLE_FOR_PICKUP', 'AVAILABLE FOR PICKUP'].includes(s)) return 'out_for_delivery';
   if (['TRANSIT', 'IN_TRANSIT', 'PRE_TRANSIT'].includes(s)) return 'in_transit';
   if (['RETURNED', 'RETURN_TO_SENDER'].includes(s)) return 'returned';
-  if (['FAILURE', 'ERROR', 'EXCEPTION', 'UNKNOWN'].includes(s)) return 'exception';
+  // CANCELLED was also missing. A carrier cancelling a label is at least as
+  // serious as a delivery exception — it needs a human to look at it, not
+  // silence.
+  if (['FAILURE', 'ERROR', 'EXCEPTION', 'UNKNOWN', 'CANCELLED', 'CANCELED'].includes(s)) return 'exception';
   return null;
 }
 

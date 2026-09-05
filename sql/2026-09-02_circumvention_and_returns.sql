@@ -1,0 +1,61 @@
+-- ALREADY APPLIED to the live Bastion database on 2026-09-02.
+--
+-- ============================================================
+-- 1. OFF-PLATFORM CIRCUMVENTION DETECTION
+-- ============================================================
+-- New table public.message_flags + trigger detect_circumvention() on
+-- messages, plus circumvention_summary() for a per-user rollup.
+--
+-- Tiered severity:
+--   HIGH   — named off-platform payment rails (Zelle, Venmo, Cash App,
+--            PayPal, wire, crypto) or explicit intent ("cancel the order
+--            and...", "save on fees", "outside Bastion", "deal directly")
+--   MEDIUM — contact details: phone numbers, email addresses, external
+--            messaging apps (WhatsApp, Telegram, Instagram...)
+--   LOW    — soft asks ("text me", "call me", "dm me")
+-- Two or more independent MEDIUM signals escalate to HIGH.
+--
+-- DELIBERATE DESIGN CHOICES:
+--  * Messages are NOT blocked. A hard block teaches evasion within a day
+--    ("five five five...") and punishes legitimate meetup logistics. This
+--    flags for human review instead.
+--  * Flags are admin-read-only. Showing a user they tripped a filter
+--    teaches them precisely what to avoid saying next time.
+--  * Written by a trigger, so a client that skips the check can't bypass it.
+--  * Input is normalised first (@ -> a, 0 -> o, 1 -> i, punctuation
+--    stripped) to catch basic obfuscation.
+--
+-- Tested against realistic samples before shipping: "is the box and papers
+-- included?" and "can we meet at the Chase on 5th at 2pm?" both pass
+-- clean; "cancel the order and Zelle me directly, save on fees" and
+-- "lets move this to whatsapp and deal directly" both trip HIGH.
+--
+-- ============================================================
+-- 2. RETURN SHIPMENTS
+-- ============================================================
+-- shipments gains: direction ('outbound'|'return'), return_of_shipment_id,
+-- return_reason, return_approved_by, returned_received_at.
+-- New function approve_return(transaction_id, reason) — admin only.
+--
+-- KEY DECISIONS:
+--  * A return is its OWN shipment row, not a mutation of the outbound one.
+--    Reusing the row would destroy the outbound tracking history, which is
+--    the single most important evidence in the dispute that caused the
+--    return.
+--  * The unique constraint on transaction_id was replaced with a unique
+--    index on (transaction_id, direction), since a returned order
+--    legitimately has two shipments.
+--  * Only an admin can approve a return. A buyer generating a return label
+--    unilaterally would let simple buyer's remorse start a return the
+--    seller never agreed to.
+--  * Escrow does NOT release on a return. Funds stay frozen until the
+--    seller confirms the returned item or an admin rules. The seller is
+--    prompted to check it against the listing's private serial number —
+--    this is the swap-fraud control.
+--  * Return labels carry the SAME tier, signature and declared value as
+--    the outbound leg. A returned item is worth what it was on the way out.
+--
+-- create-shipping-label.js updated: authorisation is now direction-aware
+-- (buyer buys the return label, seller buys the outbound one), and the
+-- "must be funded" gate is skipped for returns, which happen after funding
+-- while the transaction is disputed or return_approved.

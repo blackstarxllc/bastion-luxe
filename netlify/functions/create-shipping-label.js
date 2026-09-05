@@ -40,9 +40,20 @@ exports.handler = async (event) => {
     const shipment = shipments && shipments[0];
     if (!shipment) return lib.json(404, { error: 'Shipment not found.' });
 
-    // --- Only the seller buys the label -------------------------------
-    if (shipment.seller_id !== user.id) {
-      return lib.json(403, { error: 'Only the seller on this order can create its shipping label.' });
+    // --- Who may buy this label depends on which way it's going -------
+    // Outbound is the seller shipping to the buyer. A return is the buyer
+    // shipping back to the seller, so the buyer is the one who needs the
+    // label. Checking only seller_id here would have made an approved
+    // return impossible to actually post.
+    const isReturn = shipment.direction === 'return';
+    const authorisedUser = isReturn ? shipment.buyer_id : shipment.seller_id;
+
+    if (authorisedUser !== user.id) {
+      return lib.json(403, {
+        error: isReturn
+          ? 'Only the buyer on this order can create its return label.'
+          : 'Only the seller on this order can create its shipping label.',
+      });
     }
 
     // --- Idempotency: never buy two labels for one shipment -----------
@@ -69,10 +80,20 @@ exports.handler = async (event) => {
     const txn = txns && txns[0];
     if (!txn) return lib.json(404, { error: 'The order for this shipment no longer exists.' });
 
-    if (txn.status !== 'funded') {
+    // The "must be funded" gate exists so a seller never ships before the
+    // money is secured. It applies to the outbound leg only — a return
+    // happens after funding, usually while the transaction is disputed or
+    // return_approved, so applying it here would block every return label.
+    if (!isReturn && txn.status !== 'funded') {
       return lib.json(409, {
         error: 'The buyer\u2019s payment is not confirmed in escrow yet. Your label unlocks the moment it is \u2014 do not ship before then.',
         notFunded: true,
+      });
+    }
+
+    if (isReturn && !['return_approved', 'disputed'].includes(txn.status)) {
+      return lib.json(409, {
+        error: 'A return has not been approved on this order yet.',
       });
     }
 
@@ -252,10 +273,16 @@ exports.handler = async (event) => {
     // If the label cost materially more than the buyer was charged, the
     // seller absorbs the gap. Surface it rather than letting it accumulate
     // invisibly across many orders.
+    // quoted_cost is the RETAIL figure the buyer paid; label.cost is the
+    // discounted commercial rate Bastion was billed. The expected state is
+    // quoted_cost > label.cost — that gap is the platform margin, not an
+    // error. Only alert when the actual cost EXCEEDS what the buyer paid,
+    // which means the margin inverted and Bastion is losing money on the
+    // shipment.
     if (shipment.quoted_cost && label.cost) {
       const drift = Number(label.cost) - Number(shipment.quoted_cost);
-      if (Math.abs(drift) >= 3) {
-        await lib.logAlert('shipping_label', 'Label cost drifted from the rate quoted to the buyer', {
+      if (drift >= 1) {
+        await lib.logAlert('shipping_label', 'Label cost EXCEEDED the retail rate charged to the buyer \u2014 margin inverted', {
           shipmentId,
           quotedToBuyer: shipment.quoted_cost,
           actualLabelCost: label.cost,
@@ -273,10 +300,12 @@ exports.handler = async (event) => {
 
     // Tell the buyer their order is moving.
     await lib.sbInsert('notifications', {
-      user_id: shipment.buyer_id,
+      user_id: isReturn ? shipment.seller_id : shipment.buyer_id,
       type: 'shipping',
-      title: 'Your order has a shipping label',
-      body: 'The seller has generated a prepaid, tracked label. You will be notified at every carrier scan.',
+      title: isReturn ? 'Return label created' : 'Your order has a shipping label',
+      body: isReturn
+        ? 'The buyer has generated their prepaid return label. Funds stay held in escrow until you confirm the returned item \u2014 check it against your listing\u2019s serial number before confirming.'
+        : 'The seller has generated a prepaid, tracked label. You will be notified at every carrier scan.',
       link: '/bastion-transaction.html?id=' + shipment.transaction_id,
     }).catch(() => {});
 

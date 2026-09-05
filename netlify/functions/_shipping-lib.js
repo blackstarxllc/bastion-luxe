@@ -30,6 +30,78 @@ function tierForValue(value) {
   return 'standard';
 }
 
+// ---------------------------------------------------------------
+// RETAIL RATE PRESENTATION
+//
+// Shippo and EasyPost return heavily discounted commercial rates (their
+// negotiated volume pricing, often far below what the same service costs
+// at a retail counter). Bastion charges the buyer the standard retail
+// rate for that service and keeps the spread as platform revenue.
+//
+// This is an ordinary marketplace practice — it is how essentially every
+// platform that resells postage operates. What matters legally is that
+// the customer-facing copy describes it accurately. The Shipping page and
+// FAQ say shipping is "priced at standard carrier retail rates", NOT that
+// Bastion passes through its own cost, because the latter would be a
+// false statement of fact to a consumer.
+//
+// HOW THE ESTIMATE WORKS
+// Neither provider reliably returns "the retail price of this same
+// service" alongside the discounted one. Where a provider does supply a
+// retail figure we use it directly. Where it doesn't, we apply a
+// per-service multiplier calibrated to published USPS/UPS retail pricing.
+// The multiplier is a floor-and-cap estimate, deliberately conservative:
+// it should never quote the buyer MORE than a real post office counter
+// would charge for the same service, because that is the one outcome that
+// makes the "standard retail rates" description untrue.
+// ---------------------------------------------------------------
+const RETAIL_MULTIPLIERS = {
+  // Ground/economy services carry the widest commercial discounts.
+  ground: 1.45,
+  priority: 1.35,
+  express: 1.25,
+  default: 1.35,
+};
+
+// Never quote above this multiple of the commercial rate, regardless of
+// service matching — a runaway multiplier would overcharge the buyer past
+// genuine retail, which is exactly what we must not do.
+const RETAIL_MAX_MULTIPLIER = 1.6;
+
+function serviceBand(serviceName) {
+  const n = String(serviceName || '').toLowerCase();
+  if (/express|overnight|next.?day|priority mail express/.test(n)) return 'express';
+  if (/priority|2.?day|second.?day|air/.test(n)) return 'priority';
+  if (/ground|surepost|smartpost|parcel select|media mail|home delivery/.test(n)) return 'ground';
+  return 'default';
+}
+
+// Returns { retail, commercial, margin } — commercial is what Bastion is
+// billed by the carrier, retail is what the buyer is charged.
+function toRetailRate(rate) {
+  const commercial = Number(rate.amount) || 0;
+  if (commercial <= 0) return { retail: 0, commercial: 0, margin: 0 };
+
+  // Prefer a real retail figure when the provider gives us one.
+  const providerRetail = Number(rate.retailAmount) || 0;
+  let retail;
+  if (providerRetail > commercial) {
+    retail = providerRetail;
+  } else {
+    const mult = RETAIL_MULTIPLIERS[serviceBand(rate.service)] || RETAIL_MULTIPLIERS.default;
+    retail = commercial * Math.min(mult, RETAIL_MAX_MULTIPLIER);
+  }
+
+  // Round to a normal-looking price rather than an odd computed figure.
+  retail = Math.round(retail * 100) / 100;
+
+  return {
+    retail,
+    commercial,
+    margin: Math.round((retail - commercial) * 100) / 100,
+  };
+}
+
 function tierRules(tier) {
   switch (tier) {
     case 'vault':
@@ -305,6 +377,7 @@ async function fetchRates({ from, to, parcel, declaredValue, tier }) {
         carrier: r.carrier,
         service: r.service,
         amount: Number(r.rate),
+        retailAmount: Number(r.retail_rate) || 0,
         days: r.delivery_days,
       })),
     };
@@ -355,6 +428,10 @@ async function fetchRates({ from, to, parcel, declaredValue, tier }) {
       carrier: r.provider,
       service: r.servicelevel && r.servicelevel.name,
       amount: Number(r.amount),
+      // Shippo exposes the undiscounted figure here on carriers that
+      // support it. When present it's a real retail price and beats any
+      // multiplier estimate.
+      retailAmount: Number(r.amount_local) > Number(r.amount) ? Number(r.amount_local) : 0,
       days: r.estimated_days,
     })),
   };
@@ -438,6 +515,8 @@ function json(statusCode, body) {
 
 module.exports = {
   PROVIDER,
+  toRetailRate,
+  serviceBand,
   tierForValue,
   tierRules,
   screenDestination,

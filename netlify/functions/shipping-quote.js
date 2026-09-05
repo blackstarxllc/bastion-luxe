@@ -141,17 +141,26 @@ exports.handler = async (event) => {
     }
 
     rates.sort((a, b) => a.amount - b.amount);
-    rates = rates.slice(0, 6).map((r) => ({
-      // EasyPost needs both ids to buy; carry them together so the client
-      // only ever handles one opaque token.
-      rateToken: lib.PROVIDER === 'easypost'
-        ? quoted.providerShipmentId + '|' + r.id
-        : r.id,
-      carrier: r.carrier,
-      service: r.service,
-      amount: Number(r.amount.toFixed(2)),
-      estimatedDays: r.days || null,
-    }));
+    rates = rates.slice(0, 6).map((r) => {
+      // The buyer is quoted the standard retail rate for the service.
+      // Bastion is billed the discounted commercial rate and keeps the
+      // spread — see toRetailRate() in _shipping-lib.js for why this is
+      // presented the way it is. The commercial figure is deliberately
+      // NOT returned to the browser.
+      const priced = lib.toRetailRate(r);
+      return {
+        rateToken: lib.PROVIDER === 'easypost'
+          ? quoted.providerShipmentId + '|' + r.id
+          : r.id,
+        carrier: r.carrier,
+        service: r.service,
+        amount: priced.retail,
+        estimatedDays: r.days || null,
+      };
+    });
+    // Re-sort on the price the buyer actually sees, since the retail
+    // multiplier differs by service band and can reorder the list.
+    rates.sort((a, b) => a.amount - b.amount);
 
     if (!rates.length) {
       return lib.json(422, {

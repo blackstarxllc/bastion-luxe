@@ -1,0 +1,57 @@
+-- ALREADY APPLIED to the live Bastion database on 2026-09-06.
+--
+-- ============================================================
+-- 🔴 CRITICAL: RELEASING FUNDS WOULD HAVE FAILED ENTIRELY
+-- ============================================================
+-- notify_on_transaction_status_change() referenced `new.amount` in its
+-- 'released' branch:
+--
+--     to_char(coalesce(new.total, new.amount), ...)
+--
+-- public.transactions.amount was DROPPED on 2026-09-01 (a duplicate of
+-- `total`, NULL on all rows). A plpgsql trigger referencing a field that
+-- no longer exists on the row type raises at runtime — and since this
+-- trigger runs inside the same transaction as the UPDATE, the raise
+-- ABORTS AND ROLLS BACK THE ENTIRE STATUS CHANGE.
+--
+-- Net effect: every attempt to set a transaction to 'released' would have
+-- failed. That is the transition that pays the seller. Nobody would have
+-- been paid, on any transaction, and release-escrow-transaction.js would
+-- have reported success from Escrow.com while Bastion's own row silently
+-- refused to move.
+--
+-- PROVEN, not assumed: after the fix, setting a real row to 'released'
+-- succeeded and inserted 2 notifications (25 -> 27). Test row and all
+-- test notifications were then restored to their original state. The
+-- listing that the test incorrectly flipped to 'sold' (Patek Philippe
+-- Nautilus, via trg_sync_deal_status) was restored to 'active'.
+--
+-- ============================================================
+-- NOTIFICATION GAPS CLOSED
+-- ============================================================
+-- Before: only 'funded' (seller only), 'released', and 'disputed' fired.
+-- The 'funded' message told sellers to "proceed with the handoff" even on
+-- shipped orders, where the correct next step is generating a label.
+--
+-- Now every transition notifies BOTH parties with: what happened, whose
+-- move it is, the concrete next steps, and a link to the exact page.
+--
+--   funded          — split by shipped vs in-person. Shipped: seller told
+--                     to run the packing checklist and generate a label,
+--                     clock started. In-person: seller told to arrange a
+--                     public meet and NOT to share the release code until
+--                     both parties have inspected. Buyer told their money
+--                     is secured either way.
+--   shipped/transit — buyer told signature is required and to film the
+--                     unboxing in one continuous take.
+--   delivered       — buyer gets inspection instructions and the warning
+--                     that confirming is irreversible; seller told to
+--                     stand by.
+--   released        — both parties; seller pointed at Escrow.com for
+--                     payout timing (Bastion does not control it).
+--   cancelled       — buyer told refund is with Escrow.com; seller told
+--                     the listing is back on the marketplace.
+--   return_approved — buyer told to generate the return label and record
+--                     packing; seller told to check the returned item
+--                     against the listing's recorded serial number.
+--   disputed        — both told funds are frozen and to upload evidence.

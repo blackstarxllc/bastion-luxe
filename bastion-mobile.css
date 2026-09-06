@@ -1,0 +1,273 @@
+/* ===================================================================
+   bastion-mobile.css
+
+   Loaded LAST on every page, so it overrides the inline <style> blocks
+   without any of them needing to be rewritten.
+
+   WHY THIS EXISTS
+   Every page already had the correct viewport meta tag, so the pages
+   weren't "not responsive" in the usual sense — the layout containers
+   flex fine. The problem was specific elements sized for a desktop
+   canvas that a phone simply cannot fit:
+
+     * Display type at 40–44px. "Patek Philippe Nautilus" at 40px is
+       wider than a 390px phone screen on its own.
+     * white-space:nowrap on spec rows, so a long value could not wrap
+       and instead pushed the row past the viewport edge.
+     * A notification dropdown pinned at a fixed width:320px.
+     * Money figures at 40px+ in the purchase panel — the specific thing
+       circled in the report, where $79,950.00 ran off the panel.
+
+   Any ONE element wider than the viewport makes the WHOLE page
+   horizontally scrollable, which is why it looked like the entire site
+   was zoomed out rather than one component being broken.
+
+   PRINCIPLE: scale type down and let things wrap. Nothing here changes
+   layout structure, hides content, or alters any behaviour — so every
+   button, handler and flow keeps working exactly as it did.
+   =================================================================== */
+
+/* -------------------------------------------------------------------
+   Global guard.
+
+   Applies at all widths. If any single element still overflows, the
+   page scrolls vertically only rather than letting the user drag the
+   whole layout sideways — which is what made the site feel broken.
+   ------------------------------------------------------------------- */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Media and embeds should never exceed their container. */
+img, video, svg, iframe, canvas, table {
+  max-width: 100%;
+}
+
+/* Long unbroken strings — tracking numbers, wallet-style IDs, URLs in
+   messages — are a classic overflow source with no visible cause. */
+p, span, div, td, th, li, h1, h2, h3, strong, em, label {
+  overflow-wrap: break-word;
+}
+
+/* ===================================================================
+   PHONES  (<= 620px)
+   =================================================================== */
+@media (max-width: 620px) {
+
+  /* ---- Display typography -------------------------------------- */
+  /* clamp() keeps these fluid rather than snapping between two fixed
+     sizes, so a 320px phone and a 600px phone both look considered. */
+  .item-name {
+    font-size: clamp(26px, 7.5vw, 34px) !important;
+    line-height: 1.2 !important;
+  }
+
+  h1 {
+    font-size: clamp(24px, 7vw, 30px) !important;
+    line-height: 1.25 !important;
+  }
+
+  h2 {
+    font-size: clamp(18px, 5vw, 21px) !important;
+  }
+
+  /* ---- Money figures ------------------------------------------- */
+  /* The specific breakage reported: a six-figure price at 40px+ ran
+     off the purchase panel. Tabular numerals keep the digits aligned
+     as the size scales down. */
+  .price-big,
+  .listed-price-value,
+  .amount-total,
+  .purchase-price {
+    font-size: clamp(28px, 8vw, 36px) !important;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em !important;
+  }
+
+  /* ---- Spec rows ------------------------------------------------ */
+  /* nowrap on the key column forced the row wider than the screen when
+     a value was long. Let the key wrap and give the value room. */
+  .spec-key {
+    white-space: normal !important;
+    padding-right: 12px;
+  }
+  .spec-val {
+    word-break: break-word;
+  }
+  .spec-row {
+    gap: 10px !important;
+    align-items: start !important;
+  }
+
+  /* ---- Recently-sold rows --------------------------------------- */
+  /* Item name + price + date on one line does not fit a phone. Stack
+     them so the name gets a full line of its own. */
+  .recent-sale-row,
+  .sale-row {
+    flex-wrap: wrap !important;
+    gap: 4px 10px !important;
+  }
+  .recent-sale-name,
+  .sale-name {
+    flex: 1 1 100% !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+
+  /* ---- Dropdowns ------------------------------------------------ */
+  /* A fixed 320px panel pinned to the right edge overflows on narrow
+     screens. Pin it to both edges instead and let it size itself. */
+  .notif-dropdown {
+    width: auto !important;
+    left: 12px !important;
+    right: 12px !important;
+    max-width: calc(100vw - 24px) !important;
+  }
+
+  /* ---- Trust / process strip ------------------------------------ */
+  /* Three columns at min-width:150px cannot fit; they were forcing a
+     ~450px floor on the whole page. */
+  .process,
+  .process-strip {
+    flex-direction: column !important;
+    gap: 18px !important;
+  }
+  .process-step {
+    min-width: 0 !important;
+    flex: 1 1 100% !important;
+  }
+
+  /* ---- Header --------------------------------------------------- */
+  header {
+    padding: 14px 16px !important;
+    gap: 10px;
+  }
+  .wordmark {
+    font-size: 19px !important;
+  }
+  header .back-pill,
+  .nav-logout-btn {
+    padding: 8px 11px !important;
+    font-size: 9.5px !important;
+  }
+
+  /* ---- Page padding --------------------------------------------- */
+  /* 24px each side costs 48px of a 390px screen. 16px reads the same
+     and returns meaningful width to the content. */
+  main {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  footer {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    gap: 12px 18px !important;
+  }
+
+  /* ---- Cards and panels ----------------------------------------- */
+  .purchase-panel,
+  .card,
+  .ship-card,
+  .dash-card,
+  .item-card {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  /* ---- Tap targets ---------------------------------------------- */
+  /* 44px is the accepted minimum for a reliable thumb tap. Several
+     controls were under that, which is why small buttons felt fiddly
+     rather than broken. */
+  button,
+  .action-btn,
+  .ship-btn,
+  .ship-co-btn,
+  input[type="submit"],
+  input[type="button"] {
+    min-height: 44px;
+  }
+
+  /* Inputs at <16px cause iOS Safari to auto-zoom the page on focus,
+     which then leaves the layout zoomed and looking broken. This is
+     the single most common cause of "the site zoomed in on my phone". */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* ---- Grids ---------------------------------------------------- */
+  .item-grid,
+  .listings-grid,
+  .tiers,
+  .dash-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ---- Ledger (account history) --------------------------------- */
+  .ledger-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .ledger-selects {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+  .ledger-selects select {
+    width: 100%;
+  }
+
+  /* ---- Modals --------------------------------------------------- */
+  .ship-co-modal,
+  .confirm-modal {
+    max-height: 88vh !important;
+    padding: 20px 18px !important;
+  }
+  .ship-co-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ---- Messages ------------------------------------------------- */
+  .bubble {
+    max-width: 84% !important;
+  }
+  .bubble-image,
+  .bubble-video {
+    max-width: 100% !important;
+  }
+}
+
+/* ===================================================================
+   SMALL PHONES  (<= 380px) — iPhone SE and similar
+   =================================================================== */
+@media (max-width: 380px) {
+  .item-name {
+    font-size: clamp(22px, 7vw, 27px) !important;
+  }
+  .price-big,
+  .listed-price-value,
+  .amount-total,
+  .purchase-price {
+    font-size: clamp(24px, 7.5vw, 30px) !important;
+  }
+  main {
+    padding-left: 13px !important;
+    padding-right: 13px !important;
+  }
+  .ledger-selects {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ===================================================================
+   Landscape phones — reclaim vertical space in modals.
+   =================================================================== */
+@media (max-height: 480px) and (orientation: landscape) {
+  .ship-co-modal,
+  .confirm-modal {
+    max-height: 92vh !important;
+  }
+}

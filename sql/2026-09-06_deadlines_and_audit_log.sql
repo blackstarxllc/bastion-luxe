@@ -1,0 +1,57 @@
+-- ALREADY APPLIED to the live Bastion database on 2026-09-06.
+--
+-- ============================================================
+-- 1. 🔴 log_admin_action() DID NOT EXIST
+-- ============================================================
+-- bastion-admin.html calls rpc('log_admin_action', ...) after every
+-- privileged action — banning a user, resolving a dispute, deleting a
+-- listing. Neither the function nor any table behind it existed, and the
+-- client only console.errors the result, so every call failed silently.
+--
+-- Net effect: Bastion had NO admin audit trail whatsoever. On a platform
+-- that moves other people's money and can ban accounts, that is the
+-- record which answers "who released those funds?" after the fact.
+--
+-- Created public.admin_action_log + log_admin_action(). The table is
+-- append-only from the browser's perspective: admins can SELECT, and
+-- there is deliberately NO insert/update/delete policy — entries come
+-- only from the SECURITY DEFINER function, so an admin cannot forge or
+-- backdate their own audit entry. Verified: authenticated can execute,
+-- anon cannot, and the function re-checks is_admin itself.
+--
+-- ============================================================
+-- 2. DEADLINE REMINDERS + COUNTDOWNS
+-- ============================================================
+-- Both parties are on a clock and neither was told about it after the
+-- initial notification:
+--   * Seller ship_by — 48h (Protected/Vault) or 72h (Standard) from
+--     escrow funding. Missing it lets the buyer cancel for a full refund.
+--   * Buyer inspection window — 2/3/5 days from delivery by tier. This is
+--     the buyer's only chance to reject the item.
+--
+-- New:
+--   reminder_log             — unique index on (transaction_id, user_id,
+--                              kind) makes every send idempotent
+--   transaction_deadlines()  — single source of truth, read by BOTH the
+--                              on-screen countdown and the reminder sweep,
+--                              so the two can never disagree
+--   send_deadline_reminders()— the sweep; fires at 24h-out checkpoints
+--                              plus missed-deadline and unpaid-order cases
+--
+-- Driven hourly by netlify/functions/deadline-sweep.js (scheduled in
+-- netlify.toml). Hourly is safe specifically BECAUSE of the idempotency
+-- index — verified by running the sweep twice: first run sent 1, second
+-- sent 0, one log row, one notification. Without that, an hourly cron
+-- would re-notify the same seller every hour until their deadline passed,
+-- which teaches people to ignore Bastion's email entirely.
+--
+-- ============================================================
+-- 3. PROFILE SETTINGS (from the prior batch, recorded here)
+-- ============================================================
+-- profiles gains display_name, phone, bio, notify_email, notify_offers,
+-- notify_shipping, updated_at. Verified that
+-- prevent_self_privilege_escalation() still freezes is_admin, is_banned,
+-- ban_reason, id_verified, authenticity_verified and handle_changed_count,
+-- and does NOT block the new self-editable fields — checked rather than
+-- assumed, since getting it wrong would reopen the escalation hole closed
+-- on 2026-09-01.

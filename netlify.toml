@@ -40,3 +40,19 @@
   for = "/.netlify/functions/*"
   [headers.values]
     Cache-Control = "no-store, max-age=0"
+
+
+# ---------------------------------------------------------------------
+# Scheduled deadline reminders.
+#
+# Hourly is the right cadence: deadlines are measured in days and the
+# reminders fire at 24-hours-out checkpoints, so hourly is precise enough
+# without being noisy.
+#
+# Safe to run this often because send_deadline_reminders() is idempotent —
+# reminder_log has a unique index on (transaction_id, user_id, kind), so
+# each person receives each reminder exactly once. Verified by running the
+# sweep twice: first run sent, second sent zero.
+# ---------------------------------------------------------------------
+[functions."deadline-sweep"]
+  schedule = "@hourly"

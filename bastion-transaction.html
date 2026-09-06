@@ -732,6 +732,36 @@
       scroll-behavior:auto !important;
     }
   }
+
+  /* ---------------- Deadline countdowns ---------------- */
+  .deadline-card{
+    margin-top:20px; padding:16px 18px; border-radius:6px;
+    background:rgba(199,162,104,0.06);
+    border:1px solid rgba(199,162,104,0.22);
+    position:relative; overflow:hidden;
+  }
+  .deadline-card.urgent{
+    background:rgba(201,119,107,0.08);
+    border-color:rgba(201,119,107,0.32);
+  }
+  .deadline-card::before{
+    content:""; position:absolute; left:0; top:0; bottom:0; width:2px;
+    background:var(--brass);
+  }
+  .deadline-card.urgent::before{ background:#C9776B; }
+  .deadline-label{
+    font-family:'IBM Plex Mono', monospace; font-size:9.5px;
+    letter-spacing:0.14em; text-transform:uppercase;
+    color:var(--brass); margin-bottom:7px;
+  }
+  .deadline-card.urgent .deadline-label{ color:#E0958D; }
+  .deadline-time{
+    font-family:'IBM Plex Mono', monospace; font-size:19px;
+    color:var(--ivory); letter-spacing:0.02em; margin-bottom:5px;
+    font-variant-numeric:tabular-nums;
+  }
+  .deadline-date{ font-size:12.5px; color:var(--stone); margin-bottom:8px; }
+  .deadline-note{ font-size:12.5px; color:#D8D3C6; line-height:1.6; margin:0; }
 </style>
   <script>
     if ("serviceWorker" in navigator) {
@@ -822,6 +852,7 @@
       <div class="amount-row hidden" id="amtShippingRow"><span>Shipping</span><strong id="amtShipping"></strong></div>
       <div class="amount-row total"><span>Total in escrow</span><strong id="amtTotal"></strong></div>
 
+      <div id="deadlineBanner" class="hidden"></div>
       <div id="shipPanel" class="hidden"></div>
 
       <div id="actionArea"></div>
@@ -1056,6 +1087,115 @@ function buildPayoutNote(){
     </div>`;
 }
 
+
+
+// ---------------------------------------------------------------
+// DEADLINE COUNTDOWNS
+//
+// Reads transaction_deadlines() — the same SQL function the reminder
+// sweep uses — so what a user sees on screen and what they receive by
+// email can never disagree. Computing this separately in JS would drift
+// the moment either side changed.
+//
+// Ticks every second so the countdown is live rather than a stale
+// snapshot from page load.
+// ---------------------------------------------------------------
+let deadlineTimer = null;
+
+function formatCountdown(totalSeconds){
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if(d > 0) return d + 'd ' + h + 'h ' + m + 'm';
+  if(h > 0) return h + 'h ' + m + 'm ' + sec + 's';
+  return m + 'm ' + sec + 's';
+}
+
+function formatDeadlineDate(iso){
+  try{
+    return new Date(iso).toLocaleString(undefined, {
+      weekday:'short', month:'short', day:'numeric',
+      hour:'numeric', minute:'2-digit'
+    });
+  } catch(e){ return ''; }
+}
+
+async function loadDeadlines(txn, isBuyer, isSeller){
+  const el = document.getElementById('deadlineBanner');
+  if(!el) return;
+
+  let d = null;
+  try{
+    const { data, error } = await supabaseClient.rpc('transaction_deadlines', { p_transaction_id: txn.id });
+    if(error || !data) { el.classList.add('hidden'); return; }
+    d = data;
+  } catch(e){ el.classList.add('hidden'); return; }
+
+  if(deadlineTimer) clearInterval(deadlineTimer);
+
+  function render(){
+    const cards = [];
+
+    // Seller's ship-by clock.
+    if(isSeller && d.ship_by && d.ship_by_seconds_left !== null && d.ship_by_seconds_left !== undefined){
+      const left = Number(d.ship_by_seconds_left) - Math.floor((Date.now() - renderStart) / 1000);
+      if(d.ship_by_missed || left <= 0){
+        cards.push(
+          '<div class="deadline-card urgent">'
+          + '<div class="deadline-label">Ship-by deadline passed</div>'
+          + '<div class="deadline-date">Was due ' + escapeHtml(formatDeadlineDate(d.ship_by)) + '</div>'
+          + '<p class="deadline-note">The buyer can now cancel this order for a full refund. Get the package scanned in as soon as possible.</p>'
+          + '</div>');
+      } else {
+        cards.push(
+          '<div class="deadline-card' + (left < 86400 ? ' urgent' : '') + '">'
+          + '<div class="deadline-label">Ship within</div>'
+          + '<div class="deadline-time">' + formatCountdown(left) + '</div>'
+          + '<div class="deadline-date">Due ' + escapeHtml(formatDeadlineDate(d.ship_by)) + '</div>'
+          + '<p class="deadline-note">The clock stops at the carrier\u2019s first scan, not when you print the label. Miss it and the buyer can cancel for a full refund.</p>'
+          + '</div>');
+      }
+    }
+
+    // Buyer's inspection window.
+    if(isBuyer && d.inspection_deadline && d.inspection_seconds_left !== null && d.inspection_seconds_left !== undefined){
+      const left = Number(d.inspection_seconds_left) - Math.floor((Date.now() - renderStart) / 1000);
+      if(left > 0){
+        cards.push(
+          '<div class="deadline-card' + (left < 86400 ? ' urgent' : '') + '">'
+          + '<div class="deadline-label">Inspection window closes in</div>'
+          + '<div class="deadline-time">' + formatCountdown(left) + '</div>'
+          + '<div class="deadline-date">Closes ' + escapeHtml(formatDeadlineDate(d.inspection_deadline)) + '</div>'
+          + '<p class="deadline-note">Check the item against the listing \u2014 condition, accessories, serial number \u2014 before confirming receipt. Released funds cannot be recovered. If anything is wrong, report an issue instead.</p>'
+          + '</div>');
+      }
+    }
+
+    // Seller waiting on a delivered order.
+    if(isSeller && d.inspection_deadline && Number(d.inspection_seconds_left) > 0){
+      cards.push(
+        '<div class="deadline-card">'
+        + '<div class="deadline-label">Buyer inspection in progress</div>'
+        + '<div class="deadline-date">Window closes ' + escapeHtml(formatDeadlineDate(d.inspection_deadline)) + '</div>'
+        + '<p class="deadline-note">Funds release once the buyer confirms receipt.</p>'
+        + '</div>');
+    }
+
+    if(!cards.length){
+      el.classList.add('hidden');
+      if(deadlineTimer) clearInterval(deadlineTimer);
+      return;
+    }
+    el.innerHTML = cards.join('');
+    el.classList.remove('hidden');
+  }
+
+  const renderStart = Date.now();
+  render();
+  deadlineTimer = setInterval(render, 1000);
+}
 
 // =====================================================================
 // SHIPPING PANEL
@@ -1779,6 +1919,7 @@ async function loadTransaction(){
     // undefined and the code-entry box would show on shipped orders.
     await loadShipmentPanel(txn, isBuyer, isSeller);
     await loadReleaseCode(txn, isSeller);
+    await loadDeadlines(txn, isBuyer, isSeller);
     renderActionArea(txn, isBuyer, isSeller);
     checkAndShowReviewBox(txn, isBuyer);
     setupMessageLink(txn, isBuyer, isSeller);

@@ -1375,12 +1375,22 @@ async function runShippingCheckout(deal, chargedPrice, chargedFee){
           var totalEl = document.getElementById('shipCoTotal');
           if(totalEl && typeof chargedPrice === 'number'){
             var grand = chargedPrice + (chargedFee || 0) + state.rate;
+            // Escrow.com bills its own fee separately at their payment
+            // page. The listing page already discloses it, so it must
+            // appear here too — otherwise the buyer sees one total on the
+            // listing, a smaller one here, and a third at Escrow.com.
+            const escrowOwnFee = (typeof estimateEscrowFee === 'function')
+              ? estimateEscrowFee(chargedPrice + (chargedFee || 0)) : 0;
             totalEl.innerHTML =
               '<div class="ship-co-label" style="margin-bottom:8px;">Order total</div>'
               + '<div class="ship-co-sum"><span>Item</span><b>' + shipMoney(chargedPrice) + '</b></div>'
-              + '<div class="ship-co-sum"><span>Protection fee</span><b>' + shipMoney(chargedFee || 0) + '</b></div>'
+              + '<div class="ship-co-sum"><span>Bastion protection fee</span><b>' + shipMoney(chargedFee || 0) + '</b></div>'
               + '<div class="ship-co-sum"><span>Shipping</span><b>' + shipMoney(state.rate) + '</b></div>'
-              + '<div class="ship-co-sum grand"><span>Total held in escrow</span><b>' + shipMoney(grand) + '</b></div>';
+              + '<div class="ship-co-sum grand"><span>Held in escrow</span><b>' + shipMoney(grand) + '</b></div>'
+              + (escrowOwnFee > 0
+                  ? '<div class="ship-co-sum" style="margin-top:9px;"><span>Escrow.com service fee</span><b>' + shipMoney(escrowOwnFee) + '</b></div>'
+                    + '<p class="ship-co-note">Escrow.com charges their own fee at their payment page. It is shown here so the figure there matches what you expect.</p>'
+                  : '');
             totalEl.classList.remove('hidden');
           }
 

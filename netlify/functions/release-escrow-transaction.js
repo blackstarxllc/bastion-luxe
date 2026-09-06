@@ -18,6 +18,13 @@ const ESCROW_API_BASE = process.env.ESCROW_LIVE_MODE === 'true'
   ? 'https://api.escrow.com/2017-09-01'
   : 'https://api.escrow-sandbox.com/2017-09-01';
 
+// 🔴 See _escrow-lib.js for the full explanation. This used to release
+// ONLY the merchandise item — the protection fee and shipping items were
+// never explicitly released on any transaction, ever. applyActionToAllItems
+// releases every item on the transaction, treating the merchandise item as
+// the one whose success actually matters to the buyer/seller relationship.
+const { applyActionToAllItems } = require('./_escrow-lib');
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method not allowed' };
@@ -187,35 +194,58 @@ exports.handler = async (event) => {
       };
     }
 
-    const authHeader = 'Basic ' + Buffer.from(`${ESCROW_EMAIL}:${ESCROW_API_KEY}`).toString('base64');
+    // 2. Release every item on the transaction — merchandise, protection
+    //    fee, and shipping — not just the merchandise item. See
+    //    _escrow-lib.js for the full history of why this matters: the fee
+    //    and shipping items were never explicitly released before this fix.
+    const releaseResult = await applyActionToAllItems({
+      escrowTransactionId: txn.escrow_transaction_id,
+      action: 'release',
+      email: ESCROW_EMAIL,
+      apiKey: ESCROW_API_KEY,
+      primaryItemId: txn.escrow_item_id,
+    });
 
-    // 2. Tell Escrow.com to release this item's funds to the seller now.
-    const releaseRes = await fetch(
-      `${ESCROW_API_BASE}/transaction/${encodeURIComponent(txn.escrow_transaction_id)}/item/${encodeURIComponent(txn.escrow_item_id)}`,
-      {
-        method: 'PATCH',
-        headers: {
-          Authorization: authHeader,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ action: 'release' }),
+    // Log every non-primary failure to system_alerts so a fee or shipping
+    // item that failed to release doesn't disappear into function logs
+    // nobody is watching. This function previously had NO system_alerts
+    // logging at all — every failure path only reached console.error.
+    const secondaryFailures = releaseResult.results.filter((r) => r.ok === false);
+    if (secondaryFailures.length) {
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/system_alerts`, {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=minimal',
+          },
+          body: JSON.stringify({
+            source: 'release_escrow_transaction',
+            message: 'One or more non-merchandise items failed to release — revenue may be stuck in escrow',
+            context: { transactionId, escrowTransactionId: txn.escrow_transaction_id, failures: secondaryFailures },
+          }),
+        });
+      } catch (e) {
+        console.error('release-escrow-transaction: could not log secondary failure alert', e);
       }
-    );
+    }
 
-    const releaseData = await releaseRes.json().catch(() => ({}));
-
-    if (!releaseRes.ok) {
-      console.error('release-escrow-transaction: Escrow.com rejected the release', {
-        status: releaseRes.status,
-        escrowResponse: releaseData,
+    if (!releaseResult.ok) {
+      console.error('release-escrow-transaction: Escrow.com rejected releasing the merchandise item', {
+        error: releaseResult.primaryError,
       });
       return {
         statusCode: 502,
-        body: JSON.stringify({ error: 'Escrow.com rejected the release request', details: releaseData }),
+        body: JSON.stringify({ error: 'Escrow.com rejected the release request', details: releaseResult.primaryError }),
       };
     }
 
     // 3. Reflect the real release back onto Bastion's own row.
+    const primaryResult = releaseResult.results.find((r) => String(r.id) === String(txn.escrow_item_id));
+    const releasedStatus = (primaryResult && primaryResult.response && primaryResult.response.status) || 'released';
+
     await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}`, {
       method: 'PATCH',
       headers: {
@@ -224,10 +254,10 @@ exports.handler = async (event) => {
         'Content-Type': 'application/json',
         Prefer: 'return=minimal',
       },
-      body: JSON.stringify({ escrow_status: releaseData.status || 'released' }),
+      body: JSON.stringify({ escrow_status: releasedStatus }),
     });
 
-    return { statusCode: 200, body: JSON.stringify({ released: true, escrow_status: releaseData.status }) };
+    return { statusCode: 200, body: JSON.stringify({ released: true, escrow_status: releasedStatus }) };
   } catch (err) {
     console.error('release-escrow-transaction fatal error:', err);
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) };

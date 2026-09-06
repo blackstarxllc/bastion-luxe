@@ -181,27 +181,49 @@ exports.handler = async (event) => {
       },
     ];
 
-    // Shipping is paid by the buyer and passed through to the SELLER,
-    // because the seller is the one who buys the postage when they
-    // generate their label. It is a separate line item so the buyer can
-    // see exactly what they're paying for, and so Bastion's protection fee
-    // is visibly calculated on the item price alone — Bastion does not
-    // take a percentage of postage.
+    // ------------------------------------------------------------------
+    // 🔴 CORRECTED HERE — this previously paid the SELLER, which was a
+    // guaranteed loss on every real shipment.
     //
-    // This was previously missing entirely: the buyer was quoted a
-    // shipping rate at checkout, shown it, and then never charged for it,
-    // which meant the seller silently absorbed the cost out of their own
-    // proceeds. Both the Shipping page and the FAQ state that the buyer
-    // pays shipping, so the code now actually does that.
+    // Retail-rate pricing (added 2026-09-02) charges the buyer the
+    // standard carrier RETAIL rate, while Bastion is billed the discounted
+    // COMMERCIAL rate by the carrier when the label is actually purchased
+    // (create-shipping-label.js, billed to Bastion's own Shippo/EasyPost
+    // account — never through escrow). The margin is the spread between
+    // those two figures, and it is real revenue ONLY if the retail amount
+    // collected from the buyer actually reaches Bastion.
+    //
+    // This item's beneficiary was left as the seller from before Bastion
+    // took over buying labels directly, back when a seller genuinely paid
+    // for their own postage out of pocket. With Bastion now purchasing
+    // every label, that beneficiary was never updated. The result: the
+    // full RETAIL shipping amount released to the seller — a windfall for
+    // a cost they never paid — while Bastion separately paid the real
+    // COMMERCIAL rate to the carrier out of its own account, recovering
+    // nothing. Every real shipment lost Bastion money, guaranteed, with no
+    // hypothetical about it.
+    //
+    // Fixed: shipping now pays Bastion's own broker account (ESCROW_EMAIL),
+    // the same beneficiary as the protection fee. Bastion collects the
+    // retail amount through escrow, pays the commercial rate to the
+    // carrier when the label is bought, and keeps the spread. The seller
+    // never sees a shipping line item, correctly, because the seller was
+    // never the one paying for postage in the first place.
+    //
+    // type must be 'broker_fee': Escrow.com rejects any schedule line
+    // that pays a non-seller party unless the ITEM's type is 'broker_fee'
+    // (confirmed against the live 422 that governed the original protection
+    // fee item — see the comment on that item below).
+    // ------------------------------------------------------------------
     if (shippingCost > 0) {
       escrowItems.push({
         title: 'Shipping',
-        description: 'Carrier shipping cost',
-        type: 'general_merchandise',
+        description: 'Carrier shipping cost \u2014 collected by Bastion, which purchases the label',
+        type: 'broker_fee',
         inspection_period: inspectionPeriod,
         quantity: 1,
         schedule: [
-          { amount: shippingCost, payer_customer: buyerEmail, beneficiary_customer: sellerEmail },
+          { amount: shippingCost, payer_customer: buyerEmail, beneficiary_customer: ESCROW_EMAIL },
         ],
       });
     }

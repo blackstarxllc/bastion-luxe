@@ -22,6 +22,11 @@ const ESCROW_API_BASE = process.env.ESCROW_LIVE_MODE === 'true'
   ? 'https://api.escrow.com/2017-09-01'
   : 'https://api.escrow-sandbox.com/2017-09-01';
 
+// 🔴 Same gap as release-escrow-transaction.js — see _escrow-lib.js. This
+// used to act on only the merchandise item, leaving the protection fee and
+// shipping items untouched on both release and cancel/refund.
+const { applyActionToAllItems } = require('./_escrow-lib');
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method not allowed' };
@@ -105,8 +110,6 @@ exports.handler = async (event) => {
       };
     }
 
-    const authHeader = 'Basic ' + Buffer.from(`${ESCROW_EMAIL}:${ESCROW_API_KEY}`).toString('base64');
-
     // ------------------------------------------------------------------
     // NOTE ON ESCROW.COM'S REFUND BEHAVIOUR — READ BEFORE CHANGING
     //
@@ -127,19 +130,34 @@ exports.handler = async (event) => {
     // ------------------------------------------------------------------
     const escrowAction = action === 'release' ? 'release' : 'cancel';
 
-    const actionRes = await fetch(
-      `${ESCROW_API_BASE}/transaction/${encodeURIComponent(txn.escrow_transaction_id)}/item/${encodeURIComponent(txn.escrow_item_id)}`,
-      {
-        method: 'PATCH',
-        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: escrowAction }),
-      }
-    );
-    const actionData = await actionRes.json().catch(() => ({}));
+    // Act on EVERY item (merchandise, protection fee, shipping) — see
+    // _escrow-lib.js. Previously only the merchandise item was ever
+    // touched here, meaning a dispute resolved through this endpoint never
+    // released or cancelled Bastion's own fee/shipping revenue either way.
+    const actionResult = await applyActionToAllItems({
+      escrowTransactionId: txn.escrow_transaction_id,
+      action: escrowAction,
+      email: ESCROW_EMAIL,
+      apiKey: ESCROW_API_KEY,
+      primaryItemId: txn.escrow_item_id,
+    });
 
-    if (!actionRes.ok) {
-      console.error('admin-resolve-dispute: Escrow.com rejected the action', {
-        transactionId, action: escrowAction, status: actionRes.status, escrowResponse: actionData,
+    const secondaryFailures = actionResult.results.filter((r) => r.ok === false);
+    if (secondaryFailures.length) {
+      await fetch(`${SUPABASE_URL}/rest/v1/system_alerts`, {
+        method: 'POST',
+        headers: Object.assign({}, svcHeaders, { Prefer: 'return=minimal' }),
+        body: JSON.stringify({
+          source: 'admin_resolve_dispute',
+          message: 'One or more non-merchandise items failed to ' + escrowAction + ' — revenue may be stuck in escrow',
+          context: { transactionId, escrowAction, failures: secondaryFailures },
+        }),
+      }).catch(() => {});
+    }
+
+    if (!actionResult.ok) {
+      console.error('admin-resolve-dispute: Escrow.com rejected the action on the merchandise item', {
+        transactionId, action: escrowAction, error: actionResult.primaryError,
       });
       await fetch(`${SUPABASE_URL}/rest/v1/system_alerts`, {
         method: 'POST',
@@ -147,21 +165,23 @@ exports.handler = async (event) => {
         body: JSON.stringify({
           source: 'admin_resolve_dispute',
           message: 'Escrow.com rejected an admin dispute resolution — resolve manually on Escrow.com',
-          context: { transactionId, action: escrowAction, status: actionRes.status, escrowResponse: JSON.stringify(actionData).slice(0, 800) },
+          context: { transactionId, action: escrowAction, error: actionResult.primaryError },
         }),
       }).catch(() => {});
       return {
         statusCode: 502,
         body: JSON.stringify({
-          error: 'Escrow.com did not accept this action: ' + (actionData.description || actionData.message || actionRes.status) + '. Nothing was changed. This may need to be completed on the Escrow.com dashboard directly.',
-          escrowResponse: actionData,
+          error: 'Escrow.com did not accept this action: ' + (actionResult.primaryError && (actionResult.primaryError.description || actionResult.primaryError.message) || 'unknown error') + '. Nothing was changed. This may need to be completed on the Escrow.com dashboard directly.',
+          escrowResponse: actionResult.primaryError,
         }),
       };
     }
 
-    // Escrow.com confirmed. Now, and only now, reflect it locally.
+    // Escrow.com confirmed the merchandise item. Now, and only now, reflect
+    // it locally.
+    const primaryResult = actionResult.results.find((r) => String(r.id) === String(txn.escrow_item_id));
     const newTxnStatus = action === 'release' ? 'released' : 'cancelled';
-    const patch = { status: newTxnStatus, escrow_status: actionData.status || newTxnStatus };
+    const patch = { status: newTxnStatus, escrow_status: (primaryResult && primaryResult.response && primaryResult.response.status) || newTxnStatus };
     if (action === 'release') patch.released_at = new Date().toISOString();
 
     await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}`, {
@@ -180,7 +200,12 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ resolved: true, action, escrow_status: actionData.status }),
+      body: JSON.stringify({
+        resolved: true, action,
+        escrow_status: patch.escrow_status,
+        itemsProcessed: actionResult.itemCount,
+        secondaryFailures: secondaryFailures.length,
+      }),
     };
   } catch (err) {
     console.error('admin-resolve-dispute fatal error:', err);

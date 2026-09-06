@@ -1,0 +1,68 @@
+-- NO SCHEMA CHANGE in this batch — this is a code-only fix, recorded here
+-- to keep the audit trail continuous with the money-handling changes
+-- around it.
+--
+-- ============================================================
+-- 🔴 FIX 1 — shipping money was paid to the wrong party
+-- ============================================================
+-- The retail-rate shipping markup added earlier the same day had a
+-- guaranteed-loss bug: the escrow schedule line for Shipping paid the
+-- SELLER the full retail amount, left over from before Bastion took over
+-- buying labels directly (back when a seller genuinely paid for their own
+-- postage). With Bastion now purchasing every label at the discounted
+-- commercial rate, that beneficiary was never updated.
+--
+-- Net effect on every real shipment: the seller received a windfall
+-- payment for a shipping cost they never paid, while Bastion separately
+-- paid the real carrier bill out of its own account and recovered nothing.
+-- Not a hypothetical — guaranteed on every transaction if used with real
+-- money.
+--
+-- Fixed in create-escrow-transaction.js: the Shipping item's beneficiary
+-- is now ESCROW_EMAIL (Bastion's own broker account), the same as the
+-- protection fee, and its type is 'broker_fee' (required — Escrow.com
+-- rejects a schedule line paying a non-seller party unless the item type
+-- is broker_fee). Bastion now collects the retail shipping amount through
+-- escrow, pays the commercial rate to the carrier when the label is
+-- bought, and keeps the spread.
+--
+-- ============================================================
+-- 🔴 FIX 2 — found while verifying fix 1, more foundational
+-- ============================================================
+-- release-escrow-transaction.js and admin-resolve-dispute.js each only
+-- ever acted on ONE escrow item (the merchandise item), via a single PATCH
+-- to /transaction/{id}/item/{escrow_item_id}. Neither the protection fee
+-- item nor the shipping item was EVER explicitly released or cancelled by
+-- any code path, on any past transaction — shipped or not.
+--
+-- This means Bastion's protection fee revenue has never been confirmed to
+-- reach a released state through explicit action. Whether Escrow.com
+-- auto-completes an item once its own inspection period elapses without a
+-- dispute is unverified from this environment, and relying on
+-- undocumented behavior for real revenue is not acceptable.
+--
+-- New shared helper netlify/functions/_escrow-lib.js:
+-- applyActionToAllItems() fetches the full transaction and applies
+-- release/cancel to every item that isn't already settled. The
+-- merchandise item is the "primary" — its outcome determines overall
+-- success, since that's what the buyer/seller relationship is actually
+-- about. Fee/shipping item failures are logged to system_alerts (which
+-- this function previously had NONE of) rather than blocking the buyer's
+-- release.
+--
+-- Both release-escrow-transaction.js and admin-resolve-dispute.js now use
+-- this shared helper instead of their own single-item PATCH.
+--
+-- A genuine crash bug was also caught while wiring this up: the final
+-- response in admin-resolve-dispute.js referenced a variable (actionData)
+-- that no longer existed after the refactor, which would have thrown a
+-- ReferenceError on every successful dispute resolution. Fixed before it
+-- ever shipped.
+--
+-- ⚠️ STILL TO VERIFY IN SANDBOX before real money: whether Escrow.com
+-- allows more than one 'broker_fee' item per transaction (Shipping and
+-- the protection fee are now both broker_fee). Nothing in the observed
+-- API behavior suggests a limit, but this codebase has no documentation
+-- access to confirm it. Test a full sandbox purchase and check that all
+-- items — merchandise, protection fee, and shipping — actually appear and
+-- release correctly.

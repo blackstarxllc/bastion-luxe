@@ -678,6 +678,62 @@
     from{ opacity:0; transform:translateY(6px); }
     to{ opacity:1; transform:translateY(0); }
   }
+
+  /* ---------------- Profile settings ---------------- */
+  .settings-card{
+    background:rgba(255,255,255,0.022);
+    border:1px solid var(--hairline);
+    border-radius:4px; padding:22px 22px 20px;
+    margin-bottom:14px; position:relative; overflow:hidden;
+  }
+  .settings-card::before{
+    content:""; position:absolute; left:0; top:0; bottom:0; width:2px;
+    background:linear-gradient(180deg, var(--brass), rgba(199,162,104,0.15));
+  }
+  .settings-group-title{
+    font-family:'IBM Plex Mono', monospace; font-size:10px;
+    letter-spacing:0.15em; text-transform:uppercase; color:var(--brass);
+    margin-bottom:8px;
+  }
+  .settings-note{
+    font-size:12.5px; line-height:1.6; color:var(--stone);
+    margin:0 0 18px;
+  }
+  .settings-field{ margin-bottom:15px; }
+  .settings-field label{
+    display:block; font-size:11.5px; color:var(--stone); margin-bottom:6px;
+  }
+  .settings-field label span{ color:var(--stone-dim); }
+  .settings-field input, .settings-field textarea{
+    width:100%; box-sizing:border-box;
+    background:rgba(255,255,255,0.03); border:1px solid var(--hairline);
+    border-radius:4px; color:var(--ivory);
+    font-family:'Inter', sans-serif; font-size:14px; line-height:1.5;
+    padding:11px 13px; outline:none; resize:vertical;
+    transition:border-color .2s cubic-bezier(.22,.61,.36,1);
+  }
+  .settings-field input:focus, .settings-field textarea:focus{ border-color:var(--brass); }
+  .settings-hint{ font-size:11px; color:var(--stone-dim); margin-top:6px; line-height:1.5; }
+  .settings-toggle{
+    display:flex; gap:11px; align-items:center;
+    font-size:13.5px; color:#D8D3C6; margin-bottom:12px; cursor:pointer;
+  }
+  .settings-toggle input{ accent-color:var(--brass); width:16px; height:16px; flex-shrink:0; }
+  .settings-btn{
+    margin-top:6px; padding:11px 20px; border:none; border-radius:4px; cursor:pointer;
+    background:linear-gradient(120deg,#E9CB98 0%,var(--brass) 45%,#B08A4F 75%,#D9B87E 100%);
+    color:var(--brass-ink); font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px; letter-spacing:0.09em; text-transform:uppercase; font-weight:600;
+    transition:opacity .2s ease;
+  }
+  .settings-btn:hover:not(:disabled){ opacity:0.9; }
+  .settings-btn:disabled{ opacity:0.45; cursor:not-allowed; }
+  .settings-btn.secondary{
+    background:transparent; border:1px solid rgba(199,162,104,0.4); color:var(--brass);
+  }
+  .settings-status{ margin-top:11px; font-size:12.5px; line-height:1.5; }
+  .settings-status.ok{ color:#8FBBAC; }
+  .settings-status.bad{ color:#C9776B; }
 </style>
   <script>
     if ("serviceWorker" in navigator) {
@@ -687,6 +743,7 @@
     }
   </script>
 <link rel="stylesheet" href="/bastion-mobile.css">
+<script src="/bastion-toast.js"></script>
 </head>
 <body>
 
@@ -791,6 +848,9 @@
     <button class="acct-tab" data-panel="panelSearches" role="tab" type="button">
       Searches <span class="acct-tab-count" id="tabCountSearches"></span>
     </button>
+    <button class="acct-tab" data-panel="panelSettings" role="tab" type="button">
+      Settings
+    </button>
   </nav>
 
   <div class="acct-panel" id="panelListings">
@@ -829,6 +889,71 @@
       <div class="section-count" id="savedSearchesCount"></div>
     </div>
     <div class="item-grid" id="savedSearchesList"></div>
+  </div>
+
+  <div class="acct-panel hidden" id="panelSettings">
+    <div class="section-head">
+      <div class="section-title">Profile Settings</div>
+    </div>
+
+    <div class="settings-card">
+      <div class="settings-group-title">Your details</div>
+      <p class="settings-note">Your name and phone number are private. Other users only ever see your public handle.</p>
+
+      <div class="settings-field">
+        <label for="setDisplayName">Full name</label>
+        <input id="setDisplayName" type="text" maxlength="80" autocomplete="name" placeholder="e.g. Alex Ramirez">
+      </div>
+
+      <div class="settings-field">
+        <label for="setPhone">Phone <span>(optional)</span></label>
+        <input id="setPhone" type="tel" maxlength="24" autocomplete="tel" placeholder="e.g. 512-555-0148">
+        <div class="settings-hint">Used only as the delivery contact on shipments.</div>
+      </div>
+
+      <div class="settings-field">
+        <label for="setBio">Public bio <span>(optional)</span></label>
+        <textarea id="setBio" maxlength="280" rows="3" placeholder="Shown on your seller profile."></textarea>
+        <div class="settings-hint"><span id="bioCount">0</span>/280 · This one <strong>is</strong> public.</div>
+      </div>
+
+      <button class="settings-btn" id="saveProfileBtn" type="button">Save details</button>
+      <div class="settings-status hidden" id="profileStatus"></div>
+    </div>
+
+    <div class="settings-card">
+      <div class="settings-group-title">Email address</div>
+      <p class="settings-note">Changing this sends a confirmation link to the new address. The change only takes effect once you click that link.</p>
+
+      <div class="settings-field">
+        <label for="setEmail">Email</label>
+        <input id="setEmail" type="email" maxlength="160" autocomplete="email">
+      </div>
+
+      <button class="settings-btn secondary" id="saveEmailBtn" type="button">Update email</button>
+      <div class="settings-status hidden" id="emailStatus"></div>
+    </div>
+
+    <div class="settings-card">
+      <div class="settings-group-title">Notifications</div>
+      <p class="settings-note">Transaction-critical emails — payment confirmed, item delivered, dispute opened — are always sent and can't be switched off.</p>
+
+      <label class="settings-toggle">
+        <input type="checkbox" id="setNotifyEmail">
+        <span>Email me about account activity</span>
+      </label>
+      <label class="settings-toggle">
+        <input type="checkbox" id="setNotifyOffers">
+        <span>Offers and counter-offers on my listings</span>
+      </label>
+      <label class="settings-toggle">
+        <input type="checkbox" id="setNotifyShipping">
+        <span>Shipping and carrier scan updates</span>
+      </label>
+
+      <button class="settings-btn secondary" id="saveNotifyBtn" type="button">Save preferences</button>
+      <div class="settings-status hidden" id="notifyStatus"></div>
+    </div>
   </div>
 
   <div class="acct-panel hidden" id="panelTransactions">
@@ -1707,6 +1832,156 @@ function syncAccountTabCounts(){
 setTimeout(syncAccountTabCounts, 600);
 setTimeout(syncAccountTabCounts, 1600);
 setTimeout(syncAccountTabCounts, 3200);
+
+// ---------------------------------------------------------------
+// PROFILE SETTINGS
+//
+// Note on email: it is NOT stored in profiles. It lives in auth.users
+// and is changed through Supabase Auth, which sends a confirmation link
+// before the change takes effect. Duplicating it into profiles would
+// create two sources of truth that drift, and would skip that
+// verification step entirely.
+// ---------------------------------------------------------------
+async function loadProfileSettings(){
+  try{
+    const { data: userRes } = await supabaseClient.auth.getUser();
+    const user = userRes && userRes.user;
+    if(!user) return;
+
+    const emailEl = document.getElementById('setEmail');
+    if(emailEl) emailEl.value = user.email || '';
+
+    const { data, error } = await supabaseClient
+      .from('profiles')
+      .select('display_name, phone, bio, notify_email, notify_offers, notify_shipping')
+      .eq('id', user.id)
+      .maybeSingle();
+    if(error || !data) return;
+
+    const set = function(id, val){ const el = document.getElementById(id); if(el) el.value = val || ''; };
+    set('setDisplayName', data.display_name);
+    set('setPhone', data.phone);
+    set('setBio', data.bio);
+
+    const check = function(id, val){ const el = document.getElementById(id); if(el) el.checked = val !== false; };
+    check('setNotifyEmail', data.notify_email);
+    check('setNotifyOffers', data.notify_offers);
+    check('setNotifyShipping', data.notify_shipping);
+
+    const bio = document.getElementById('setBio');
+    const count = document.getElementById('bioCount');
+    if(bio && count){
+      const sync = function(){ count.textContent = String(bio.value.length); };
+      bio.addEventListener('input', sync);
+      sync();
+    }
+  } catch(e){
+    console.error('Could not load profile settings:', e);
+  }
+}
+
+function settingsStatus(id, message, ok){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.textContent = message;
+  el.className = 'settings-status ' + (ok ? 'ok' : 'bad');
+  el.classList.remove('hidden');
+}
+
+(function wireProfileSettings(){
+  const saveBtn = document.getElementById('saveProfileBtn');
+  if(saveBtn){
+    saveBtn.addEventListener('click', async function(){
+      saveBtn.disabled = true;
+      const original = saveBtn.textContent;
+      saveBtn.textContent = 'Saving\u2026';
+      try{
+        const { data: userRes } = await supabaseClient.auth.getUser();
+        const user = userRes && userRes.user;
+        if(!user) throw new Error('Your session has expired. Please sign in again.');
+
+        const phone = document.getElementById('setPhone').value.trim();
+        if(phone && !/^[\d\s\-\+\(\)\.]{7,24}$/.test(phone)){
+          settingsStatus('profileStatus', 'That phone number doesn\u2019t look right.', false);
+          return;
+        }
+
+        const { error } = await supabaseClient.from('profiles').update({
+          display_name: document.getElementById('setDisplayName').value.trim() || null,
+          phone: phone || null,
+          bio: document.getElementById('setBio').value.trim() || null,
+          updated_at: new Date().toISOString()
+        }).eq('id', user.id);
+
+        if(error) throw new Error(error.message);
+        settingsStatus('profileStatus', 'Details saved.', true);
+      } catch(err){
+        settingsStatus('profileStatus', err.message || 'Could not save your details.', false);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = original;
+      }
+    });
+  }
+
+  const emailBtn = document.getElementById('saveEmailBtn');
+  if(emailBtn){
+    emailBtn.addEventListener('click', async function(){
+      const value = document.getElementById('setEmail').value.trim();
+      if(!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(value)){
+        settingsStatus('emailStatus', 'Enter a valid email address.', false);
+        return;
+      }
+      emailBtn.disabled = true;
+      const original = emailBtn.textContent;
+      emailBtn.textContent = 'Sending\u2026';
+      try{
+        const { data: userRes } = await supabaseClient.auth.getUser();
+        if(userRes && userRes.user && userRes.user.email === value){
+          settingsStatus('emailStatus', 'That is already your email address.', false);
+          return;
+        }
+        const { error } = await supabaseClient.auth.updateUser({ email: value });
+        if(error) throw new Error(error.message);
+        settingsStatus('emailStatus', 'Check your inbox \u2014 we sent a confirmation link. Your email changes once you click it.', true);
+      } catch(err){
+        settingsStatus('emailStatus', err.message || 'Could not update your email.', false);
+      } finally {
+        emailBtn.disabled = false;
+        emailBtn.textContent = original;
+      }
+    });
+  }
+
+  const notifyBtn = document.getElementById('saveNotifyBtn');
+  if(notifyBtn){
+    notifyBtn.addEventListener('click', async function(){
+      notifyBtn.disabled = true;
+      const original = notifyBtn.textContent;
+      notifyBtn.textContent = 'Saving\u2026';
+      try{
+        const { data: userRes } = await supabaseClient.auth.getUser();
+        const user = userRes && userRes.user;
+        if(!user) throw new Error('Your session has expired. Please sign in again.');
+        const { error } = await supabaseClient.from('profiles').update({
+          notify_email: document.getElementById('setNotifyEmail').checked,
+          notify_offers: document.getElementById('setNotifyOffers').checked,
+          notify_shipping: document.getElementById('setNotifyShipping').checked,
+          updated_at: new Date().toISOString()
+        }).eq('id', user.id);
+        if(error) throw new Error(error.message);
+        settingsStatus('notifyStatus', 'Preferences saved.', true);
+      } catch(err){
+        settingsStatus('notifyStatus', err.message || 'Could not save your preferences.', false);
+      } finally {
+        notifyBtn.disabled = false;
+        notifyBtn.textContent = original;
+      }
+    });
+  }
+
+  loadProfileSettings();
+})();
 </script>
 </body>
 </html>

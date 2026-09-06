@@ -149,6 +149,25 @@
     background:linear-gradient(180deg, var(--brass), rgba(199,162,104,0.15));
   }
   .dash-card:hover{ border-color:rgba(199,162,104,0.28); }
+  /* Now real buttons — reset UA styling and make them feel tappable. */
+  button.dash-card{
+    display:block; width:100%; text-align:left; cursor:pointer;
+    font-family:inherit; color:inherit;
+    transition:border-color .25s cubic-bezier(.22,.61,.36,1),
+               transform .2s cubic-bezier(.22,.61,.36,1),
+               background .25s ease;
+  }
+  button.dash-card:hover{
+    transform:translateY(-2px);
+    background:rgba(199,162,104,0.045);
+  }
+  button.dash-card:active{ transform:translateY(0); }
+  .needs-action{
+    display:inline-block; margin-left:8px; padding:2px 7px; border-radius:2px;
+    background:rgba(201,119,107,0.15); color:#E0958D;
+    font-family:'IBM Plex Mono', monospace; font-size:8.5px;
+    letter-spacing:0.1em; text-transform:uppercase;
+  }
   .dash-card-label{
     font-family:'IBM Plex Mono', monospace; font-size:10px;
     letter-spacing:0.1em; text-transform:uppercase; color:var(--stone-dim);
@@ -787,22 +806,27 @@
   <h1 class="page-title">My <span>Account</span></h1>
   <div style="margin-top:10px; font-size:14px; color:var(--stone);">Welcome back, <span id="dashFirstName" style="color:var(--ivory);">there</span> — here's where things stand.</div>
 
+  <!-- These were static squares. They now jump to exactly what they
+       describe: Active Listings opens My Listings filtered to active,
+       Open Trades opens the new In Escrow tab, Completed Trades opens
+       History filtered to released. A number you can't click is a number
+       you have to go hunting for. -->
   <div class="dash-grid" style="margin-top:28px;">
-    <div class="dash-card">
+    <button class="dash-card" type="button" id="dashCardListings">
       <div class="dash-card-label">Active Listings</div>
       <div class="dash-card-value" id="statActiveListings">0</div>
       <div class="dash-card-foot">Items you have for sale</div>
-    </div>
-    <div class="dash-card">
+    </button>
+    <button class="dash-card" type="button" id="dashCardEscrow">
       <div class="dash-card-label">Open Trades</div>
       <div class="dash-card-value" id="statOpenTrades">0</div>
       <div class="dash-card-foot">Deals currently in escrow</div>
-    </div>
-    <div class="dash-card">
+    </button>
+    <button class="dash-card" type="button" id="dashCardCompleted">
       <div class="dash-card-label">Completed Trades</div>
       <div class="dash-card-value" id="statCompletedTrades">0</div>
       <div class="dash-card-foot">Successfully released</div>
-    </div>
+    </button>
   </div>
 
   <div class="dash-actions" style="margin-top:18px;">
@@ -835,6 +859,9 @@
   <nav class="acct-tabs" id="acctTabs" role="tablist">
     <button class="acct-tab active" data-panel="panelListings" role="tab" type="button">
       Listings <span class="acct-tab-count" id="tabCountListings"></span>
+    </button>
+    <button class="acct-tab" data-panel="panelEscrow" role="tab" type="button">
+      In Escrow <span class="acct-tab-count" id="tabCountEscrow"></span>
     </button>
     <button class="acct-tab" data-panel="panelTransactions" role="tab" type="button">
       History <span class="acct-tab-count" id="tabCountTransactions"></span>
@@ -954,6 +981,15 @@
       <button class="settings-btn secondary" id="saveNotifyBtn" type="button">Save preferences</button>
       <div class="settings-status hidden" id="notifyStatus"></div>
     </div>
+  </div>
+
+  <div class="acct-panel hidden" id="panelEscrow">
+    <div class="section-head">
+      <div class="section-title">Deals In Escrow</div>
+      <div class="section-count" id="escrowCount"></div>
+    </div>
+    <p class="settings-note" style="margin:0 0 4px;">Live deals where money is being held. Anything needing your action is marked.</p>
+    <div class="ledger" id="escrowList"></div>
   </div>
 
   <div class="acct-panel hidden" id="panelTransactions">
@@ -1312,6 +1348,10 @@ let allTransactionsUserId = null;
 function renderTransactions(txns, userId){
   allTransactions = txns;
   allTransactionsUserId = userId;
+
+  // The In Escrow tab is driven from the same fetched rows — no second
+  // query, since it's a filtered view of data already in memory.
+  renderEscrowPanel(txns, userId);
 
   const filterWrap = document.getElementById('transactionsFilterWrap');
   const select = document.getElementById('transactionsMonthFilter');
@@ -1981,6 +2021,122 @@ function settingsStatus(id, message, ok){
   }
 
   loadProfileSettings();
+})();
+
+// ---------------------------------------------------------------
+// IN-ESCROW TAB + CLICKABLE DASHBOARD CARDS
+//
+// "Open Trades" is the number that actually matters day to day — money is
+// being held and somebody is waiting on somebody. It previously had no
+// screen of its own; the count was shown and then led nowhere.
+// ---------------------------------------------------------------
+
+// Statuses where funds are held and the deal is still live.
+const ESCROW_LIVE_STATUSES = [
+  'pending_payment', 'funded', 'shipped', 'in_transit',
+  'delivered', 'disputed', 'return_approved', 'return_in_transit'
+];
+
+function switchAccountTab(panelId, opts){
+  const tab = document.querySelector('.acct-tab[data-panel="' + panelId + '"]');
+  if(tab) tab.click();
+  if(opts && opts.listingStatus){
+    const btn = document.querySelector('#listingsFilterTabs [data-status="' + opts.listingStatus + '"]');
+    if(btn) btn.click();
+  }
+  if(opts && opts.txnSort){
+    const sortEl = document.getElementById('txnSort');
+    if(sortEl){ sortEl.value = opts.txnSort; sortEl.dispatchEvent(new Event('change')); }
+  }
+  const panel = document.getElementById(panelId);
+  if(panel && panel.scrollIntoView){
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+function renderEscrowPanel(txns, userId){
+  const el = document.getElementById('escrowList');
+  const countEl = document.getElementById('escrowCount');
+  if(!el) return;
+
+  const live = (txns || []).filter(function(t){
+    return ESCROW_LIVE_STATUSES.indexOf(String(t.status)) !== -1;
+  }).sort(function(a,b){
+    return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+  });
+
+  if(countEl) countEl.textContent = live.length + (live.length === 1 ? ' deal' : ' deals');
+  const tabCount = document.getElementById('tabCountEscrow');
+  if(tabCount) tabCount.textContent = live.length ? String(live.length) : '';
+
+  if(!live.length){
+    el.innerHTML = '<div class="empty-row">Nothing in escrow right now. Deals appear here from the moment a purchase starts until funds are released.</div>';
+    return;
+  }
+
+  el.innerHTML = live.map(function(t){
+    const isBuyer = t.buyer_id === userId;
+    const isSeller = t.seller_id === userId;
+    const status = String(t.status);
+
+    // Whose move is it? This is the whole reason to open this tab.
+    let action = '';
+    if(status === 'pending_payment' && isBuyer) action = 'Finish payment';
+    else if(status === 'funded' && isSeller) action = 'Ship or hand off';
+    else if(status === 'delivered' && isBuyer) action = 'Confirm receipt';
+    else if(status === 'disputed') action = 'Under review';
+    else if(status === 'return_approved' && isBuyer) action = 'Send it back';
+
+    const statusLabel = status === 'pending_payment' ? 'Awaiting payment'
+      : status === 'in_transit' ? 'In transit'
+      : status === 'return_approved' ? 'Return approved'
+      : status === 'return_in_transit' ? 'Return in transit'
+      : status.replace(/_/g, ' ');
+
+    const photo = (t.deals && t.deals.image_url)
+      ? '<img src="' + escapeHtml(t.deals.image_url) + '" alt="">'
+      : '<span>B</span>';
+
+    const when = t.created_at
+      ? new Date(t.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric' })
+      : '';
+
+    return '<div class="ledger-row" onclick="window.location.href=\'bastion-transaction.html?id='
+      + encodeURIComponent(t.id) + '\'">'
+      +   '<div class="ledger-thumb">' + photo + '</div>'
+      +   '<div class="ledger-main">'
+      +     '<div class="ledger-name">' + escapeHtml(t.item_name || 'Untitled item')
+      +       (action ? '<span class="needs-action">' + escapeHtml(action) + '</span>' : '')
+      +     '</div>'
+      +     '<div class="ledger-meta">'
+      +       '<span>' + escapeHtml(when) + '</span>'
+      +       '<span class="ledger-role' + (isSeller ? ' selling' : '') + '">'
+      +         (isBuyer ? 'Buying' : (isSeller ? 'Selling' : '')) + '</span>'
+      +     '</div>'
+      +   '</div>'
+      +   '<div class="ledger-amount">'
+      +     '<div class="ledger-value">' + formatMoney(t.total) + '</div>'
+      +     '<div class="ledger-status ' + escapeHtml(status) + '">' + escapeHtml(statusLabel) + '</div>'
+      +   '</div>'
+      + '</div>';
+  }).join('');
+}
+
+(function wireDashCards(){
+  const listings = document.getElementById('dashCardListings');
+  if(listings) listings.addEventListener('click', function(){
+    switchAccountTab('panelListings', { listingStatus: 'active' });
+  });
+
+  const escrow = document.getElementById('dashCardEscrow');
+  if(escrow) escrow.addEventListener('click', function(){
+    switchAccountTab('panelEscrow');
+  });
+
+  const completed = document.getElementById('dashCardCompleted');
+  if(completed) completed.addEventListener('click', function(){
+    switchAccountTab('panelTransactions', { txnSort: 'newest' });
+  });
 })();
 </script>
 </body>

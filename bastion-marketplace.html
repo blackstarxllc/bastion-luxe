@@ -464,16 +464,6 @@
     color:var(--ivory);
   }
 
-  .card-status{
-    font-family:'IBM Plex Mono', monospace;
-    font-size:9.5px;
-    letter-spacing:0.1em;
-    text-transform:uppercase;
-    color:var(--stone-dim);
-  }
-  .card-status.live{ color:#5FAE93; }
-  .card-status.pending{ color:#D9B36B; }
-  .card-status.sold{ color:var(--stone-dim); }
 
   .trusted-badge{
     display:inline-flex;
@@ -1061,10 +1051,12 @@ function renderGrid(){
       ? '<img src="' + escapeHtml(deal.image_url) + '" alt="' + name + '">'
       : '<div class="mini-seal">B</div>';
     const isFav = favoriteIds.has(String(id));
-    const status = deal.status || 'active';
-    const statusLabel = status === 'sold' ? 'Sold' : status === 'pending' ? 'Pending' : 'Live';
-    const statusClass = status === 'sold' ? 'sold' : status === 'pending' ? 'pending' : 'live';
-    const statusDot = status === 'active' || !deal.status ? '● ' : '';
+    // Status badges removed from marketplace cards. Sold listings are
+    // already filtered out of this query entirely, and a "Pending" tag on
+    // a browsable card just tells a shopper not to bother — it advertises
+    // unavailability on a surface whose whole job is to sell. Status still
+    // appears where it's actionable: the listing page, and the seller's
+    // own My Listings tab.
     return `
       <div class="card" onclick="window.location.href='bastion-deal-detail.html?id=${encodeURIComponent(id)}'" style="cursor:pointer; animation-delay:${Math.min(idx, 8) * 40}ms;">
         <div class="card-photo">
@@ -1074,9 +1066,6 @@ function renderGrid(){
           <button class="fav-btn ${isFav ? 'active' : ''}" onclick="event.stopPropagation(); toggleFavorite('${id}', this)">
             <svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M12 21s-7-4.5-9.5-9C.5 8 2 4 6 4c2 0 3.5 1.2 4 3 .5-1.8 2-3 4-3 4 0 5.5 4 3.5 8-2.5 4.5-9.5 9-9.5 9z"/></svg>
           </button>
-        </div>
-        <div class="card-top">
-          <span class="card-status ${statusClass}">${statusDot}${statusLabel}</span>
         </div>
         <div class="card-name">${name}</div>
         ${condition}

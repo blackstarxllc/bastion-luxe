@@ -28,20 +28,35 @@
    =================================================================== */
 
 /* -------------------------------------------------------------------
-   Global guard.
+   ⚠️ DO NOT ADD overflow-x:hidden TO html OR body AT DESKTOP WIDTHS.
+   ⚠️ DO NOT ADD IT TO html AT ANY WIDTH.
 
-   Applies at all widths. If any single element still overflows, the
-   page scrolls vertically only rather than letting the user drag the
-   whole layout sideways — which is what made the site feel broken.
+   A previous version of this file did exactly that, as a blunt guard
+   against sideways scrolling. It broke the desktop deal page badly:
+   the sticky purchase panel (price, Begin Secure Purchase, Message
+   Seller) was clipped off the right edge and became unreachable.
+
+   Two separate reasons, both worth knowing:
+
+     1. overflow:hidden CLIPS overflowing content rather than
+        containing it — anything past the edge is simply gone, with no
+        way to scroll to it.
+     2. overflow on an ancestor BREAKS position:sticky in descendants.
+        The panel uses position:sticky, so the rule silently disabled
+        its positioning as well.
+
+   The correct approach is to fix the elements that actually overflow —
+   which the phone rules below do — not to clip the whole document.
+   The narrow-width guard is scoped to phones only, and applies to
+   body alone so sticky behaviour survives.
    ------------------------------------------------------------------- */
-html, body {
-  max-width: 100%;
-  overflow-x: hidden;
-}
 
-/* Media and embeds should never exceed their container. */
-img, video, svg, iframe, canvas, table {
+/* Media and embeds should never exceed their container. Deliberately
+   excludes svg: many icons here are sized by width/height attributes
+   and a blanket max-width can collapse them. */
+img, video, iframe, canvas {
   max-width: 100%;
+  height: auto;
 }
 
 /* Long unbroken strings — tracking numbers, wallet-style IDs, URLs in
@@ -54,6 +69,13 @@ p, span, div, td, th, li, h1, h2, h3, strong, em, label {
    PHONES  (<= 620px)
    =================================================================== */
 @media (max-width: 620px) {
+
+  /* Narrow-width overflow guard. Scoped to phones and to body only —
+     see the warning at the top of this file for why this must never be
+     applied to html, or at desktop widths. */
+  body {
+    overflow-x: hidden;
+  }
 
   /* ---- Display typography -------------------------------------- */
   /* clamp() keeps these fluid rather than snapping between two fixed
@@ -137,6 +159,58 @@ p, span, div, td, th, li, h1, h2, h3, strong, em, label {
   .process-step {
     min-width: 0 !important;
     flex: 1 1 100% !important;
+  }
+
+
+  /* ---- Navigation ------------------------------------------------
+     The nav is a single non-wrapping flex row: wordmark on the left,
+     then bell, logout, Messages, My Account, List an Item, Dashboard.
+     That is far more than fits across a phone, so the last items —
+     "List an Item" and "Dashboard" — were pushed off the right edge
+     with no way to reach them. Two of the most important actions on
+     the site were simply unavailable on mobile.
+
+     Fixed by letting the nav wrap onto a second row: the wordmark and
+     the icon controls sit on the first line, the text links flow onto
+     the second. Everything stays reachable, nothing is hidden behind a
+     menu that needs new JS, and every existing link and handler is
+     untouched.
+     ---------------------------------------------------------------- */
+  .nav {
+    flex-wrap: wrap !important;
+    padding: 12px 16px !important;
+    gap: 8px 6px !important;
+    row-gap: 4px !important;
+  }
+  .nav .wordmark {
+    font-size: 19px !important;
+  }
+  .nav-right {
+    flex-wrap: wrap !important;
+    gap: 4px 6px !important;
+    width: 100%;
+    justify-content: flex-start !important;
+  }
+  .nav-btn {
+    padding: 9px 10px !important;
+    font-size: 9.5px !important;
+    letter-spacing: 0.06em !important;
+    flex: 0 0 auto;
+  }
+  /* The bell and logout are icon buttons — keep them compact and put
+     them first so the text links read as one continuous row. */
+  .notif-wrap,
+  .nav-logout-btn {
+    order: -1;
+  }
+  .nav-logout-btn {
+    width: 36px;
+    height: 36px;
+    padding: 0 !important;
+  }
+  /* A sticky two-row nav eats too much of a short screen. */
+  .nav {
+    position: relative !important;
   }
 
   /* ---- Header --------------------------------------------------- */

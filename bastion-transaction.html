@@ -740,6 +740,7 @@
       });
     }
   </script>
+<link rel="stylesheet" href="/bastion-mobile.css">
 </head>
 <body>
 
@@ -1464,7 +1465,14 @@ async function loadReleaseCode(txn, isSeller){
         .select('fulfilment')
         .eq('id', txn.deal_id)
         .maybeSingle();
-      txn.__hasReleaseCode = !data || !data.fulfilment || data.fulfilment !== 'shipping';
+      // Mirrors the server fix in release-escrow-transaction.js: the
+      // SHIPMENT decides the flow, not the listing's fulfilment option.
+      // A 'both' listing generates a release code up front, but if this
+      // buyer chose shipping there is no handoff and the code is
+      // irrelevant — showing the entry box would ask them for something
+      // they can never obtain.
+      txn.__hasReleaseCode = !txn.__shipment
+        && (!data || !data.fulfilment || data.fulfilment !== 'shipping');
     }
   } catch(e){
     // Never let this break the page; worst case the code entry is hidden
@@ -1764,8 +1772,12 @@ async function loadTransaction(){
     document.getElementById('amtShipping').textContent = formatMoney(shipAmt);
     document.getElementById('amtTotal').textContent = formatMoney(txn.total || 0);
 
-    await loadReleaseCode(txn, isSeller);
+    // Order matters: loadShipmentPanel sets txn.__shipment, and
+    // loadReleaseCode now depends on it to decide whether this is an
+    // in-person or shipped order. Reversed, __shipment would always be
+    // undefined and the code-entry box would show on shipped orders.
     await loadShipmentPanel(txn, isBuyer, isSeller);
+    await loadReleaseCode(txn, isSeller);
     renderActionArea(txn, isBuyer, isSeller);
     checkAndShowReviewBox(txn, isBuyer);
     setupMessageLink(txn, isBuyer, isSeller);

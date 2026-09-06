@@ -138,7 +138,50 @@ exports.handler = async (event) => {
     const codeRows = await codeRes.json().catch(() => []);
     const expectedCode = codeRows && codeRows[0] && codeRows[0].code;
 
-    if (expectedCode) {
+    // ------------------------------------------------------------------
+    // 🔴 WHICH FLOW IS THIS? The shipment row decides — not the code.
+    //
+    // A listing set to fulfilment='both' lets the BUYER choose at checkout
+    // whether to meet in person or have it shipped. But the release-code
+    // trigger fires on transaction insert, before that choice is known, so
+    // it generates a code for every 'both' listing.
+    //
+    // The old logic here keyed purely off "does a code exist?" — so a
+    // buyer who chose SHIPPING on a 'both' listing got a code they could
+    // never legitimately obtain (there is no handoff), and release was
+    // demanded against it. Funds on those orders could never be released
+    // at all: the buyer had no code, and the delivery branch was
+    // unreachable because a code existed.
+    //
+    // The shipment row is the actual source of truth for how this specific
+    // transaction is being fulfilled, so check it first and let it decide.
+    // ------------------------------------------------------------------
+    const shipLookupRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/shipments?transaction_id=eq.${encodeURIComponent(transactionId)}&direction=eq.outbound&select=status,delivered_at`,
+      {
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      }
+    );
+    const shipLookupRows = await shipLookupRes.json().catch(() => []);
+    const outboundShipment = shipLookupRows && shipLookupRows[0];
+    const isShippedOrder = !!outboundShipment;
+
+    if (isShippedOrder) {
+      // Shipped: the carrier must confirm delivery before funds move.
+      // A stale release code from a 'both' listing is ignored entirely.
+      if (outboundShipment.status !== 'delivered') {
+        return {
+          statusCode: 409,
+          body: JSON.stringify({
+            error: 'This order has not been confirmed delivered by the carrier yet. Funds cannot be released before delivery.',
+            notDelivered: true,
+          }),
+        };
+      }
+    } else if (expectedCode) {
       // This is an in-person handoff. The buyer must present the seller's code.
       const supplied = String(releaseCode || '').trim().toUpperCase();
       if (!supplied) {
@@ -154,33 +197,10 @@ exports.handler = async (event) => {
           body: JSON.stringify({ error: 'That release code is not correct.', codeInvalid: true }),
         };
       }
-    } else {
-      // No release code means this is a shipped order. Funds cannot be
-      // released before the carrier has actually confirmed delivery —
-      // otherwise a buyer could release on a promise and a seller could
-      // pressure them into it.
-      const shipRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/shipments?transaction_id=eq.${encodeURIComponent(transactionId)}&select=status,delivered_at`,
-        {
-          headers: {
-            apikey: SUPABASE_SERVICE_ROLE_KEY,
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          },
-        }
-      );
-      const shipRows = await shipRes.json().catch(() => []);
-      const shipment = shipRows && shipRows[0];
-
-      if (shipment && shipment.status !== 'delivered') {
-        return {
-          statusCode: 409,
-          body: JSON.stringify({
-            error: 'This order has not been confirmed delivered by the carrier yet. Funds cannot be released before delivery.',
-            notDelivered: true,
-          }),
-        };
-      }
     }
+    // No shipment and no code: an in-person order created before release
+    // codes existed. Nothing further to gate on — the buyer confirming
+    // receipt is the whole signal.
 
     if (!txn.escrow_transaction_id || !txn.escrow_item_id) {
       console.error('release-escrow-transaction: missing escrow IDs on transaction', {

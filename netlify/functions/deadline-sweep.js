@@ -75,12 +75,18 @@ exports.handler = async (event) => {
 
     const count = await res.json().catch(() => 0);
 
-    // Email the notifications this sweep just created. In-app alone isn't
-    // enough for a deadline — someone who isn't on the site that day is
-    // exactly the person who needs telling.
-    if (Number(count) > 0) {
-      await emailNewNotifications(SUPABASE_URL, svc);
-    }
+    // NOTE: this function does NOT send emails itself.
+    //
+    // An earlier version did, and that was a duplicate-send bug waiting to
+    // happen: public.notifications has an AFTER INSERT trigger
+    // (trg_send_email_for_notification) which already emails every
+    // transactional notification. Emailing again from here would have sent
+    // every deadline reminder twice.
+    //
+    // The trigger is also the better place for it — it covers notifications
+    // created from anywhere (webhooks, status triggers, this sweep) rather
+    // than just the ones this function happens to create, and it reads each
+    // user's notification preferences.
 
     console.log('deadline-sweep: sent', count, 'reminders');
     return { statusCode: 200, body: JSON.stringify({ ok: true, sent: count }) };
@@ -89,82 +95,3 @@ exports.handler = async (event) => {
     return { statusCode: 200, body: JSON.stringify({ ok: false, error: err.message }) };
   }
 };
-
-// Pulls very recent unsent notifications and emails them via the existing
-// send-notification-email function, respecting each user's preferences.
-async function emailNewNotifications(SUPABASE_URL, svc) {
-  try {
-    const res = await fetch(
-      SUPABASE_URL + '/rest/v1/notifications?select=id,user_id,title,body,link&created_at=gte.' +
-        encodeURIComponent(new Date(Date.now() - 5 * 60 * 1000).toISOString()) +
-        '&type=in.(shipping,transaction)&order=created_at.desc&limit=50',
-      { headers: svc }
-    );
-    if (!res.ok) return;
-    const rows = await res.json().catch(() => []);
-    if (!rows.length) return;
-
-    // One preferences lookup for the whole batch rather than per row.
-    const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
-    const prefRes = await fetch(
-      SUPABASE_URL + '/rest/v1/profiles?select=id,notify_email,notify_shipping&id=in.(' +
-        userIds.join(',') + ')',
-      { headers: svc }
-    );
-    const prefs = {};
-    if (prefRes.ok) {
-      (await prefRes.json().catch(() => [])).forEach((p) => { prefs[p.id] = p; });
-    }
-
-    // send-notification-email takes to_email, not a user id — it does no
-    // user lookup of its own. Resolve addresses here, in one admin call,
-    // rather than one per recipient.
-    const emails = {};
-    try {
-      const authRes = await fetch(SUPABASE_URL + '/auth/v1/admin/users?per_page=200', { headers: svc });
-      if (authRes.ok) {
-        const payload = await authRes.json().catch(() => ({}));
-        const list = Array.isArray(payload) ? payload : (payload.users || []);
-        list.forEach((u) => { if (u && u.id) emails[u.id] = u.email; });
-      }
-    } catch (e) {
-      console.error('deadline-sweep: could not resolve user emails', e.message);
-    }
-
-    const base = process.env.URL || process.env.DEPLOY_PRIME_URL || 'https://bastionmarket.com';
-
-    for (const row of rows) {
-      const p = prefs[row.user_id];
-      // Deadline reminders are transaction-critical, but still respect a
-      // user who has switched account emails off entirely.
-      if (p && p.notify_email === false) continue;
-
-      const toEmail = emails[row.user_id];
-      if (!toEmail) {
-        console.error('deadline-sweep: no email on file for user', row.user_id);
-        continue;
-      }
-
-      // Header name and payload shape must match send-notification-email
-      // exactly: it authenticates on 'x-webhook-secret' and requires
-      // to_email. Getting either wrong fails silently with a 401/400 that
-      // nobody sees, so these are deliberately not guessed.
-      await fetch(base + '/.netlify/functions/send-notification-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-webhook-secret': process.env.INTERNAL_WEBHOOK_SECRET || '',
-        },
-        body: JSON.stringify({
-          to_email: toEmail,
-          subject: row.title,
-          title: row.title,
-          body: row.body,
-          link: (row.link || '').replace(/^\//, ''),
-        }),
-      }).catch((e) => console.error('deadline-sweep: email send failed', e.message));
-    }
-  } catch (e) {
-    console.error('deadline-sweep: emailNewNotifications failed', e.message);
-  }
-}

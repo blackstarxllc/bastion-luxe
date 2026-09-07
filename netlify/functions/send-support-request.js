@@ -97,8 +97,17 @@ exports.handler = async (event) => {
     // 2) Email the team, best-effort — a failure here doesn't lose the request,
     // since it's already saved above.
     const RESEND_API_KEY = process.env.RESEND_API_KEY;
+    // Support mail goes out under its own identity rather than the generic
+    // notifications address, so a customer replying to a support thread is
+    // replying to support@ — not to a no-reply notifications mailbox.
+    const SUPPORT_FROM_EMAIL = process.env.SUPPORT_FROM_EMAIL
+      || 'Bastion Support <support@bastionmarket.com>';
     const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'Bastion <onboarding@resend.dev>';
     const SUPPORT_NOTIFY_EMAIL = process.env.SUPPORT_NOTIFY_EMAIL;
+
+    if (!SUPPORT_NOTIFY_EMAIL) {
+      console.error('send-support-request: SUPPORT_NOTIFY_EMAIL is not set — request saved but nobody was emailed');
+    }
 
     if (RESEND_API_KEY && SUPPORT_NOTIFY_EMAIL) {
       const html = `
@@ -121,13 +130,70 @@ exports.handler = async (event) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: RESEND_FROM_EMAIL,
+          from: SUPPORT_FROM_EMAIL,
           to: [SUPPORT_NOTIFY_EMAIL],
+          // Replying in the inbox goes straight back to the customer.
           reply_to: email,
           subject: `[Support] ${subject}`,
           html,
         }),
-      });
+      }).then(async (r) => {
+        if (r && !r.ok) {
+          const detail = await r.text().catch(() => '');
+          console.error('send-support-request: team email rejected', r.status, detail.slice(0, 300));
+          // Silent email failure on a support request is the worst kind —
+          // the customer thinks they've been heard and nobody has seen it.
+          await fetch(`${SUPABASE_URL}/rest/v1/system_alerts`, {
+            method: 'POST',
+            headers: {
+              apikey: SUPABASE_SERVICE_ROLE_KEY,
+              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+              'Content-Type': 'application/json',
+              Prefer: 'return=minimal',
+            },
+            body: JSON.stringify({
+              source: 'support_request',
+              message: 'Support notification email was rejected — a customer request may be unseen',
+              context: { to: SUPPORT_NOTIFY_EMAIL, status: r.status, detail: detail.slice(0, 300) },
+            }),
+          }).catch(() => {});
+        } else {
+          console.log('send-support-request: notified', SUPPORT_NOTIFY_EMAIL);
+        }
+      }).catch((e) => console.error('send-support-request: team email failed', e.message));
+
+      // Acknowledge to the customer. Without this, someone who writes in
+      // has no idea whether it went anywhere, and the usual next move is
+      // to submit the same request three more times.
+      const ackHtml = `
+        <div style="font-family:Georgia,serif;background:#0A0B0D;color:#F1ECE1;padding:32px;">
+          <div style="max-width:520px;margin:0 auto;">
+            <div style="font-size:22px;margin-bottom:20px;">Bast<span style="color:#C7A268;font-style:italic;">ion</span></div>
+            <p style="font-size:15px;line-height:1.65;margin:0 0 16px;">Hi ${escapeHtml(name)}, we've got your message and it's with the Bastion support team.</p>
+            <p style="font-size:14px;line-height:1.65;color:#D8D3C6;margin:0 0 20px;">You'll get a reply at this address. Just reply to this email if you need to add anything — it stays on the same thread.</p>
+            <div style="border-left:2px solid #C7A268;padding-left:14px;margin:0 0 20px;">
+              <p style="font-size:12px;color:#8D8F94;margin:0 0 4px;">Your message</p>
+              <p style="font-size:13px;color:#8D8F94;margin:0 0 8px;"><strong style="color:#F1ECE1;">${escapeHtml(subject)}</strong></p>
+              <p style="font-size:13px;line-height:1.6;color:#8D8F94;white-space:pre-wrap;margin:0;">${escapeHtml(message)}</p>
+            </div>
+            <p style="font-size:12px;color:#5B5D62;line-height:1.6;margin:0;">If this is about a live transaction, your funds stay held in escrow while we look into it. Nothing releases while a support case or dispute is open.</p>
+          </div>
+        </div>`;
+
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: SUPPORT_FROM_EMAIL,
+          to: [email],
+          reply_to: SUPPORT_NOTIFY_EMAIL,
+          subject: `We received your message — ${subject}`,
+          html: ackHtml,
+        }),
+      }).catch((e) => console.error('send-support-request: ack email failed', e.message));
     }
 
     return { statusCode: 200, body: JSON.stringify({ received: true }) };

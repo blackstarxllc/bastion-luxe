@@ -1,0 +1,50 @@
+-- ALREADY APPLIED to the live Bastion database on 2026-09-07.
+--
+-- ============================================================
+-- 1. 🔴 SHIPPING AND TRANSACTION EMAILS WERE NEVER SENT
+-- ============================================================
+-- send_email_for_notification() only emailed six notification types:
+--   funded, funds_released, payment_issue, dispute, offer, saved_search
+--
+-- Every notification the shipping system creates uses type 'shipping' or
+-- 'transaction'. Neither was on that list, so NONE of these ever produced
+-- an email — they existed in-app only:
+--   * item shipped / carrier scans
+--   * delivered ("your inspection window is open")
+--   * order cancelled / refund in progress
+--   * return approved
+--   * ship-by deadline warnings AND misses
+--   * inspection-window closing warnings
+--   * unpaid order reminders
+--
+-- These are exactly the messages a user is NOT on the site to see. An
+-- in-app-only delivery notice is useless: the person who needs it is the
+-- one who hasn't opened Bastion today.
+--
+-- ALSO FIXED: the notify_email / notify_shipping / notify_offers
+-- preferences built into the account Settings tab were never read by
+-- anything. A user could switch shipping emails off and keep getting them.
+-- Now honoured — except for funds_released, dispute and payment_issue,
+-- which are sent regardless. Someone who muted Bastion must still be told
+-- that money moved or that a dispute was opened against them; those carry
+-- deadlines and legal weight.
+--
+-- ALSO: if the vault secret is missing the endpoint 401s and the email is
+-- lost silently forever. That now writes a system_alert instead.
+--
+-- VERIFIED: inserting a 'shipping' notification now passes the trigger
+-- without error (it was silently skipped before). Test row removed.
+--
+-- ============================================================
+-- 2. 🔴 ERROR-LEVEL ADVISOR FINDING — public_profiles view
+-- ============================================================
+-- Introduced by me in the previous batch. The view was created without
+-- security_invoker, so it defaulted to SECURITY DEFINER semantics: it ran
+-- with the CREATOR's permissions and bypassed row-level security for
+-- whoever queried it. On a view over the profiles table that is exactly
+-- backwards — RLS on profiles was not enforced through that path.
+--
+-- Recreated with (security_invoker = true). Supabase advisors now report
+-- ZERO error-level findings. The view still does its real job: giving
+-- pages a column list that cannot accidentally include display_name or
+-- phone.

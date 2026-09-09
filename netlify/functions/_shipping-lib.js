@@ -16,6 +16,49 @@ const PROVIDER = (process.env.SHIPPING_PROVIDER || 'shippo').toLowerCase();
 const SHIPPING_TEST_MODE = process.env.SHIPPING_TEST_MODE === 'true';
 
 // ---------------------------------------------------------------
+// GO-LIVE SAFETY: catch a key/mode mismatch before it costs money.
+//
+// Two failure modes, both silent and both expensive:
+//
+//   LIVE key + test mode ON  -> Shippo returns TEST labels. They look
+//     real, they download as a PDF, and a carrier will not accept them.
+//     A seller ships nothing, the ship-by clock runs out, and the buyer
+//     cancels. Worst case this happens on every order until someone
+//     notices the labels were never scannable.
+//
+//   TEST key + test mode OFF -> label purchase fails outright, so no
+//     seller can ship at all.
+//
+// Shippo test keys are prefixed `shippo_test_` and live keys
+// `shippo_live_`, so the mismatch is detectable. This does not block
+// anything — it writes a loud console error and is surfaced through
+// shippingConfigWarning() so the calling function can alert on it.
+// ---------------------------------------------------------------
+function shippingConfigWarning() {
+  const key = process.env.SHIPPO_API_KEY || process.env.EASYPOST_API_KEY || '';
+  if (!key) return 'No shipping API key is configured.';
+
+  if (PROVIDER === 'shippo') {
+    const looksTest = key.startsWith('shippo_test_');
+    const looksLive = key.startsWith('shippo_live_');
+    if (looksLive && SHIPPING_TEST_MODE) {
+      return 'LIVE Shippo key is set but SHIPPING_TEST_MODE is still true — labels will be TEST labels that carriers will not accept. Set SHIPPING_TEST_MODE=false.';
+    }
+    if (looksTest && !SHIPPING_TEST_MODE) {
+      return 'TEST Shippo key is set but SHIPPING_TEST_MODE is false — label purchases will fail. Set SHIPPING_TEST_MODE=true, or install the live key.';
+    }
+  }
+  return null;
+}
+
+// Surface it immediately on cold start as well, so it shows in function
+// logs even if nothing calls the checker.
+(function () {
+  const w = shippingConfigWarning();
+  if (w) console.error('[shipping-config] ' + w);
+})();
+
+// ---------------------------------------------------------------
 // Protection tiers.
 //
 // These mirror public.shipping_tier_for_value() in Postgres. They are
@@ -515,6 +558,8 @@ function json(statusCode, body) {
 
 module.exports = {
   PROVIDER,
+  SHIPPING_TEST_MODE,
+  shippingConfigWarning,
   toRetailRate,
   serviceBand,
   tierForValue,

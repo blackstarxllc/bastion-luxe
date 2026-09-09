@@ -221,6 +221,22 @@ exports.handler = async (event) => {
         : picked.id;
     }
 
+    // Fail loudly on a key/mode mismatch rather than handing the seller a
+    // label a carrier will refuse. See shippingConfigWarning() for why
+    // this specific failure is worth its own check.
+    const configWarning = lib.shippingConfigWarning();
+    if (configWarning) {
+      await lib.logAlert('shipping_config', configWarning, {
+        shipmentId,
+        provider: lib.PROVIDER,
+        testMode: lib.SHIPPING_TEST_MODE,
+      });
+      return lib.json(503, {
+        error: 'Shipping is temporarily unavailable while a configuration issue is resolved. Support has been alerted — your order is unaffected, but your ship-by deadline keeps running, so contact support right away if it is close.',
+        configIssue: true,
+      });
+    }
+
     let label;
     try {
       label = await lib.buyLabel(token);

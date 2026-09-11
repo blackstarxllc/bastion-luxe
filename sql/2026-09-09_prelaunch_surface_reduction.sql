@@ -1,0 +1,50 @@
+-- ALREADY APPLIED to the live Bastion database on 2026-09-09.
+--
+-- PRE-LAUNCH AUDIT — every SECURITY DEFINER function reachable from the
+-- public REST API was individually inspected for an internal auth check,
+-- rather than assumed safe. Results:
+--
+--   VERIFIED SAFE (own auth check inside the function):
+--     approve_return          - requires is_admin
+--     circumvention_summary   - requires is_admin
+--     get_dispute_bundle      - requires buyer/seller/admin
+--     get_my_listing_private  - requires seller/admin
+--     log_admin_action        - requires is_admin
+--     transaction_deadlines   - requires buyer/seller/admin
+--     get_my_data             - scoped entirely to auth.uid(), raises if null
+--     request_account_deletion- scoped to auth.uid(), raises if null
+--
+--   PUBLIC BY DESIGN (marketplace browsing, no PII):
+--     get_recent_sales        - public sold-price data
+--     increment_deal_view     - view counting for signed-out visitors
+--
+--   REMOVED:
+--     seller_shipping_stats(uuid)  - DEAD WEIGHT. SECURITY DEFINER with NO
+--       internal auth check, anon-callable with an arbitrary seller UUID.
+--       Returned aggregate counts only (no PII) so exposure was low, but it
+--       was referenced by no page, function or trigger. An unused,
+--       unauthenticated, definer-rights entry point into the shipments
+--       table is not worth keeping for a feature that does not exist.
+--
+--     get_my_listing_serial(text)  - SUPERSEDED by get_my_listing_private(),
+--       which returns the serial AND the private ship-from address in one
+--       call. Unused since. Two functions doing the same job is how a
+--       future change lands on the wrong one.
+--
+--   HARDENED:
+--     increment_deal_view - now a no-op unless the deal is status='active'.
+--       As an unauthenticated write endpoint it could previously be called
+--       in a loop against ANY deal id, including sold or removed listings,
+--       inflating counts that feed popularity ordering.
+--       NOTE: the column is `views`, not `view_count` — a first attempt
+--       assumed the latter and was correctly rejected by Postgres.
+--
+--   LEFT DELIBERATELY:
+--     pg_net in the public schema. It is used by
+--     send_email_for_notification() to POST to the Netlify email endpoint.
+--     Relocating a live extension an active trigger depends on risks
+--     breaking every notification email for a WARN-level finding. Its
+--     functions are not granted to anon.
+--
+-- Exposed SECURITY DEFINER surface reduced from 15 functions to 12.
+-- ERROR-level advisor findings: zero.

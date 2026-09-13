@@ -122,6 +122,47 @@ exports.handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ error: 'Could not look up buyer or seller email' }) };
     }
 
+    // ------------------------------------------------------------------
+    // BROKER IDENTITY COLLISION GUARD
+    //
+    // ESCROW_EMAIL is Bastion's own broker account at Escrow.com. Escrow
+    // rejects any transaction where the same customer appears as more than
+    // one non-partner party — so if the seller (or buyer) signed up using
+    // that same email, the API returns:
+    //
+    //   "Cannot have the same customer as multiple non-partner parties"
+    //
+    // That already happened in testing and the 422 is opaque: the buyer
+    // just sees a failed purchase with no explanation, and the listing
+    // looks broken. Catch it here with a message that says what's actually
+    // wrong, and log it so it surfaces in the Admin panel.
+    // ------------------------------------------------------------------
+    const brokerEmail = String(ESCROW_EMAIL || '').trim().toLowerCase();
+    if (brokerEmail && String(sellerEmail || '').trim().toLowerCase() === brokerEmail) {
+      await logAlertToSupabase(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, 'escrow_transaction_creation',
+        'Seller account uses the same email as the Bastion broker identity — Escrow.com will reject this transaction',
+        { transactionId, sellerEmail, brokerEmail });
+      return {
+        statusCode: 409,
+        body: JSON.stringify({
+          error: 'This listing cannot be purchased because the seller account uses the same email address as Bastion\u2019s escrow account. The seller needs to list from a different account. Support has been notified.',
+          brokerCollision: true,
+        }),
+      };
+    }
+    if (brokerEmail && String(buyerEmail || '').trim().toLowerCase() === brokerEmail) {
+      await logAlertToSupabase(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, 'escrow_transaction_creation',
+        'Buyer account uses the same email as the Bastion broker identity — Escrow.com will reject this transaction',
+        { transactionId, buyerEmail, brokerEmail });
+      return {
+        statusCode: 409,
+        body: JSON.stringify({
+          error: 'You cannot purchase using the account that Bastion\u2019s escrow service is registered to. Please use a different account.',
+          brokerCollision: true,
+        }),
+      };
+    }
+
     const itemPrice = Number(txn.price || 0);
     const bastionFee = Number(txn.fee || 0);
     const shippingCost = Number(txn.shipping_cost || 0);

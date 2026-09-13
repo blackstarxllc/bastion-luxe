@@ -3,6 +3,39 @@
 Do these **in order**. Steps 1–3 are the switch itself; step 4 is the one
 test that actually proves it works.
 
+
+---
+
+## 🔴 READ FIRST — a blocker specific to your account
+
+`ESCROW_SANDBOX_EMAIL` (and whatever you set `ESCROW_LIVE_EMAIL` to) is
+**`blackstarxllc@gmail.com`** — that is Bastion's *broker* identity at
+Escrow.com.
+
+Your own Bastion user account uses that **same email**, and it is the
+seller on two listings.
+
+Escrow.com refuses any transaction where one customer appears as more than
+one non-partner party, with:
+
+> `Cannot have the same customer as multiple non-partner parties`
+
+So **any listing you create under `blackstarxllc@gmail.com` cannot be
+bought by anyone.** The buyer just sees a failed purchase. This already
+happened once during testing — that's what the earlier 422 was.
+
+**Two options:**
+- **A (recommended):** sell from a different Bastion account. Keep
+  `blackstarxllc@gmail.com` purely as the broker/owner identity.
+- **B:** set `ESCROW_LIVE_EMAIL` to a *different* address than the one your
+  seller account uses, and register that address as the broker at
+  Escrow.com.
+
+This build now catches the collision **before** calling Escrow.com and
+returns a plain-English message plus a `system_alert`, instead of an opaque
+failed purchase. But the guard only explains the problem — it does not
+remove it.
+
 ---
 
 ## 1. Deploy this build first

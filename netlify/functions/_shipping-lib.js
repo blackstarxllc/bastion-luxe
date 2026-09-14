@@ -39,6 +39,9 @@ function shippingConfigWarning() {
   if (!key) return 'No shipping API key is configured.';
 
   if (PROVIDER === 'shippo') {
+    if (!process.env.SHIPPO_API_KEY) {
+      return 'SHIPPING_PROVIDER is "shippo" but SHIPPO_API_KEY is not set.';
+    }
     const looksTest = key.startsWith('shippo_test_');
     const looksLive = key.startsWith('shippo_live_');
     if (looksLive && SHIPPING_TEST_MODE) {
@@ -46,6 +49,26 @@ function shippingConfigWarning() {
     }
     if (looksTest && !SHIPPING_TEST_MODE) {
       return 'TEST Shippo key is set but SHIPPING_TEST_MODE is false — label purchases will fail. Set SHIPPING_TEST_MODE=true, or install the live key.';
+    }
+  }
+
+  // EasyPost has the identical trap, with its own prefixes:
+  //   EZTK... = test key      EZAK... = production key
+  // The guard previously only understood Shippo prefixes, so on EasyPost
+  // it would never fire at all — silently leaving the most expensive
+  // misconfiguration undetected.
+  if (PROVIDER === 'easypost') {
+    if (!process.env.EASYPOST_API_KEY) {
+      return 'SHIPPING_PROVIDER is "easypost" but EASYPOST_API_KEY is not set. (A SHIPPO_API_KEY will NOT be used — the provider setting decides which key is read.)';
+    }
+    const epKey = process.env.EASYPOST_API_KEY;
+    const looksTest = epKey.startsWith('EZTK');
+    const looksLive = epKey.startsWith('EZAK');
+    if (looksLive && SHIPPING_TEST_MODE) {
+      return 'PRODUCTION EasyPost key is set but SHIPPING_TEST_MODE is still true. Set SHIPPING_TEST_MODE=false.';
+    }
+    if (looksTest && !SHIPPING_TEST_MODE) {
+      return 'TEST EasyPost key is set but SHIPPING_TEST_MODE is false — label purchases will fail. Set SHIPPING_TEST_MODE=true, or install the production key.';
     }
   }
   return null;

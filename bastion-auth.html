@@ -698,14 +698,14 @@
         <div class="field">
           <label for="si-email">Email</label>
           <div class="field-input">
-            <input id="si-email" type="email" placeholder="you@domain.com" required>
+            <input id="si-email" type="email" placeholder="you@domain.com" autocomplete="email" required>
           </div>
         </div>
 
         <div class="field with-toggle">
           <label for="si-pass">Password</label>
           <div class="field-input">
-            <input id="si-pass" type="password" placeholder="••••••••••" required>
+            <input id="si-pass" type="password" placeholder="••••••••••" autocomplete="current-password" required>
             <button type="button" class="eye-btn" onclick="toggleEye('si-pass', this)">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
@@ -734,7 +734,7 @@
         <div class="field">
           <label for="su-name">Full name</label>
           <div class="field-input">
-            <input id="su-name" type="text" placeholder="As it appears on ID" required>
+            <input id="su-name" type="text" placeholder="As it appears on ID" autocomplete="name" required>
           </div>
         </div>
 
@@ -749,14 +749,14 @@
         <div class="field">
           <label for="su-email">Email</label>
           <div class="field-input">
-            <input id="su-email" type="email" placeholder="you@domain.com" required>
+            <input id="su-email" type="email" placeholder="you@domain.com" autocomplete="email" required>
           </div>
         </div>
 
         <div class="field with-toggle">
           <label for="su-pass">Password</label>
           <div class="field-input">
-            <input id="su-pass" type="password" placeholder="At least 10 characters" required minlength="10">
+            <input id="su-pass" type="password" placeholder="At least 10 characters" autocomplete="new-password" required minlength="10">
             <button type="button" class="eye-btn" onclick="toggleEye('su-pass', this)">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
@@ -849,13 +849,46 @@ async function handleSubmit(e, kind){
   try{
     let result;
     if(kind === 'signin'){
-      const email = document.getElementById('si-email').value;
+      // .trim() is load-bearing — see the note on normaliseAuthInputs().
+      // Autofilled emails routinely carry a trailing space, which fails
+      // type="email" validation and silently blocks submission.
+      const email = document.getElementById('si-email').value.trim();
       const password = document.getElementById('si-pass').value;
       result = await supabaseClient.auth.signInWithPassword({ email, password });
+
+      // ------------------------------------------------------------------
+      // AUTOFILL WHITESPACE RECOVERY
+      //
+      // Android Chrome's saved-password picker sometimes appends a trailing
+      // space to the password it fills. The field looks correct, the login
+      // fails with "invalid credentials", and the only way through is to
+      // manually delete a space nobody can see. That is the exact symptom
+      // reported here.
+      //
+      // Passwords are deliberately NOT trimmed up front: a leading or
+      // trailing space can be a legitimate part of someone's password, and
+      // silently stripping it would lock out anyone who chose one.
+      //
+      // So: try the password exactly as entered first. Only if that fails
+      // AND the value has surrounding whitespace, retry once with it
+      // trimmed. A real space-containing password still works (first
+      // attempt succeeds); an autofill artefact is recovered
+      // automatically (second attempt succeeds); and a genuinely wrong
+      // password still fails, because neither attempt matches.
+      // ------------------------------------------------------------------
+      if (result.error && password !== password.trim() && password.trim().length > 0) {
+        const retry = await supabaseClient.auth.signInWithPassword({
+          email,
+          password: password.trim(),
+        });
+        if (!retry.error) {
+          result = retry;
+        }
+      }
     } else {
       const full_name = document.getElementById('su-name').value;
       const handle = document.getElementById('su-handle').value.trim();
-      const email = document.getElementById('su-email').value;
+      const email = document.getElementById('su-email').value.trim();
       const password = document.getElementById('su-pass').value;
       result = await supabaseClient.auth.signUp({
         email, password,
@@ -904,7 +937,7 @@ async function handleSubmit(e, kind){
         setStatus(kind === 'signin' ? 'Welcome back — signed in successfully.' : 'Account created — you\'re in.', 'ok');
         setTimeout(()=> { window.location.href = 'bastion-my-account.html'; }, 650);
       } else if(kind === 'signup'){
-        setStatus('Account created. Check your email (' + document.getElementById('su-email').value + ') for a confirmation link.', 'ok');
+        setStatus('Account created. Check your email (' + document.getElementById('su-email').value.trim() + ') for a confirmation link.', 'ok');
       } else {
         setStatus('Signed in, but no session came back. Try again.', 'bad');
       }
@@ -958,5 +991,60 @@ function showToast(message, isError){
 </script>
 
 <script src="bastion-notifications.js"></script>
+<script>
+// ---------------------------------------------------------------
+// Normalise autofilled credentials.
+//
+// Chrome's saved-account autofill often writes the email with a trailing
+// space. Because the input is type="email" required, that makes the value
+// invalid, so the browser blocks form submission WITHOUT showing an error.
+// The field looks correctly filled and the button appears dead — which is
+// exactly what users reported, and why deleting one character "fixed" it.
+//
+// Trimming at submit time handles the value we send. This handles the
+// field itself, so the browser's own constraint validation passes too and
+// the button never appears broken in the first place.
+//
+// The 'animationstart' hook catches Chrome's autofill specifically: it
+// fires an internal animation on :-webkit-autofill, which is the only
+// reliable signal that autofill (not typing) populated the field.
+// ---------------------------------------------------------------
+(function normaliseAuthInputs(){
+  var emailIds = ['si-email', 'su-email'];
+
+  function scrub(el){
+    if(!el) return;
+    var cleaned = el.value.replace(/[\s\u00A0]+/g, '');
+    if(cleaned !== el.value) el.value = cleaned;
+  }
+
+  emailIds.forEach(function(id){
+    var el = document.getElementById(id);
+    if(!el) return;
+    el.addEventListener('blur', function(){ scrub(el); });
+    el.addEventListener('change', function(){ scrub(el); });
+    // Autofill can land after load; catch it on the way into the field too.
+    el.addEventListener('focus', function(){ setTimeout(function(){ scrub(el); }, 0); });
+  });
+
+  // Re-scrub on submit as a final guard, before validation runs.
+  document.querySelectorAll('form').forEach(function(form){
+    form.addEventListener('submit', function(){
+      emailIds.forEach(function(id){ scrub(document.getElementById(id)); });
+    }, true);
+  });
+
+  // Chrome fires this when it autofills; re-check shortly after.
+  document.addEventListener('animationstart', function(e){
+    if(e.animationName && /autofill/i.test(e.animationName)){
+      emailIds.forEach(function(id){ scrub(document.getElementById(id)); });
+    }
+  }, true);
+
+  // Catch anything autofilled before our listeners attached.
+  setTimeout(function(){ emailIds.forEach(function(id){ scrub(document.getElementById(id)); }); }, 250);
+  setTimeout(function(){ emailIds.forEach(function(id){ scrub(document.getElementById(id)); }); }, 1000);
+})();
+</script>
 </body>
 </html>

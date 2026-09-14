@@ -68,6 +68,50 @@ p, span, div, td, th, li, h1, h2, h3, strong, em, label {
 /* ===================================================================
    PHONES  (<= 620px)
    =================================================================== */
+
+/* ===================================================================
+   AUTOFILL WHITE-BOX FIX (site-wide)
+
+   Chrome/Android forces a hardcoded light background and black text on
+   any autofilled or "remembered account" input, completely overriding
+   the site's own background-color and color CSS. This is exactly the
+   jarring white box that made a filled sign-in field look broken against
+   a dark theme.
+
+   The standard fix works because Chrome will not let CSS touch
+   background-color directly on :-webkit-autofill, but it WILL apply an
+   inset box-shadow, and the box-shadow set here is opaque and the same
+   size as the field, so it visually replaces the forced white background.
+   The huge transition-delay is a real trick, not a typo: Chrome applies
+   its autofill style via a transition, and delaying that transition long
+   enough (effectively "never") stops the flash of white before this
+   override takes effect on some builds.
+
+   text-fill-color (not color) is what actually controls autofilled text
+   color in WebKit/Blink — plain `color` is ignored on this pseudo-class.
+   =================================================================== */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus{
+  -webkit-text-fill-color: #F1ECE1 !important;
+  -webkit-box-shadow: 0 0 0px 1000px #1B1E23 inset !important;
+  box-shadow: 0 0 0px 1000px #1B1E23 inset !important;
+  caret-color: #F1ECE1 !important;
+  transition: background-color 600000s 0s, color 600000s 0s !important;
+}
+
+/* Firefox equivalent — different mechanism, same intent. */
+input:autofill{
+  filter: none;
+}
+
 @media (max-width: 620px) {
 
   /* Narrow-width overflow guard. Scoped to phones and to body only —

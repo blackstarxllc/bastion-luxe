@@ -1379,8 +1379,15 @@ async function runShippingCheckout(deal, chargedPrice, chargedFee){
             // page. The listing page already discloses it, so it must
             // appear here too — otherwise the buyer sees one total on the
             // listing, a smaller one here, and a third at Escrow.com.
+            // Escrow.com's published table calculates their fee on
+            // "Transaction Amount (Merchandise + Shipping)" — confirmed
+            // against escrow.com/fee-calculator. This previously omitted
+            // shipping, so the figure shown to the buyer was slightly
+            // lower than what Escrow.com would actually charge them at
+            // their payment page. Small gap, but a buyer seeing one number
+            // here and a bigger one there reads as a bait-and-switch.
             const escrowOwnFee = (typeof estimateEscrowFee === 'function')
-              ? estimateEscrowFee(chargedPrice + (chargedFee || 0)) : 0;
+              ? estimateEscrowFee(chargedPrice + (chargedFee || 0) + (state.rate || 0)) : 0;
             totalEl.innerHTML =
               '<div class="ship-co-label" style="margin-bottom:8px;">Order total</div>'
               + '<div class="ship-co-sum"><span>Item</span><b>' + shipMoney(chargedPrice) + '</b></div>'

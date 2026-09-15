@@ -713,7 +713,7 @@
         </div>
 
         <div class="row-between">
-          <a href="#" class="link-quiet">Forgot password?</a>
+          <a href="#" class="link-quiet" id="forgotPasswordLink">Forgot password?</a>
         </div>
 
         <button type="submit" class="submit submit-glow">Sign In</button>
@@ -772,6 +772,28 @@
         <div class="status-line" id="statusSignup"></div>
 
         <div class="switch-line">Already have an account? <button type="button" onclick="switchTab('signin')">Sign in</button></div>
+      </form>
+
+      <!-- SET NEW PASSWORD — hidden unless the visitor arrived via a
+           password-recovery email link. See showResetPasswordForm(). -->
+      <form id="formReset" onsubmit="return handlePasswordReset(event)">
+        <div class="form-head">
+          <h1>Choose a new password.</h1>
+          <p>This link is single-use and only works because you just clicked it from your email.</p>
+        </div>
+
+        <div class="field with-toggle">
+          <label for="reset-pass">New password</label>
+          <div class="field-input">
+            <input id="reset-pass" type="password" placeholder="At least 10 characters" autocomplete="new-password" required minlength="10">
+            <button type="button" class="eye-btn" onclick="toggleEye('reset-pass', this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="submit submit-glow">Set new password</button>
+        <div class="status-line" id="statusReset"></div>
       </form>
 
     </div>
@@ -1045,6 +1067,114 @@ function showToast(message, isError){
   setTimeout(function(){ emailIds.forEach(function(id){ scrub(document.getElementById(id)); }); }, 250);
   setTimeout(function(){ emailIds.forEach(function(id){ scrub(document.getElementById(id)); }); }, 1000);
 })();
+
+// ---------------------------------------------------------------
+// FORGOT PASSWORD
+//
+// This link existed in the markup with href="#" and NO handler behind
+// it — clicking it did nothing at all. Anyone who forgot their password
+// was permanently locked out of their account with no way back in, and
+// on a platform holding people's money that is not a small thing.
+//
+// Uses Supabase Auth's built-in reset flow, which emails a secure
+// one-time link. Deliberately reports success even when the address is
+// not registered: telling a stranger "no account with that email"
+// hands them a way to discover which emails have Bastion accounts.
+// ---------------------------------------------------------------
+// setStatus() above is a closure private to handleSubmit(), bound to
+// whichever status line that specific submit is for — it is not callable
+// from here. This helper does the same job against an arbitrary element.
+function setLineStatus(elId, msg, type){
+  const el = document.getElementById(elId);
+  if(!el) return;
+  el.textContent = msg;
+  el.className = 'status-line show ' + type;
+}
+
+(function(){
+  const link = document.getElementById('forgotPasswordLink');
+  if(!link) return;
+
+  link.addEventListener('click', async function(e){
+    e.preventDefault();
+
+    const emailField = document.getElementById('si-email');
+    const email = (emailField && emailField.value || '').trim();
+
+    if(!email || !/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(email)){
+      setLineStatus('statusSignin', 'Enter your email address above, then tap "Forgot password?" again.', 'bad');
+      if(emailField) emailField.focus();
+      return;
+    }
+
+    link.textContent = 'Sending…';
+    link.style.pointerEvents = 'none';
+
+    try {
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + '/bastion-auth.html'
+      });
+      if(error) throw new Error(error.message);
+      setLineStatus('statusSignin', 'If an account exists for ' + email + ', a password reset link is on its way. Check your inbox and spam folder.', 'ok');
+    } catch(err){
+      // Rate limiting is the one error worth surfacing plainly, since the
+      // user can act on it by waiting.
+      if(/rate|too many/i.test(err.message || '')){
+        setLineStatus('statusSignin', 'Too many reset attempts. Please wait a few minutes and try again.', 'bad');
+      } else {
+        setLineStatus('statusSignin', 'Could not send the reset email right now. Please try again shortly.', 'bad');
+      }
+    } finally {
+      link.textContent = 'Forgot password?';
+      link.style.pointerEvents = '';
+    }
+  });
+})();
+
+// ---------------------------------------------------------------
+// COMPLETING THE RESET — the other half the incoming fix was missing.
+//
+// resetPasswordForEmail() above only sends the email. Supabase's own
+// magic-link redirect lands the visitor back on THIS page with a
+// recovery token in the URL, and its client library exchanges that for
+// a real (temporary) session and fires a 'PASSWORD_RECOVERY' auth event.
+// Without something listening for that event, a person who clicks the
+// emailed link just lands back on the ordinary sign-in screen with no
+// way to actually set a new password — the request half of "forgot
+// password" would work, but the recovery itself would dead-end.
+// ---------------------------------------------------------------
+function showResetPasswordForm(){
+  document.querySelector('.tabs').style.display = 'none';
+  document.getElementById('formSignin').classList.remove('active');
+  document.getElementById('formSignup').classList.remove('active');
+  document.getElementById('formReset').classList.add('active');
+}
+
+async function handlePasswordReset(e){
+  e.preventDefault();
+  const btn = e.target.querySelector('.submit');
+  const originalText = btn.textContent;
+  const newPassword = document.getElementById('reset-pass').value;
+
+  btn.textContent = 'SAVING…';
+  btn.disabled = true;
+
+  try {
+    const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+    if(error) throw new Error(error.message);
+    setLineStatus('statusReset', 'Password updated. Taking you to your account…', 'ok');
+    setTimeout(function(){ window.location.href = 'bastion-my-account.html'; }, 900);
+  } catch(err){
+    setLineStatus('statusReset', err.message || 'Could not update your password. Request a new reset link and try again.', 'bad');
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+  return false;
+}
+
+supabaseClient.auth.onAuthStateChange(function(event){
+  if(event === 'PASSWORD_RECOVERY') showResetPasswordForm();
+});
 </script>
 </body>
 </html>

@@ -1145,7 +1145,7 @@ async function loadDeadlines(txn, isBuyer, isSeller){
         cards.push(
           '<div class="deadline-card urgent">'
           + '<div class="deadline-label">Ship-by deadline passed</div>'
-          + '<div class="deadline-date">Was due ' + escapeHtml(formatDeadlineDate(d.ship_by)) + '</div>'
+          + '<div class="deadline-date">Was due ' + shipEscape(formatDeadlineDate(d.ship_by)) + '</div>'
           + '<p class="deadline-note">The buyer can now cancel this order for a full refund. Get the package scanned in as soon as possible.</p>'
           + '</div>');
       } else {
@@ -1153,7 +1153,7 @@ async function loadDeadlines(txn, isBuyer, isSeller){
           '<div class="deadline-card' + (left < 86400 ? ' urgent' : '') + '">'
           + '<div class="deadline-label">Ship within</div>'
           + '<div class="deadline-time">' + formatCountdown(left) + '</div>'
-          + '<div class="deadline-date">Due ' + escapeHtml(formatDeadlineDate(d.ship_by)) + '</div>'
+          + '<div class="deadline-date">Due ' + shipEscape(formatDeadlineDate(d.ship_by)) + '</div>'
           + '<p class="deadline-note">The clock stops at the carrier\u2019s first scan, not when you print the label. Miss it and the buyer can cancel for a full refund.</p>'
           + '</div>');
       }
@@ -1167,7 +1167,7 @@ async function loadDeadlines(txn, isBuyer, isSeller){
           '<div class="deadline-card' + (left < 86400 ? ' urgent' : '') + '">'
           + '<div class="deadline-label">Inspection window closes in</div>'
           + '<div class="deadline-time">' + formatCountdown(left) + '</div>'
-          + '<div class="deadline-date">Closes ' + escapeHtml(formatDeadlineDate(d.inspection_deadline)) + '</div>'
+          + '<div class="deadline-date">Closes ' + shipEscape(formatDeadlineDate(d.inspection_deadline)) + '</div>'
           + '<p class="deadline-note">Check the item against the listing \u2014 condition, accessories, serial number \u2014 before confirming receipt. Released funds cannot be recovered. If anything is wrong, report an issue instead.</p>'
           + '</div>');
       }
@@ -1178,7 +1178,7 @@ async function loadDeadlines(txn, isBuyer, isSeller){
       cards.push(
         '<div class="deadline-card">'
         + '<div class="deadline-label">Buyer inspection in progress</div>'
-        + '<div class="deadline-date">Window closes ' + escapeHtml(formatDeadlineDate(d.inspection_deadline)) + '</div>'
+        + '<div class="deadline-date">Window closes ' + shipEscape(formatDeadlineDate(d.inspection_deadline)) + '</div>'
         + '<p class="deadline-note">Funds release once the buyer confirms receipt.</p>'
         + '</div>');
     }

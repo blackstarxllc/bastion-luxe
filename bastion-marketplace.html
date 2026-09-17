@@ -378,6 +378,51 @@
   @media(min-width:640px){ .grid{ grid-template-columns:repeat(2, 1fr); gap:52px 32px; } }
   @media(min-width:1000px){ .grid{ grid-template-columns:repeat(3, 1fr); gap:60px 40px; } }
 
+
+  /* ---- Category rows: horizontal scrolling shelves ----
+     One long vertical grid meant a visitor had to scroll past everything to
+     see what existed. Shelves let someone scan many categories in a few
+     seconds and swipe sideways through each one — the browse pattern people
+     already know from StockX, Netflix and every storefront.
+     Only shown on the unfiltered "All" view; the moment someone searches or
+     filters, the plain grid returns because they want results, not browsing. */
+  .shelf-wrap{ margin-bottom:56px; }
+  .shelf-head{
+    display:flex; align-items:baseline; justify-content:space-between;
+    margin-bottom:18px; gap:16px;
+  }
+  .shelf-title{
+    font-family:var(--serif); font-size:21px; letter-spacing:.01em;
+    color:var(--bone); margin:0;
+  }
+  .shelf-count{
+    font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--stone-dim); white-space:nowrap;
+  }
+  .shelf-link{
+    font-size:11.5px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--brass); cursor:pointer; background:none; border:none;
+    padding:0; white-space:nowrap;
+  }
+  .shelf-link:hover{ color:var(--brass-bright); }
+  .shelf{
+    display:flex; gap:24px; overflow-x:auto; overflow-y:hidden;
+    scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch;
+    padding-bottom:12px; scrollbar-width:thin;
+  }
+  .shelf::-webkit-scrollbar{ height:5px; }
+  .shelf::-webkit-scrollbar-track{ background:transparent; }
+  .shelf::-webkit-scrollbar-thumb{ background:var(--line); border-radius:3px; }
+  .shelf:hover::-webkit-scrollbar-thumb{ background:var(--brass-dim); }
+  .shelf > .card{
+    flex:0 0 260px; scroll-snap-align:start;
+  }
+  @media(max-width:640px){
+    .shelf > .card{ flex:0 0 74vw; }
+    .shelf{ gap:16px; }
+    .shelf-title{ font-size:18px; }
+  }
+
   .card{
     background:none;
     border:none;
@@ -809,7 +854,8 @@
       <button class="chip active" data-cat="all">All</button>
       <button class="chip" data-cat="Watches"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="7.5"/><path d="M12 8v4l2.5 2.5"/><path d="M9.5 2h5M9.5 22h5"/></svg>Watches</button>
       <button class="chip" data-cat="Vehicles"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 13l1.6-4.8A2 2 0 0 1 6.5 7h11a2 2 0 0 1 1.9 1.2L21 13"/><rect x="2.5" y="13" width="19" height="5" rx="1.5"/><circle cx="7" cy="18.5" r="1.6"/><circle cx="17" cy="18.5" r="1.6"/></svg>Vehicles</button>
-      <button class="chip" data-cat="Sneakers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 17c0-2 1.5-2.5 3-3.5s2.5-2.5 3.5-2.5 1 1 2.5 1 3-2 4.5-2 1.5 1.5 3 2 3.5.5 3.5 3v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/></svg>Sneakers &amp; Streetwear</button>
+      <button class="chip" data-cat="Sneakers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 17c0-2 1.5-2.5 3-3.5s2.5-2.5 3.5-2.5 1 1 2.5 1 3-2 4.5-2 1.5 1.5 3 2 3.5.5 3.5 3v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/></svg>Sneakers</button>
+      <button class="chip" data-cat="Streetwear"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3l-5 3 2 4 2-1v12h10V9l2 1 2-4-5-3a4 4 0 0 1-8 0z"/></svg>Streetwear</button>
       <button class="chip" data-cat="Jewelry"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M8 3l4 6 4-6M12 9l-3 12M12 9l3 12"/></svg>Fine Jewelry</button>
       <button class="chip" data-cat="Cards"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="13" height="17" rx="1.5" transform="rotate(-8 9.5 13.5)"/><rect x="8" y="3" width="13" height="17" rx="1.5"/></svg>Trading Cards</button>
       <button class="chip" data-cat="Handbags"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h16l-1.2 12H5.2z"/><path d="M8.5 8V6a3.5 3.5 0 0 1 7 0v2"/></svg>Handbags</button>
@@ -1022,7 +1068,10 @@ function renderGrid(){
   } else if(activeSort === 'price_desc'){
     filtered = filtered.slice().sort((a, b) => Number(b.price) - Number(a.price));
   } else {
-    filtered = filtered.slice().sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    // Default ("Featured") deliberately does NOT re-sort. allDeals arrives
+    // pre-shuffled from the fetch, and re-sorting by date here would undo
+    // that and put the grid straight back to a chronological upload log.
+    // Explicit price sorts above still work as the user asked.
   }
 
   // Promoted listings float to the top, without disturbing the chosen sort within each group
@@ -1038,7 +1087,70 @@ function renderGrid(){
     return;
   }
 
-  grid.innerHTML = filtered.map((deal, idx) => {
+  // ---- Shelf view ----------------------------------------------------
+  // Only on the clean "All" view with nothing filtered. The moment someone
+  // searches, filters or sorts, they want RESULTS, so the plain grid returns.
+  const isBrowsing = activeCategory === 'all'
+    && searchQuery.trim() === ''
+    && activeCondition === 'all'
+    && priceMin == null && priceMax == null
+    && activeSort !== 'price_asc' && activeSort !== 'price_desc';
+
+  if (isBrowsing && filtered.length >= 4) {
+    const byCat = {};
+    filtered.forEach(d => {
+      const c = d.category || 'Other';
+      (byCat[c] = byCat[c] || []).push(d);
+    });
+    // Biggest categories first, so the page opens on substance.
+    const cats = Object.keys(byCat).sort((a, b) => byCat[b].length - byCat[a].length);
+
+    grid.classList.remove('grid');
+    grid.innerHTML = cats.map(cat => {
+      const items = byCat[cat];
+      // escapeHtml() only guards against a stray & < > breaking the
+      // surrounding markup — it does not touch quote characters, so it is
+      // NOT enough on its own for a value embedded inside an HTML
+      // attribute. category has no server-side/DB constraint (the <select>
+      // in bastion-create-listing.html is a client-side convenience only),
+      // so a listing inserted directly against the API with a crafted
+      // category could otherwise break out of onclick="...(' ... ')" via a
+      // literal double quote and inject script that runs for every visitor
+      // browsing the default marketplace view. Escape both the JS-string
+      // delimiter (') and the HTML-attribute delimiter (") before this
+      // value ever reaches an attribute.
+      const catForAttr = escapeHtml(cat).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      return '<div class="shelf-wrap">'
+        + '<div class="shelf-head">'
+        +   '<h2 class="shelf-title">' + escapeHtml(cat) + '</h2>'
+        +   '<button class="shelf-link" onclick="jumpToCategory(\'' + catForAttr + '\')">'
+        +     'View all ' + items.length + ' &rarr;'
+        +   '</button>'
+        + '</div>'
+        + '<div class="shelf">' + items.map((d, i) => cardMarkup(d, i)).join('') + '</div>'
+        + '</div>';
+    }).join('');
+    return;
+  }
+
+  grid.classList.add('grid');
+  grid.innerHTML = filtered.map((deal, idx) => cardMarkup(deal, idx)).join('');
+}
+
+// Jump from a shelf's "View all" into that category's full grid.
+function jumpToCategory(cat){
+  activeCategory = cat;
+  document.querySelectorAll('#filterBar .chip').forEach(chip => {
+    chip.classList.toggle('active', (chip.dataset.cat || '') === cat);
+  });
+  renderGrid();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Single source of truth for a card, used by BOTH the grid and the shelves —
+// so the two views can never drift apart visually.
+function cardMarkup(deal, idx){
+  {
     const name = escapeHtml(deal.item_name || deal.name || deal.title || 'Untitled item');
     const desc = escapeHtml(deal.description || 'No description provided.');
     const cat = escapeHtml(deal.category || 'Uncategorized');
@@ -1076,7 +1188,7 @@ function renderGrid(){
           <span class="card-fee">${fee}</span>
         </div>
       </div>`;
-  }).join('');
+  }
 }
 
 async function loadDeals(){
@@ -1094,6 +1206,28 @@ async function loadDeals(){
       .select('*')
       .neq('status', 'sold')
       .order('created_at', { ascending: false });
+
+    // Strict newest-first made the grid read as a chronological upload log
+    // rather than a marketplace — every visit showed the same items in the
+    // same order, and whoever listed last always sat on top.
+    //
+    // Shuffled with a seed that changes hourly, so: the order feels varied
+    // and every seller gets rotation, but it stays STABLE within a browsing
+    // session. A fresh random order on each render would make items jump
+    // around while someone is scrolling, which is far worse than monotony.
+    if (data && data.length > 1) {
+      const hourSeed = Math.floor(Date.now() / 3600000);
+      let seed = hourSeed;
+      const rand = () => {
+        // Deterministic PRNG — same seed always yields the same sequence.
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff;
+      };
+      for (let i = data.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [data[i], data[j]] = [data[j], data[i]];
+      }
+    }
 
     if(error){
       grid.innerHTML = `

@@ -556,7 +556,8 @@
           <option value="Watches">Watches</option>
           <option value="Jewelry">Fine Jewelry</option>
           <option value="Handbags">Handbags &amp; Leather Goods</option>
-          <option value="Sneakers">Sneakers &amp; Streetwear</option>
+          <option value="Sneakers">Sneakers</option>
+          <option value="Streetwear">Streetwear &amp; Apparel</option>
           <option value="Vehicles">Vehicles</option>
           <option value="Marine">Marine &amp; Powersports</option>
           <option value="Art">Art</option>
@@ -716,6 +717,43 @@
       </div>
       <div class="check-row"><input type="checkbox" id="s-worn"><label for="s-worn">Previously worn</label></div>
       <div class="check-row"><input type="checkbox" id="s-box"><label for="s-box">Original box included</label></div>
+    </div>
+
+    <!-- Streetwear / Apparel -->
+    <div class="detail-fields" id="fields-Streetwear">
+      <div class="detail-fields-title">Apparel Details</div>
+      <div class="detail-row-2">
+        <div class="field">
+          <label for="a-size">Size</label>
+          <select id="a-size">
+            <option value="">Select size</option>
+            <option>XXS</option><option>XS</option><option>S</option>
+            <option>M</option><option>L</option><option>XL</option>
+            <option>XXL</option><option>XXXL</option>
+            <option>One size</option><option>Other / see description</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="a-brand">Brand</label>
+          <input id="a-brand" type="text" placeholder="e.g. Supreme, Rick Owens">
+        </div>
+      </div>
+      <div class="detail-row-2">
+        <div class="field">
+          <label for="a-colorway">Colorway</label>
+          <input id="a-colorway" type="text" placeholder="e.g. Black / Cement">
+        </div>
+        <div class="field">
+          <label for="a-year">Season / Year</label>
+          <input id="a-year" type="text" placeholder="e.g. FW23">
+        </div>
+      </div>
+      <div class="field">
+        <label for="a-measurements">Measurements <span class="opt">(optional)</span></label>
+        <input id="a-measurements" type="text" placeholder="e.g. Pit to pit 22in, length 29in">
+      </div>
+      <div class="check-row"><input type="checkbox" id="a-worn"><label for="a-worn">Previously worn</label></div>
+      <div class="check-row"><input type="checkbox" id="a-tags"><label for="a-tags">Original tags attached</label></div>
     </div>
 
     <!-- Vehicles -->
@@ -995,6 +1033,11 @@ async function loadForEdit(){
   } else if(data.category === 'Sneakers'){
     setVal('s-size', d.size); setVal('s-condition', d.condition);
     setChecked('s-worn', d.previously_worn); setChecked('s-box', d.box_included);
+  } else if(data.category === 'Streetwear'){
+    setVal('a-size', d.size); setVal('a-brand', d.brand);
+    setVal('a-colorway', d.colorway); setVal('a-year', d.season);
+    setVal('a-measurements', d.measurements);
+    setChecked('a-worn', d.previously_worn); setChecked('a-tags', d.tags_attached);
   } else if(data.category === 'Vehicles'){
     setVal('v-make', d.make); setVal('v-model', d.model); setVal('v-year', d.year);
     setVal('v-mileage', d.mileage); setVal('v-vin', d.vin);
@@ -1090,6 +1133,17 @@ function collectDetails(category){
       condition: val('s-condition'),
       previously_worn: checked('s-worn'),
       box_included: checked('s-box')
+    };
+  }
+  if(category === 'Streetwear'){
+    return {
+      size: val('a-size'),
+      brand: val('a-brand'),
+      colorway: val('a-colorway'),
+      season: val('a-year'),
+      measurements: val('a-measurements'),
+      previously_worn: checked('a-worn'),
+      tags_attached: checked('a-tags')
     };
   }
   if(category === 'Vehicles'){

@@ -371,6 +371,13 @@
     color:var(--stone);
     margin-top:28px;
     max-width:480px;
+    /* Sellers type real paragraphs. textContent keeps their newlines, but
+       HTML collapses whitespace on render, so everything ran together into
+       one block. pre-wrap honours the line breaks they actually typed and
+       still wraps long lines normally. overflow-wrap stops a pasted link
+       from pushing the layout sideways. */
+    white-space:pre-wrap;
+    overflow-wrap:anywhere;
   }
 
   .divider{
@@ -1895,6 +1902,7 @@ function renderSpecSheet(details, category){
     Watches: 'Timepiece Details',
     Vehicles: 'Vehicle Details',
     Sneakers: 'Sneaker Details',
+    Streetwear: 'Apparel Details',
     Jewelry: 'Jewelry Details',
     Cards: 'Card Details',
     Handbags: 'Handbag Details',

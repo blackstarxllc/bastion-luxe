@@ -248,7 +248,13 @@
     gap:28px;
     overflow-x:auto;
     padding-bottom:8px;
+    /* No visible scrollbar line; the row glides on its own (see
+       startRelatedGlide) and can still be swiped or dragged. */
+    scrollbar-width:none;
+    -webkit-mask-image:linear-gradient(to right, transparent 0, #000 36px, #000 calc(100% - 36px), transparent 100%);
+            mask-image:linear-gradient(to right, transparent 0, #000 36px, #000 calc(100% - 36px), transparent 100%);
   }
+  .related-scroll::-webkit-scrollbar{ display:none; }
   .related-card{
     flex:0 0 190px;
     cursor:pointer;
@@ -2050,8 +2056,9 @@ async function renderRelated(category, currentId){
     .from(TABLE_NAME)
     .select('*')
     .eq('category', category)
+    .eq('status', 'active')
     .neq('id', currentId)
-    .limit(6);
+    .limit(12);
 
   if(error || !data || data.length === 0) return;
 
@@ -2075,6 +2082,57 @@ async function renderRelated(category, currentId){
   }).join('');
 
   section.classList.remove('hidden');
+  startRelatedGlide(scroll);
+}
+
+// Slowly glides the "You may also like" row sideways on its own, looping
+// seamlessly (the cards are repeated once, and the row jumps back by exactly
+// one set when it reaches the copy, so the jump is invisible). It pauses
+// while someone hovers, touches or drags it, and while the tab is hidden.
+// Visitors who ask their device for reduced motion get a still row they can
+// swipe. If everything already fits on screen, nothing moves.
+function startRelatedGlide(row){
+  if (!row || row.dataset.glide) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const originals = Array.from(row.children);
+  if (!originals.length) return;
+  requestAnimationFrame(function(){
+    if (row.scrollWidth <= row.clientWidth + 4) return;
+    row.dataset.glide = '1';
+    originals.forEach(function(card){
+      const copy = card.cloneNode(true);
+      copy.setAttribute('aria-hidden', 'true');
+      row.appendChild(copy);
+    });
+    const loopAt = function(){ return row.children[originals.length].offsetLeft - originals[0].offsetLeft; };
+    const SPEED = 22;            // pixels per second, slow and calm
+    let pos = row.scrollLeft, last = null, pausedUntil = 0, held = false;
+    const hold = function(){ held = true; };
+    const release = function(){ held = false; pausedUntil = performance.now() + 2500; pos = row.scrollLeft; };
+    row.addEventListener('mouseenter', hold);
+    row.addEventListener('mouseleave', release);
+    row.addEventListener('touchstart', hold, { passive: true });
+    row.addEventListener('touchend', release, { passive: true });
+    row.addEventListener('focusin', hold);
+    row.addEventListener('focusout', release);
+    function step(now){
+      if (last === null) last = now;
+      const dt = Math.min(now - last, 100) / 1000;
+      last = now;
+      if (!held && now > pausedUntil && document.visibilityState === 'visible') {
+        pos += SPEED * dt;
+        const L = loopAt();
+        if (L > 0 && pos >= L) pos -= L;
+        row.scrollLeft = pos;
+      } else if (held) {
+        pos = row.scrollLeft;       // follow any manual swipe
+        const L = loopAt();
+        if (L > 0 && pos >= L) { pos -= L; row.scrollLeft = pos; }
+      }
+      requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  });
 }
 
 function getIdFromUrl(){

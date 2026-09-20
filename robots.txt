@@ -1,0 +1,8 @@
+User-agent: *
+Disallow: /bastion-admin.html
+Disallow: /bastion-my-account.html
+Disallow: /bastion-messages.html
+Disallow: /bastion-transaction.html
+Disallow: /bastion-create-listing.html
+
+Sitemap: https://bastionmarket.com/sitemap.xml

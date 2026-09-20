@@ -55,13 +55,11 @@ https://bastionmarket.com/.netlify/functions/escrow-webhook?secret=PASTE_ESCROW_
 https://bastionmarket.com/.netlify/functions/shipping-webhook?secret=PASTE_SHIPPING_SECRET_HERE
 ```
 
-5. Replace `PASTE_SHIPPING_SECRET_HERE` with this exact value:
-
-```
-T3bBd4U5bgRYXt4dqgrC-wPvSL81VYpQfZNWnSsIgh4YRWJo
-```
-
-   (That one is not hidden, so you can copy it straight from here.)
+5. Replace `PASTE_SHIPPING_SECRET_HERE` with your real secret:
+   - Open Netlify in another tab
+   - Site configuration -> Environment variables
+   - Find `SHIPPING_WEBHOOK_SECRET`, copy its value
+   - Paste it over `PASTE_SHIPPING_SECRET_HERE`
 6. If it asks which events: choose **tracker.updated**. If there is no
    choice, leave the default.
 7. Click **Save**

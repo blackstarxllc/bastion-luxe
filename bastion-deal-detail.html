@@ -251,8 +251,6 @@
     /* No visible scrollbar line; the row glides on its own (see
        startRelatedGlide) and can still be swiped or dragged. */
     scrollbar-width:none;
-    -webkit-mask-image:linear-gradient(to right, transparent 0, #000 36px, #000 calc(100% - 36px), transparent 100%);
-            mask-image:linear-gradient(to right, transparent 0, #000 36px, #000 calc(100% - 36px), transparent 100%);
   }
   .related-scroll::-webkit-scrollbar{ display:none; }
   .related-card{
@@ -2123,7 +2121,9 @@ function startRelatedGlide(row){
         pos += SPEED * dt;
         const L = loopAt();
         if (L > 0 && pos >= L) pos -= L;
-        row.scrollLeft = pos;
+        // Whole pixels only: fractional scroll positions make the browser
+        // resample photos between pixels, which visibly softens them.
+        row.scrollLeft = Math.round(pos);
       } else if (held) {
         pos = row.scrollLeft;       // follow any manual swipe
         const L = loopAt();

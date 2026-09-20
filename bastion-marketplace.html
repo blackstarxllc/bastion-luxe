@@ -860,7 +860,7 @@
 
 <div class="info-banner" id="deletionBanner" style="display:none;">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
-  <span>Your account deletion request has been received. It may take some time to process.</span>
+  <span id="deletionBannerText"></span>
 </div>
 
 <div class="page-head">
@@ -1541,6 +1541,10 @@ document.getElementById('saveSearchBtn').addEventListener('click', async functio
 });
 
 if(new URLSearchParams(window.location.search).get('deletion_requested') === '1'){
+  // The message is written here rather than in the page itself, so search
+  // engines and AI page-readers (which read the raw page without running
+  // it) don't mistake this hidden notice for something every visitor sees.
+  document.getElementById('deletionBannerText').textContent = 'Your account deletion request has been received. It may take some time to process.';
   document.getElementById('deletionBanner').style.display = 'flex';
   const cleanUrl = window.location.pathname;
   window.history.replaceState({}, '', cleanUrl);

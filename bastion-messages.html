@@ -812,6 +812,66 @@ function dateDividerLabel(iso){
   return d.toLocaleDateString('en-US', { month:'short', day:'numeric', year: d.getFullYear() !== today.getFullYear() ? 'numeric' : undefined });
 }
 
+// ------------------------------------------------------------------
+// PRIVATE MESSAGE MEDIA
+//
+// The 'message-photos' bucket was PUBLIC, and every photo or video sent in
+// a private conversation was stored with getPublicUrl(). Those URLs need no
+// login and never expire, so any one of them \u2014 forwarded, leaked from a
+// database row, or simply guessed from a known conversation id \u2014 exposed
+// private media to anyone on the internet. On a platform where people send
+// photos of five-figure items along with their addresses, that is not a
+// theoretical problem.
+//
+// The bucket is now private and guarded by storage RLS that only admits the
+// two participants of that conversation. Media is addressed by its storage
+// PATH, and a short-lived signed URL is minted at render time.
+//
+// mediaPathOf() also accepts a legacy full public URL, so anything stored
+// before this change still resolves instead of turning into a broken image.
+// ------------------------------------------------------------------
+function mediaPathOf(value){
+  if(!value) return null;
+  var v = String(value);
+  var marker = '/message-photos/';
+  var idx = v.indexOf(marker);
+  if(idx !== -1) return v.slice(idx + marker.length).split('?')[0];
+  if(/^https?:\/\//i.test(v)) return null;
+  return v;
+}
+
+var __signedUrlCache = {};
+
+async function signedMediaUrl(value){
+  var path = mediaPathOf(value);
+  if(!path) return null;
+  if(__signedUrlCache[path]) return __signedUrlCache[path];
+  try{
+    const { data, error } = await supabaseClient.storage
+      .from('message-photos')
+      .createSignedUrl(path, 3600);
+    if(error || !data || !data.signedUrl) return null;
+    __signedUrlCache[path] = data.signedUrl;
+    return data.signedUrl;
+  } catch(e){
+    console.error('Could not sign message media URL:', e);
+    return null;
+  }
+}
+
+// Media elements render with no src, then get filled in once the signed URL
+// comes back. This keeps appendBubble synchronous, so message ordering and
+// scroll behaviour are unchanged.
+function attachSignedMedia(el, value){
+  signedMediaUrl(value).then(function(url){
+    if(url){ el.src = url; return; }
+    var note = document.createElement('div');
+    note.style.cssText = 'padding:10px 12px;font-size:12px;opacity:0.7;';
+    note.textContent = 'This attachment could not be loaded.';
+    if(el.parentNode) el.parentNode.replaceChild(note, el);
+  });
+}
+
 function appendBubble(msg, mine){
   const body = document.getElementById('threadBody');
   const dateKey = new Date(msg.created_at).toDateString();
@@ -831,13 +891,13 @@ function appendBubble(msg, mine){
     // every time they tap a clip.
     div.className = 'bubble video-bubble ' + (mine ? 'mine' : 'theirs');
     div.innerHTML =
-      '<video src="' + escapeHtml(msg.video_url) + '" class="bubble-video" controls preload="metadata" playsinline></video>' +
+      '<video class="bubble-video" controls preload="metadata" playsinline></video>' +
       (msg.body ? '<div style="margin-top:6px; padding:0 4px;">' + escapeHtml(msg.body).replace(/\n/g, '<br>') + '</div>' : '') +
       '<span class="bubble-time image-time">' + timeAgo(msg.created_at) + '</span>';
   } else if(msg.image_url){
     div.className = 'bubble image-bubble ' + (mine ? 'mine' : 'theirs');
     div.innerHTML =
-      '<img src="' + escapeHtml(msg.image_url) + '" alt="Shared photo" class="bubble-image" onclick="window.open(this.src, \'_blank\')">' +
+      '<img alt="Shared photo" class="bubble-image" onclick="if(this.src) window.open(this.src, \'_blank\')">' +
       (msg.body ? '<div style="margin-top:6px; padding:0 4px;">' + escapeHtml(msg.body).replace(/\n/g, '<br>') + '</div>' : '') +
       '<span class="bubble-time image-time">' + timeAgo(msg.created_at) + '</span>';
   } else {
@@ -845,6 +905,15 @@ function appendBubble(msg, mine){
     div.innerHTML = escapeHtml(msg.body).replace(/\n/g, '<br>') +
       '<span class="bubble-time">' + timeAgo(msg.created_at) + '</span>';
   }
+
+  if(msg.video_url){
+    var vidEl = div.querySelector('video');
+    if(vidEl) attachSignedMedia(vidEl, msg.video_url);
+  } else if(msg.image_url){
+    var imgEl = div.querySelector('img');
+    if(imgEl) attachSignedMedia(imgEl, msg.image_url);
+  }
+
   body.appendChild(div);
 }
 
@@ -1053,11 +1122,11 @@ async function sendAttachment(file, kind){
       return;
     }
 
-    const { data: urlData } = supabaseClient.storage.from('message-photos').getPublicUrl(path);
-    const publicUrl = urlData.publicUrl;
-
+    // Store the storage PATH. A public URL would be meaningless now that the
+    // bucket is private, and baking a signed URL into the row would be worse:
+    // it expires, so the message would quietly rot into a broken image.
     const row = { conversation_id: conversationId, sender_id: currentUserId, body: '' };
-    if(isVideo){ row.video_url = publicUrl; } else { row.image_url = publicUrl; }
+    if(isVideo){ row.video_url = path; } else { row.image_url = path; }
 
     const { data, error } = await supabaseClient
       .from('messages')

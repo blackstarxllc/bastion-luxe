@@ -34,6 +34,40 @@
     # have. Geolocation and payment stay fully disabled.
     Permissions-Policy = "camera=(self), microphone=(self), geolocation=(), payment=()"
 
+    # ---------------------------------------------------------------
+    # Content-Security-Policy
+    #
+    # There was no CSP at all. This is the single cheapest control left
+    # for a site that handles addresses, transaction IDs and escrow links.
+    #
+    # An honest note on 'unsafe-inline' for script-src: every page here
+    # carries a large inline <script>, so a nonce/hash policy is not
+    # possible without a build step that can rewrite them. Keeping
+    # 'unsafe-inline' means this CSP does NOT stop injected inline script.
+    # It is still worth having, because the directives that do the most
+    # damage-limiting on a money site are the other ones:
+    #
+    #   connect-src  - an injected script cannot phone stolen session
+    #                  tokens or transaction data out to an attacker's
+    #                  server; only Supabase and this origin are reachable.
+    #   form-action  - a planted <form> cannot post credentials elsewhere.
+    #   base-uri     - blocks <base> hijacking, which silently repoints
+    #                  every relative URL on the page.
+    #   object-src   - no Flash/embed/applet vectors at all.
+    #   frame-ancestors - clickjacking, matching X-Frame-Options.
+    #
+    # Removing 'unsafe-inline' is a real upgrade and is the right thing to
+    # do once page scripts move into external files.
+    #
+    # connect-src also allowlists vpic.nhtsa.dot.gov: bastion-deal-detail.html
+    # calls it client-side to verify a listed VIN against NHTSA's public
+    # database. Without it here, the browser would silently block that fetch
+    # the moment this CSP shipped, and the VIN check would just fail closed
+    # forever with no visible error (it already degrades gracefully on
+    # network failure, which is exactly what a CSP block looks like to it).
+    # ---------------------------------------------------------------
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://xokyqobttfhugdponfpg.supabase.co; media-src 'self' blob: https://xokyqobttfhugdponfpg.supabase.co; connect-src 'self' https://xokyqobttfhugdponfpg.supabase.co https://cdn.jsdelivr.net https://vpic.nhtsa.dot.gov; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests"
+
 # Never let a browser or CDN cache a serverless function response — these
 # are transaction-state endpoints where a stale answer is a real problem.
 [[headers]]
@@ -70,6 +104,12 @@
 # calls its server functions.
 # ---------------------------------------------------------------------
 [[redirects]]
+  from = "/docs/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
   from = "/sql/*"
   to = "/404.html"
   status = 404
@@ -87,26 +127,12 @@
   status = 404
   force = true
 
+# Operational notes are no longer shipped in the deploy artifact at all
+# (they live in /docs, which is not published). This stays as a catch-all so
+# that adding a stray .md to the repo root can never expose it: an allowlist
+# would be better still, and is the next step once a build directory exists.
 [[redirects]]
-  from = "/DO-THIS-NOW.md"
-  to = "/404.html"
-  status = 404
-  force = true
-
-[[redirects]]
-  from = "/ADMIN-GUIDE.md"
-  to = "/404.html"
-  status = 404
-  force = true
-
-[[redirects]]
-  from = "/GO-LIVE-CHECKLIST.md"
-  to = "/404.html"
-  status = 404
-  force = true
-
-[[redirects]]
-  from = "/LAUNCH-DAY.md"
+  from = "/*.md"
   to = "/404.html"
   status = 404
   force = true

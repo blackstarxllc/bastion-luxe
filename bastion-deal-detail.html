@@ -2354,15 +2354,27 @@ async function loadDeal(){
         // your security rules), so this used to fail silently every time,
         // which is exactly why the same item could be bought more than once.
 
-        // If Escrow.com's side fails to set up here, the buyer's purchase
-        // record is still valid and safe either way — so this stays silent
-        // to them (a scary error box here would tank conversion over
-        // something that isn't actually their problem). It's still logged
-        // loudly to the console and to Netlify's function logs so the team
-        // can catch and fix it without the buyer ever seeing anything look
-        // broken.
-        // Create the shipment BEFORE escrow, so the destination is locked
-        // in and snapshotted before any money is committed against it.
+        // ------------------------------------------------------------------
+        // Setup failures are now VISIBLE.
+        //
+        // This block used to catch both the shipment and the escrow setup
+        // failures, log them to a console nobody is reading, and send the
+        // buyer to the transaction page anyway \u2014 deliberately, to protect
+        // conversion. The comment said the purchase record was "valid and
+        // safe either way". It isn't. If the Escrow.com call fails there is
+        // no escrow transaction, no payment link and no email, so the buyer
+        // lands on a page telling them to pay, with nothing to pay into.
+        // They either wander off thinking the site is broken, or they
+        // contact support, who have no record of a failure at all.
+        //
+        // A checkout that fails loudly costs one sale. A checkout that fails
+        // silently on a money platform costs the buyer's trust, and every
+        // one of those failures is invisible until someone complains.
+        // ------------------------------------------------------------------
+        var setupProblem = null;
+
+        // Shipment first, so the destination is locked in and snapshotted
+        // before any money is committed against it.
         if(shipChoice){
           try {
             const shipSession = await supabaseClient.auth.getSession();
@@ -2384,28 +2396,43 @@ async function loadDeal(){
             if(!shipRes.ok){
               const shipErr = await shipRes.json().catch(function(){ return {}; });
               console.error('Shipment creation failed:', shipRes.status, shipErr);
+              setupProblem = shipErr.error || 'We could not set up shipping for this order.';
             }
           } catch (shipCreateErr) {
             console.error('Shipment creation failed:', shipCreateErr);
+            setupProblem = 'We could not reach the shipping system.';
           }
         }
 
-        try {
-          const sessionRes = await supabaseClient.auth.getSession();
-          const escrowRes = await fetch('/.netlify/functions/create-escrow-transaction', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer ' + sessionRes.data.session.access_token
-            },
-            body: JSON.stringify({ transactionId: txn.id })
-          });
-          if(!escrowRes.ok){
-            const errBody = await escrowRes.json().catch(function(){ return {}; });
-            console.error('Escrow.com transaction creation failed:', escrowRes.status, errBody);
+        if(!setupProblem){
+          try {
+            const sessionRes = await supabaseClient.auth.getSession();
+            const escrowRes = await fetch('/.netlify/functions/create-escrow-transaction', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + sessionRes.data.session.access_token
+              },
+              body: JSON.stringify({ transactionId: txn.id })
+            });
+            if(!escrowRes.ok){
+              const errBody = await escrowRes.json().catch(function(){ return {}; });
+              console.error('Escrow.com transaction creation failed:', escrowRes.status, errBody);
+              setupProblem = errBody.error || 'We could not open the secure escrow transaction for this order.';
+            }
+          } catch (escrowErr) {
+            console.error('Escrow.com transaction creation failed:', escrowErr);
+            setupProblem = 'We could not reach the escrow system.';
           }
-        } catch (escrowErr) {
-          console.error('Escrow.com transaction creation failed:', escrowErr);
+        }
+
+        if(setupProblem){
+          // The transaction row exists and is safe \u2014 it just is not ready to
+          // be paid. Say so plainly, and do not pretend the purchase is done.
+          // Support already has a system_alert from the server side.
+          alert(setupProblem +
+            '\n\nYour order has been saved but is NOT ready for payment yet, and you have not been charged. ' +
+            'Our team has been alerted automatically. You can view the order on the next page.');
         }
 
         window.location.href = 'bastion-transaction.html?id=' + encodeURIComponent(txn.id);

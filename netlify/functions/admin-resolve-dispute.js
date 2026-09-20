@@ -25,7 +25,7 @@ const ESCROW_API_BASE = process.env.ESCROW_LIVE_MODE === 'true'
 // 🔴 Same gap as release-escrow-transaction.js — see _escrow-lib.js. This
 // used to act on only the merchandise item, leaving the protection fee and
 // shipping items untouched on both release and cancel/refund.
-const { applyActionToAllItems } = require('./_escrow-lib');
+const { applyActionToAllItems, ACTION_ACCEPT, ACTION_CANCEL } = require('./_escrow-lib');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -128,7 +128,11 @@ exports.handler = async (event) => {
     // or manually correct the record — never assume success where Escrow.com
     // didn't confirm it.
     // ------------------------------------------------------------------
-    const escrowAction = action === 'release' ? 'release' : 'cancel';
+    // 'release' is not an Escrow.com action. The action that disburses to
+    // the seller is 'accept'. This sent a non-existent verb, so every
+    // admin dispute release was rejected by Escrow.com — the admin saw a
+    // failure and had to finish it manually on Escrow.com's dashboard.
+    const escrowAction = action === 'release' ? ACTION_ACCEPT : ACTION_CANCEL;
 
     // Act on EVERY item (merchandise, protection fee, shipping) — see
     // _escrow-lib.js. Previously only the merchandise item was ever

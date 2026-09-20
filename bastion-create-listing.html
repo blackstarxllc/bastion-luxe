@@ -727,14 +727,32 @@
       <div class="detail-fields-title">Apparel Details</div>
       <div class="detail-row-2">
         <div class="field">
-          <label for="a-size">Size</label>
-          <select id="a-size">
-            <option value="">Select size</option>
-            <option>XXS</option><option>XS</option><option>S</option>
-            <option>M</option><option>L</option><option>XL</option>
-            <option>XXL</option><option>XXXL</option>
-            <option>One size</option><option>Other / see description</option>
+          <label for="a-type">Garment Type</label>
+          <select id="a-type" onchange="onGarmentTypeChange()">
+            <option value="">Select type</option>
+            <option>Tops &amp; T-Shirts</option>
+            <option>Hoodies &amp; Sweatshirts</option>
+            <option>Shirts</option>
+            <option>Knitwear</option>
+            <option>Jackets &amp; Coats</option>
+            <option>Suits &amp; Blazers</option>
+            <option>Pants &amp; Jeans</option>
+            <option>Shorts</option>
+            <option>Dresses</option>
+            <option>Skirts</option>
+            <option>Activewear</option>
+            <option>Other</option>
           </select>
+        </div>
+        <div class="field">
+          <label for="a-system">Size System</label>
+          <select id="a-system" onchange="fillSizeOptions()"></select>
+        </div>
+      </div>
+      <div class="detail-row-2">
+        <div class="field">
+          <label for="a-size">Size</label>
+          <select id="a-size"><option value="">Select size</option></select>
         </div>
         <div class="field">
           <label for="a-brand">Brand</label>
@@ -1037,7 +1055,7 @@ async function loadForEdit(){
     setVal('s-size', d.size); setVal('s-condition', d.condition);
     setChecked('s-worn', d.previously_worn); setChecked('s-box', d.box_included);
   } else if(data.category === 'Streetwear'){
-    setVal('a-size', d.size); setVal('a-brand', d.brand);
+    setApparelSize(d); setVal('a-brand', d.brand);
     setVal('a-colorway', d.colorway); setVal('a-year', d.season);
     setVal('a-measurements', d.measurements);
     setChecked('a-worn', d.previously_worn); setChecked('a-tags', d.tags_attached);
@@ -1140,6 +1158,8 @@ function collectDetails(category){
   }
   if(category === 'Streetwear'){
     return {
+      garment_type: val('a-type'),
+      size_system: val('a-system'),
       size: val('a-size'),
       brand: val('a-brand'),
       colorway: val('a-colorway'),
@@ -1366,6 +1386,82 @@ document.getElementById('listingForm').addEventListener('submit', async function
   sel.addEventListener('change', sync);
   sync();
 })();
+
+// ---- Apparel sizing: garment type -> size system -> size ----
+// Designer clothing is sized in several systems (letters, Italian/European
+// numbers, waist inches, women's US numbers), so the size menu follows the
+// garment type and system instead of offering letters only. The old
+// letters-only menu also silently blanked any numeric size (52, 38, 46...)
+// when an existing listing was opened for editing and saved.
+const SIZE_SYSTEMS = {
+  "Letter (XXS\u2013XXXL)": ['XXS','XS','S','M','L','XL','XXL','XXXL'],
+  "Men's IT / EU": ['42','44','46','48','50','52','54','56','58','60'],
+  "Men's US / UK (chest)": ['34','36','38','40','42','44','46','48','50'],
+  "Waist (inches)": ['26','27','28','29','30','31','32','33','34','35','36','38','40','42','44'],
+  "Women's US": ['00','0','2','4','6','8','10','12','14','16','18','20'],
+  "Women's IT": ['36','38','40','42','44','46','48','50','52'],
+  "Women's FR / EU": ['32','34','36','38','40','42','44','46','48'],
+  "Women's UK": ['4','6','8','10','12','14','16','18','20','22'],
+  "One size": ['One size']
+};
+const DEFAULT_SYSTEM = {
+  'Tops & T-Shirts': "Letter (XXS\u2013XXXL)", 'Hoodies & Sweatshirts': "Letter (XXS\u2013XXXL)",
+  'Shirts': "Letter (XXS\u2013XXXL)", 'Knitwear': "Letter (XXS\u2013XXXL)",
+  'Activewear': "Letter (XXS\u2013XXXL)", 'Other': "Letter (XXS\u2013XXXL)",
+  'Jackets & Coats': "Men's IT / EU", 'Suits & Blazers': "Men's IT / EU",
+  'Pants & Jeans': "Waist (inches)", 'Shorts': "Waist (inches)",
+  'Dresses': "Women's US", 'Skirts': "Women's US"
+};
+function fillSystemOptions(){
+  const sys = document.getElementById('a-system');
+  if (!sys || sys.options.length) return;
+  sys.innerHTML = Object.keys(SIZE_SYSTEMS).map(k => '<option>' + k + '</option>').join('');
+}
+function fillSizeOptions(keep){
+  const sys = document.getElementById('a-system');
+  const size = document.getElementById('a-size');
+  if (!sys || !size) return;
+  const current = keep != null ? keep : size.value;
+  const list = SIZE_SYSTEMS[sys.value] || [];
+  size.innerHTML = '<option value="">Select size</option>'
+    + list.map(v => '<option>' + v + '</option>').join('')
+    + '<option>Other / see description</option>';
+  if (current) selectOrAdd(size, current);
+}
+function selectOrAdd(sel, value){
+  const v = String(value);
+  if (![...sel.options].some(o => o.value === v)) {
+    const o = document.createElement('option'); o.textContent = v; sel.appendChild(o);
+  }
+  sel.value = v;
+}
+function onGarmentTypeChange(){
+  fillSystemOptions();
+  const t = document.getElementById('a-type').value;
+  if (DEFAULT_SYSTEM[t]) document.getElementById('a-system').value = DEFAULT_SYSTEM[t];
+  fillSizeOptions('');
+}
+// Prefill when editing. Older listings have only a size, so infer a system
+// for them; any value not in a list is still kept and shown.
+function setApparelSize(d){
+  fillSystemOptions();
+  const sys = document.getElementById('a-system');
+  const type = document.getElementById('a-type');
+  if (d.garment_type) selectOrAdd(type, d.garment_type);
+  let system = d.size_system;
+  if (!system && d.size) {
+    system = Object.keys(SIZE_SYSTEMS).find(k => SIZE_SYSTEMS[k].includes(String(d.size)));
+  }
+  if (system) selectOrAdd(sys, system);
+  fillSizeOptions(d.size || '');
+}
+// Fill empty menus on a new listing, but never overwrite a size that edit
+// mode has already filled in.
+document.addEventListener('DOMContentLoaded', () => {
+  fillSystemOptions();
+  const size = document.getElementById('a-size');
+  if (size && size.options.length <= 1) fillSizeOptions('');
+});
 </script>
 </body>
 </html>

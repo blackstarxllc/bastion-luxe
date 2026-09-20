@@ -56,3 +56,64 @@
 # ---------------------------------------------------------------------
 [functions."deadline-sweep"]
   schedule = "@hourly"
+
+
+# ---------------------------------------------------------------------
+# Keep private project files off the public website.
+#
+# publish = "." means every file in the repo is served at bastionmarket.com,
+# including the setup notes (which contain internal emails and a webhook
+# secret), the database migration files, and the server function source
+# code. None of those are pages. These rules answer those addresses with the
+# normal "page not found" page instead. They do NOT affect
+# /.netlify/functions/* (with the dot), which is how the site actually
+# calls its server functions.
+# ---------------------------------------------------------------------
+[[redirects]]
+  from = "/sql/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/netlify/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/netlify.toml"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/DO-THIS-NOW.md"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/ADMIN-GUIDE.md"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/GO-LIVE-CHECKLIST.md"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/LAUNCH-DAY.md"
+  to = "/404.html"
+  status = 404
+  force = true
+
+# The logo construction sheet is a design reference, not a page.
+[[redirects]]
+  from = "/bastion-mark-compass.html"
+  to = "/404.html"
+  status = 404
+  force = true

@@ -10,6 +10,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bastion — Transaction</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="/icon-192.png">
+<meta name="robots" content="noindex, nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,450;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -1082,7 +1085,7 @@ async function releaseFunds(txnId, dealId, btn, releaseCode){
 
 function buildPayoutNote(){
   return `
-    <div class="payout-note" style="margin-top:14px;padding:12px 14px;border:1px solid var(--line,#333);border-radius:8px;font-size:13px;line-height:1.5;opacity:0.85;">
+    <div class="payout-note" style="margin-top:14px;padding:12px 14px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;line-height:1.5;opacity:0.85;">
       <strong>How payout works:</strong> The moment funds are released, you'll see it confirmed right here instantly — that's the point money leaves escrow. Actual arrival in your bank follows normal payout speeds (typically same or next business day for wire/ACH; longer for checks or international transfers). You choose how you get paid directly in your Escrow.com account.
     </div>`;
 }

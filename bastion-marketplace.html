@@ -10,6 +10,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bastion — Marketplace</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="/icon-192.png">
+<meta name="description" content="Browse luxury watches, sneakers, cars, handbags, cards and more. Every purchase is protected by escrow, so the seller is paid only after you confirm.">
+<link rel="canonical" href="https://bastionmarket.com/bastion-marketplace.html">
+<meta property="og:title" content="Bastion — Marketplace">
+<meta property="og:description" content="Browse luxury watches, sneakers, cars, handbags, cards and more. Every purchase is protected by escrow, so the seller is paid only after you confirm.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Bastion">
+<meta property="og:url" content="https://bastionmarket.com/bastion-marketplace.html">
+<meta property="og:image" content="https://bastionmarket.com/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://bastionmarket.com/og-image.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,450;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -392,8 +406,8 @@
     margin-bottom:18px; gap:16px;
   }
   .shelf-title{
-    font-family:var(--serif); font-size:21px; letter-spacing:.01em;
-    color:var(--bone); margin:0;
+    font-family:'Fraunces', serif; font-size:21px; letter-spacing:.01em;
+    color:var(--ivory); margin:0;
   }
   .shelf-count{
     font-size:11px; letter-spacing:.14em; text-transform:uppercase;
@@ -404,16 +418,36 @@
     color:var(--brass); cursor:pointer; background:none; border:none;
     padding:0; white-space:nowrap;
   }
-  .shelf-link:hover{ color:var(--brass-bright); }
+  .shelf-link:hover{ color:#D9B87E; }
+  /* The visible scrollbar under each shelf read as a stray line across the
+     page, so it is hidden (same treatment as the filter chips above).
+     Touch and trackpad users still swipe; mouse users get the hover
+     arrows below, since without a scrollbar a plain mouse wheel has no
+     way to move a row sideways. */
+  .shelf-track{ position:relative; }
   .shelf{
     display:flex; gap:24px; overflow-x:auto; overflow-y:hidden;
     scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch;
-    padding-bottom:12px; scrollbar-width:thin;
+    padding-bottom:12px; scrollbar-width:none;
   }
-  .shelf::-webkit-scrollbar{ height:5px; }
-  .shelf::-webkit-scrollbar-track{ background:transparent; }
-  .shelf::-webkit-scrollbar-thumb{ background:var(--line); border-radius:3px; }
-  .shelf:hover::-webkit-scrollbar-thumb{ background:var(--brass-dim); }
+  .shelf::-webkit-scrollbar{ display:none; }
+  .shelf-arrow{ display:none; }
+  @media (hover:hover) and (pointer:fine){
+    .shelf-arrow{
+      display:flex; align-items:center; justify-content:center;
+      position:absolute; top:calc(50% - 6px); transform:translateY(-50%);
+      width:42px; height:42px; border-radius:50%; z-index:3;
+      border:1px solid var(--brass-dim); background:rgba(10,11,13,.84);
+      color:var(--brass); cursor:pointer; padding:0;
+      opacity:0; transition:opacity .2s ease, border-color .2s ease, color .2s ease;
+    }
+    .shelf-arrow.prev{ left:10px; }
+    .shelf-arrow.next{ right:10px; }
+    .shelf-track:hover .shelf-arrow{ opacity:1; }
+    .shelf-arrow:hover{ border-color:var(--brass); color:#D9B87E; }
+    .shelf-track .shelf-arrow.off{ opacity:0; pointer-events:none; }
+    .shelf-arrow svg{ width:16px; height:16px; }
+  }
   .shelf > .card{
     flex:0 0 260px; scroll-snap-align:start;
   }
@@ -1025,10 +1059,14 @@ function estimateEscrowFee(amount){
 function feeForPrice(value){
   const n = Number(value);
   if(isNaN(n)) return '';
+  // Must match calculate_protection_fee() in the database and
+  // feeRateForPrice() on the listing and create-listing pages. This card
+  // estimate previously used an old schedule (1% / 4% / 3.5% / 3%), so a
+  // shopper could see a lower fee here than they were charged at checkout.
   let rate;
-  if(n < 1000) rate = 0.01;
-  else if(n < 10000) rate = 0.04;
-  else if(n < 50000) rate = 0.035;
+  if(n < 2000) rate = 0.06;
+  else if(n < 10000) rate = 0.05;
+  else if(n < 50000) rate = 0.045;
   else rate = 0.03;
   const bastionFee = n * rate;
   const total = n + bastionFee;
@@ -1127,15 +1165,61 @@ function renderGrid(){
         +     'View all ' + items.length + ' &rarr;'
         +   '</button>'
         + '</div>'
-        + '<div class="shelf">' + items.map((d, i) => cardMarkup(d, i)).join('') + '</div>'
+        + '<div class="shelf-track">'
+        +   '<button class="shelf-arrow prev off" type="button" aria-label="Scroll left" onclick="scrollShelf(this,-1)">' + shelfChevron(-1) + '</button>'
+        +   '<div class="shelf">' + items.map((d, i) => cardMarkup(d, i)).join('') + '</div>'
+        +   '<button class="shelf-arrow next" type="button" aria-label="Scroll right" onclick="scrollShelf(this,1)">' + shelfChevron(1) + '</button>'
+        + '</div>'
         + '</div>';
     }).join('');
+    initShelfArrows();
     return;
   }
 
   grid.classList.add('grid');
   grid.innerHTML = filtered.map((deal, idx) => cardMarkup(deal, idx)).join('');
 }
+
+// ---- Shelf arrows (desktop mouse only; hidden on touch by CSS) ----
+// A function (not a const) so it is available no matter when the first
+// render happens — function declarations are hoisted, consts are not.
+function shelfChevron(dir){
+  const d = dir < 0 ? 'M10 3L5 8l5 5' : 'M6 3l5 5-5 5';
+  return '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + d + '"/></svg>';
+}
+
+function scrollShelf(btn, dir){
+  const shelf = btn.parentElement.querySelector('.shelf');
+  if (!shelf) return;
+  shelf.scrollBy({ left: dir * Math.max(shelf.clientWidth * 0.85, 260), behavior: 'smooth' });
+}
+
+// Show the left arrow only once there is something to the left, and the
+// right arrow only while there is more to the right. A shelf that fits on
+// screen shows neither.
+function updateShelfArrows(track){
+  const shelf = track.querySelector('.shelf');
+  const prev = track.querySelector('.shelf-arrow.prev');
+  const next = track.querySelector('.shelf-arrow.next');
+  if (!shelf || !prev || !next) return;
+  prev.classList.toggle('off', shelf.scrollLeft <= 4);
+  next.classList.toggle('off', shelf.scrollLeft + shelf.clientWidth >= shelf.scrollWidth - 4);
+}
+
+function initShelfArrows(){
+  document.querySelectorAll('.shelf-track').forEach(track => {
+    const shelf = track.querySelector('.shelf');
+    if (shelf) shelf.addEventListener('scroll', () => updateShelfArrows(track), { passive: true });
+    updateShelfArrows(track);
+    // Card images load after first paint and can change the row width.
+    track.querySelectorAll('img').forEach(img => {
+      if (!img.complete) img.addEventListener('load', () => updateShelfArrows(track), { once: true });
+    });
+  });
+}
+window.addEventListener('resize', () => {
+  document.querySelectorAll('.shelf-track').forEach(updateShelfArrows);
+});
 
 // Jump from a shelf's "View all" into that category's full grid.
 function jumpToCategory(cat){

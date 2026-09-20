@@ -230,6 +230,10 @@
     cursor:pointer;
     transition:border-color 0.2s ease, background 0.2s ease;
   }
+  .photo-guide{ display:none; margin-top:12px; padding:12px 14px; border-left:2px solid var(--brass);
+    background:rgba(199,162,104,0.05); font-size:12.5px; line-height:1.6; color:var(--stone); }
+  .photo-guide.show{ display:block; }
+  .photo-guide strong{ color:var(--brass); font-weight:500; letter-spacing:.04em; }
   .photo-upload-box:hover{ border-color:var(--brass); background:rgba(199,162,104,0.05); }
   .photo-upload-box.dragover{ border-color:var(--brass); background:rgba(199,162,104,0.08); }
   .photo-pick-icon{
@@ -687,6 +691,7 @@
         <div class="photo-hint">JPG, PNG, or WEBP · up to 8MB each · add as many as you need</div>
         <input id="photoFile" type="file" accept="image/png, image/jpeg, image/webp" multiple class="visually-hidden-input">
       </div>
+      <div class="photo-guide" id="photoGuide"></div>
       <div class="photo-grid" id="photoGrid"></div>
       <div class="photo-hint" id="photoUploadStatus"></div>
     </div>
@@ -798,7 +803,24 @@
         <div class="field"><label for="j-material">Material</label><input id="j-material" type="text" placeholder="e.g. 18k White Gold"></div>
         <div class="field"><label for="j-carat">Carat Weight</label><input id="j-carat" type="text" placeholder="e.g. 2.5ct"></div>
       </div>
-      <div class="field"><label for="j-cert">Certification</label><input id="j-cert" type="text" placeholder="e.g. GIA Certified"></div>
+      <div class="field"><label for="j-cert">Certification / Papers</label><input id="j-cert" type="text" placeholder="e.g. Cartier box and papers"></div>
+      <div class="detail-row-2">
+        <div class="field"><label for="j-lab">Diamond Grading Report</label>
+          <select id="j-lab"><option value="">None</option><option>GIA</option><option>IGI</option><option>AGS</option><option>HRD</option></select></div>
+        <div class="field"><label for="j-report">Report Number</label><input id="j-report" type="text" placeholder="e.g. 2141438171"></div>
+      </div>
+      <div class="photo-hint">Buyers can check a GIA or IGI report number directly on the lab's website.</div>
+    </div>
+
+    <!-- Memorabilia -->
+    <div class="detail-fields" id="fields-Memorabilia">
+      <div class="detail-fields-title">Authentication</div>
+      <div class="field"><label for="m-signed">Signed By</label><input id="m-signed" type="text" placeholder="e.g. Kobe Bryant"></div>
+      <div class="detail-row-2">
+        <div class="field"><label for="m-auth">Authenticated By</label>
+          <select id="m-auth"><option value="">Select</option><option>PSA/DNA</option><option>Beckett (BAS)</option><option>JSA</option><option>Fanatics</option><option>MLB Authentication</option><option>Steiner</option><option>Other</option></select></div>
+        <div class="field"><label for="m-cert">Certificate Number</label><input id="m-cert" type="text" placeholder="the number on the card, letter or hologram"></div>
+      </div>
     </div>
 
     <!-- Trading Cards -->
@@ -1064,10 +1086,14 @@ async function loadForEdit(){
     setVal('v-mileage', d.mileage); setVal('v-vin', d.vin);
   } else if(data.category === 'Jewelry'){
     setVal('j-material', d.material); setVal('j-carat', d.carat_weight); setVal('j-cert', d.certification);
+    setVal('j-lab', d.report_lab); setVal('j-report', d.report_number);
+  } else if(data.category === 'Memorabilia'){
+    setVal('m-signed', d.signed_by); setVal('m-auth', d.authenticator); setVal('m-cert', d.cert_number);
   } else if(data.category === 'Cards'){
     setVal('c-grade', d.grade); setVal('c-year', d.year); setVal('c-set', d.set_number); setVal('c-cert', d.cert_number);
   }
 
+  if (typeof updatePhotoGuide === 'function') updatePhotoGuide();
   document.querySelector('.page-title').textContent = 'Edit your listing.';
   document.getElementById('submitBtn').textContent = 'Save Changes';
 }
@@ -1119,7 +1145,11 @@ const categoryFieldMap = {
   Sneakers: 'fields-Sneakers',
   Vehicles: 'fields-Vehicles',
   Jewelry: 'fields-Jewelry',
-  Cards: 'fields-Cards'
+  Cards: 'fields-Cards',
+  // Streetwear's section existed but was never listed here, so the size,
+  // brand and tag fields never appeared for clothing.
+  Streetwear: 'fields-Streetwear',
+  Memorabilia: 'fields-Memorabilia'
 };
 
 document.getElementById('category').addEventListener('change', function(e){
@@ -1130,7 +1160,33 @@ document.getElementById('category').addEventListener('change', function(e){
   if(targetId){
     document.getElementById(targetId).classList.add('show');
   }
+  updatePhotoGuide();
 });
+
+// Suggested shots per category. Listings with these photos answer the
+// questions buyers ask first, and look consistent across the marketplace.
+const PHOTO_GUIDE = {
+  Watches: 'dial straight-on, caseback, clasp, side profile, the reference or serial up close, and box and papers if included.',
+  Jewelry: 'front and back, the clasp and hallmark stamps, the piece worn for scale, and the box, papers or grading report.',
+  Handbags: 'front, back, base, interior, hardware close-ups, the date code or heat stamp, and the dust bag and box.',
+  Sneakers: 'both sides, the soles, the heels, the size tag inside, and the box label.',
+  Streetwear: 'front, back, the brand and size tags, any wear up close, and the retail tags if still attached.',
+  Cards: 'front and back of the slab, with the certification number on the label clearly readable.',
+  Memorabilia: 'the full piece, the signature up close, and the certificate or hologram with its number readable.',
+  Art: 'the full piece straight-on, the signature and edition number, any markings underneath, and the packaging.',
+  Collectibles: 'the full piece from several angles, any numbering or markings, and the original packaging.',
+  Electronics: 'front, back, the screen powered on, the serial label, and everything included in the box.',
+  Vehicles: 'all four sides, the interior, the dashboard with mileage showing, the engine bay, and the VIN plate.',
+  Instruments: 'front and back, the headstock, the serial number, any wear up close, and the case.'
+};
+function updatePhotoGuide(){
+  const el = document.getElementById('photoGuide');
+  const sel = document.getElementById('category');
+  if (!el || !sel) return;
+  const tip = PHOTO_GUIDE[sel.value];
+  el.innerHTML = tip ? '<strong>SUGGESTED PHOTOS</strong><br>Lead with the best overall shot, then add ' + tip : '';
+  el.classList.toggle('show', !!tip);
+}
 
 function collectDetails(category){
   const val = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
@@ -1182,7 +1238,16 @@ function collectDetails(category){
     return {
       material: val('j-material'),
       carat_weight: val('j-carat'),
-      certification: val('j-cert')
+      certification: val('j-cert'),
+      report_lab: val('j-lab'),
+      report_number: val('j-report')
+    };
+  }
+  if(category === 'Memorabilia'){
+    return {
+      signed_by: val('m-signed'),
+      authenticator: val('m-auth'),
+      cert_number: val('m-cert')
     };
   }
   if(category === 'Cards'){

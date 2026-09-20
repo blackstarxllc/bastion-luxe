@@ -1858,14 +1858,57 @@ async function loadVerification(category, details){
     }
   }
 
+  // Certificate lookups. Each link opens the grader's or authenticator's
+  // own public lookup; Bastion doesn't vouch for the item itself. Only PSA,
+  // CGC and GIA accept the number in the link; the others open their lookup
+  // page and the buyer types the number in.
+  const CERT_LOOKUPS = {
+    'PSA':       { name: 'PSA',     url: n => 'https://www.psacard.com/cert/' + encodeURIComponent(n) },
+    'PSA/DNA':   { name: 'PSA',     url: n => 'https://www.psacard.com/cert/' + encodeURIComponent(n) },
+    'CGC':       { name: 'CGC',     url: n => 'https://www.cgccards.com/certlookup/' + encodeURIComponent(n) + '/' },
+    'Beckett':   { name: 'Beckett', url: () => 'https://www.beckett.com/grading', manual: true },
+    'Beckett (BAS)': { name: 'Beckett', url: () => 'https://www.beckett.com/authentication', manual: true },
+    'SGC':       { name: 'SGC',     url: () => 'https://gosgc.com/', manual: true },
+    'JSA':       { name: 'JSA',     url: () => 'https://www.spenceloa.com/', manual: true },
+    'GIA':       { name: 'GIA',     url: n => 'https://www.gia.edu/report-check?reportno=' + encodeURIComponent(n) },
+    'IGI':       { name: 'IGI',     url: () => 'https://www.igi.org/', manual: true }
+  };
+  function graderFromGrade(g){
+    g = String(g || '').toUpperCase();
+    if (/\bPSA\b/.test(g)) return 'PSA';
+    if (/\b(BGS|BCCG|BVG|BECKETT)\b/.test(g)) return 'Beckett';
+    if (/\bCGC\b/.test(g)) return 'CGC';
+    if (/\bSGC\b/.test(g)) return 'SGC';
+    return null;
+  }
+  function certBox(title, rows, key, number){
+    const L = key && CERT_LOOKUPS[key];
+    let html = '<div class="verify-box-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>' + title + '</div>';
+    rows.forEach(r => { if (r[1]) html += '<div class="verify-row"><span class="k">' + r[0] + '</span><span class="v">' + escapeHtml(String(r[1])) + '</span></div>'; });
+    if (L) {
+      html += '<a class="verify-link" href="' + L.url(number) + '" target="_blank" rel="noopener">Verify on ' + L.name + ' \u2192</a>';
+      html += '<div class="verify-note">' + (L.manual
+        ? 'Opens ' + L.name + '\'s own lookup in a new tab. Enter the number above and confirm the details match before purchasing.'
+        : 'Opens ' + L.name + '\'s own public lookup in a new tab. Confirm the details match before purchasing.') + '</div>';
+    } else {
+      html += '<div class="verify-note">Ask the seller which company issued this number, then look it up on that company\'s website before purchasing.</div>';
+    }
+    box.innerHTML = html;
+    box.classList.remove('hidden');
+  }
+
   if(category === 'Cards' && details.cert_number){
     const cert = String(details.cert_number).trim();
-    box.innerHTML =
-      '<div class="verify-box-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>Certification on File</div>' +
-      '<div class="verify-row"><span class="k">Cert Number</span><span class="v">' + escapeHtml(cert) + '</span></div>' +
-      '<a class="verify-link" href="https://www.psacard.com/cert/' + encodeURIComponent(cert) + '" target="_blank" rel="noopener">Verify on PSA.com →</a>' +
-      '<div class="verify-note">Opens PSA\'s own public certificate lookup in a new tab — confirm the card details match before purchasing.</div>';
-    box.classList.remove('hidden');
+    const grader = graderFromGrade(details.grade);
+    certBox('Certification on File', [['Grade', details.grade], ['Cert Number', cert]], grader, cert);
+  }
+  if(category === 'Memorabilia' && details.cert_number){
+    const cert = String(details.cert_number).trim();
+    certBox('Authentication on File', [['Signed By', details.signed_by], ['Authenticated By', details.authenticator], ['Cert Number', cert]], details.authenticator, cert);
+  }
+  if(category === 'Jewelry' && details.report_lab && details.report_number){
+    const num = String(details.report_number).trim();
+    certBox('Grading Report on File', [['Lab', details.report_lab], ['Report Number', num]], details.report_lab, num);
   }
 }
 

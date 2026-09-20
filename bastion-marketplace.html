@@ -821,6 +821,7 @@
     }
   }
   .chip[hidden]{ display:none !important; }
+  .facet-wrap[hidden]{ display:none !important; }
 </style>
   <script>
     if ("serviceWorker" in navigator) {
@@ -921,6 +922,12 @@
         <button class="chip" data-cond="Fair">Fair</button>
         <button class="chip" data-cond="For Parts">For Parts</button>
       </div>
+      <div class="sort-wrap facet-wrap" id="brandWrap" hidden>
+        <select id="brandSelect" class="sort-select" aria-label="Brand"><option value="all">All Brands</option></select>
+      </div>
+      <div class="sort-wrap facet-wrap" id="sizeWrap" hidden>
+        <select id="sizeSelect" class="sort-select" aria-label="Size"><option value="all">All Sizes</option></select>
+      </div>
       <div class="sort-wrap">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13" style="color:var(--stone-dim); flex-shrink:0;"><path d="M3 7h11M3 12h7M3 17h4"/><path d="M17 4v16M17 4l-3 3M17 4l3 3"/></svg>
         <select id="sortSelect" class="sort-select">
@@ -972,6 +979,8 @@ const TABLE_NAME = 'deals';
 let allDeals = [];
 let activeCategory = 'all';
 let activeCondition = 'all';
+let activeBrand = 'all';
+let activeSize = 'all';
 let searchQuery = '';
 let priceMin = null;
 let priceMax = null;
@@ -1119,6 +1128,7 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) reshuffleShelves()
 
 function renderGrid(){
   const grid = document.getElementById('grid');
+  refreshFacetMenus();
   let filtered = activeCategory === 'all'
     ? allDeals
     : allDeals.filter(d => (d.category || '').toLowerCase() === activeCategory.toLowerCase());
@@ -1141,6 +1151,12 @@ function renderGrid(){
   }
   if(priceMax != null){
     filtered = filtered.filter(d => Number(d.price) <= priceMax);
+  }
+  if(activeBrand !== 'all'){
+    filtered = filtered.filter(d => brandOf(d) === activeBrand);
+  }
+  if(activeSize !== 'all'){
+    filtered = filtered.filter(d => sizeOf(d) === activeSize);
   }
 
   if(activeSort === 'price_asc'){
@@ -1174,6 +1190,7 @@ function renderGrid(){
     && searchQuery.trim() === ''
     && activeCondition === 'all'
     && priceMin == null && priceMax == null
+    && activeBrand === 'all' && activeSize === 'all'
     && activeSort !== 'price_asc' && activeSort !== 'price_desc';
 
   if (isBrowsing && filtered.length >= 4) {
@@ -1268,6 +1285,7 @@ window.addEventListener('resize', () => {
 // Jump from a shelf's "View all" into that category's full grid.
 function jumpToCategory(cat){
   activeCategory = cat;
+  activeSize = 'all';
   document.querySelectorAll('#filterBar .chip').forEach(chip => {
     chip.classList.toggle('active', (chip.dataset.cat || '') === cat);
   });
@@ -1389,6 +1407,7 @@ document.getElementById('filterBar').addEventListener('click', function(e){
   this.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
   btn.classList.add('active');
   activeCategory = btn.dataset.cat;
+  activeSize = 'all';
   renderGrid();
 });
 
@@ -1411,6 +1430,61 @@ function readPriceInputs(){
 document.getElementById('priceMin').addEventListener('input', readPriceInputs);
 document.getElementById('priceMax').addEventListener('input', readPriceInputs);
 
+
+// ---- Brand and size filters ----
+// Brand comes from the listing's brand field when the seller filled it in,
+// otherwise from a known brand appearing in the title (whichever appears
+// first, so "Louis Vuitton x Supreme" counts as Louis Vuitton). Menus only
+// offer brands and sizes that exist in the category being viewed, and hide
+// themselves when there's nothing to choose between.
+function knownBrands(){ return ['Audemars Piguet','Patek Philippe','Rolex','Omega','Richard Mille','Cartier','Bvlgari','Van Cleef & Arpels','Tiffany & Co.','Hermès','Chanel','Louis Vuitton','Goyard','Dior','Gucci','Prada','Celine','Givenchy','Saint Laurent','Balenciaga','Chrome Hearts','Rick Owens','Christian Louboutin','Supreme','Off-White','Air Jordan','Nike','Adidas','KAWS','Be@rbrick','Leica','Hasselblad','Canon','Sony','Ferrari','Porsche','Lamborghini','Dodge','Jackson','ESP','Marshall','Gibson','Fender','Topps','Bowman','Mitchell & Ness']; }
+function brandOf(d){
+  const own = d.details && d.details.brand ? String(d.details.brand).trim() : '';
+  const hay = (own + ' ' + (d.item_name || '')).toLowerCase();
+  let best = null, bestAt = Infinity;
+  knownBrands().forEach(b => {
+    const at = hay.indexOf(b.toLowerCase());
+    if (at !== -1 && at < bestAt) { best = b; bestAt = at; }
+  });
+  if (best) return best;
+  return own ? own.replace(/\b\w/g, c => c.toUpperCase()) : null;
+}
+function sizeOf(d){
+  const v = d.details && d.details.size != null ? String(d.details.size).trim() : '';
+  return v || null;
+}
+function sizeSortKey(v){
+  const order = ['XXS','XS','S','M','L','XL','XXL','XXXL'];
+  const i = order.indexOf(v.toUpperCase());
+  if (i !== -1) return [0, i];
+  const n = parseFloat(v);
+  return isNaN(n) ? [2, v] : [1, n];
+}
+function fillFacet(selectId, wrapId, values, active, allLabel, sorter){
+  const sel = document.getElementById(selectId), wrap = document.getElementById(wrapId);
+  if (!sel || !wrap) return active;
+  const uniq = [...new Set(values.filter(Boolean))].sort(sorter);
+  if (active !== 'all' && !uniq.includes(active)) uniq.push(active);
+  sel.innerHTML = '<option value="all">' + allLabel + '</option>' + uniq.map(v => '<option>' + escapeHtml(v) + '</option>').join('');
+  sel.value = active;
+  wrap.hidden = uniq.length < 2 && active === 'all';
+  return active;
+}
+function refreshFacetMenus(){
+  const inCat = activeCategory === 'all'
+    ? allDeals
+    : allDeals.filter(d => (d.category || '').toLowerCase() === activeCategory.toLowerCase());
+  fillFacet('brandSelect', 'brandWrap', inCat.map(brandOf), activeBrand, 'All Brands', (a, b) => a.localeCompare(b));
+  // Sizes only make sense inside one category (a sneaker 10 isn't a jacket 10).
+  const sized = activeCategory === 'all' ? [] : inCat.map(sizeOf);
+  fillFacet('sizeSelect', 'sizeWrap', sized, activeSize, 'All Sizes', (a, b) => {
+    const x = sizeSortKey(a), y = sizeSortKey(b);
+    return x[0] - y[0] || (x[1] < y[1] ? -1 : x[1] > y[1] ? 1 : 0);
+  });
+}
+document.getElementById('brandSelect').addEventListener('change', e => { activeBrand = e.target.value; renderGrid(); });
+document.getElementById('sizeSelect').addEventListener('change', e => { activeSize = e.target.value; renderGrid(); });
+
 document.getElementById('sortSelect').addEventListener('change', function(e){
   activeSort = e.target.value;
   renderGrid();
@@ -1422,6 +1496,8 @@ document.getElementById('clearFiltersBtn').addEventListener('click', function(){
   activeCondition = 'all';
   priceMin = null;
   priceMax = null;
+  activeBrand = 'all';
+  activeSize = 'all';
   activeSort = 'newest';
   document.getElementById('searchInput').value = '';
   document.getElementById('priceMin').value = '';

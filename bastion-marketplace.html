@@ -820,6 +820,7 @@
       scroll-behavior:auto !important;
     }
   }
+  .chip[hidden]{ display:none !important; }
 </style>
   <script>
     if ("serviceWorker" in navigator) {
@@ -1071,6 +1072,51 @@ function feeForPrice(value){
   return 'Protection fee ~' + (combinedRate*100).toFixed(1) + '%';
 }
 
+// ---- Hide category buttons that have nothing listed ----
+// All 18 categories used to show even when most were empty, so tapping
+// "Art" or "Coins" led to a blank page. A button reappears automatically
+// the moment something is listed in that category. The currently selected
+// category is never hidden.
+function hideEmptyCategoryChips(){
+  const bar = document.getElementById('filterBar');
+  if (!bar) return;
+  const present = new Set(allDeals.map(d => d.category || 'Other'));
+  bar.querySelectorAll('.chip[data-cat]').forEach(chip => {
+    const cat = chip.getAttribute('data-cat');
+    if (cat === 'all') return;
+    chip.hidden = !present.has(cat) && !chip.classList.contains('active');
+  });
+}
+
+// ---- Shelf order: random per visit, reshuffled every few minutes ----
+// Each category gets a random rank. The ranks stay fixed between re-renders
+// (filtering, favoriting, etc.) so rows don't jump while someone is using
+// the page, and are regenerated on every visit and on a timer.
+let shelfRanks = {};
+function shelfRank(cat){
+  if (!(cat in shelfRanks)) shelfRanks[cat] = Math.random();
+  return shelfRanks[cat];
+}
+function reshuffleShelves(){
+  shelfRanks = {};
+  if (document.querySelector('.shelf-wrap')) renderGrid();
+}
+const SHELF_RESHUFFLE_MS = 5 * 60 * 1000;
+let shelfReshuffleDue = false;
+setInterval(() => {
+  // Only reorder when the visitor is at the top of the page and the tab is
+  // visible; otherwise wait until they scroll back up, so rows never move
+  // under someone who is mid-browse.
+  if (document.visibilityState === 'visible' && window.scrollY < 200) reshuffleShelves();
+  else shelfReshuffleDue = true;
+}, SHELF_RESHUFFLE_MS);
+window.addEventListener('scroll', () => {
+  if (shelfReshuffleDue && window.scrollY < 200) { shelfReshuffleDue = false; reshuffleShelves(); }
+}, { passive: true });
+// Coming back with the browser's Back button can restore the old page from
+// memory without reloading it; give that visit a fresh order too.
+window.addEventListener('pageshow', (e) => { if (e.persisted) reshuffleShelves(); });
+
 function renderGrid(){
   const grid = document.getElementById('grid');
   let filtered = activeCategory === 'all'
@@ -1136,8 +1182,10 @@ function renderGrid(){
       const c = d.category || 'Other';
       (byCat[c] = byCat[c] || []).push(d);
     });
-    // Biggest categories first, so the page opens on substance.
-    const cats = Object.keys(byCat).sort((a, b) => byCat[b].length - byCat[a].length);
+    // Random category order (see shelfRank below). Previously this sorted
+    // biggest-category-first, which meant whichever category had the most
+    // listings (Sneakers) opened the page on every single visit.
+    const cats = Object.keys(byCat).sort((a, b) => shelfRank(a) - shelfRank(b));
 
     grid.classList.remove('grid');
     grid.innerHTML = cats.map(cat => {
@@ -1319,6 +1367,7 @@ async function loadDeals(){
     }
 
     allDeals = data || [];
+    hideEmptyCategoryChips();
     renderGrid();
   } catch(err){
     grid.innerHTML = `

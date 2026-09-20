@@ -409,10 +409,6 @@
     font-family:'Fraunces', serif; font-size:21px; letter-spacing:.01em;
     color:var(--ivory); margin:0;
   }
-  .shelf-count{
-    font-size:11px; letter-spacing:.14em; text-transform:uppercase;
-    color:var(--stone-dim); white-space:nowrap;
-  }
   .shelf-link{
     font-size:11.5px; letter-spacing:.12em; text-transform:uppercase;
     color:var(--brass); cursor:pointer; background:none; border:none;
@@ -1162,7 +1158,7 @@ function renderGrid(){
         + '<div class="shelf-head">'
         +   '<h2 class="shelf-title">' + escapeHtml(cat) + '</h2>'
         +   '<button class="shelf-link" onclick="jumpToCategory(\'' + catForAttr + '\')">'
-        +     'View all ' + items.length + ' &rarr;'
+        +     'View all &rarr;'
         +   '</button>'
         + '</div>'
         + '<div class="shelf-track">'

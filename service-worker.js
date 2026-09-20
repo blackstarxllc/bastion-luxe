@@ -1,5 +1,5 @@
 // Bastion service worker — enables offline access and app-like install behavior
-const CACHE_NAME = 'bastion-v3';
+const CACHE_NAME = 'bastion-v4';
 const PRECACHE_URLS = [
   '/index.html',
   '/bastion-auth.html',

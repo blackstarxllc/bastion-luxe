@@ -664,7 +664,13 @@ async function loadSellerProfile(){
     // click into a sold listing from a seller's profile as though it were
     // still for sale. Split into what's actually available now, and a
     // track record underneath it.
-    const activeListings = listings.filter(function(d){ return d.status !== 'sold'; });
+    //
+    // Allowlisted rather than excluding just 'sold': a listing a seller has
+    // archived (instead of deleted, when it has transaction history) is
+    // still status !== 'sold', so the old check would have kept showing it
+    // here as buyable — on the one page a shopper is most likely to browse
+    // a seller's other inventory from.
+    const activeListings = listings.filter(function(d){ return d.status === 'active' || d.status === 'pending'; });
     const soldListings = listings.filter(function(d){ return d.status === 'sold'; });
 
     document.getElementById('statListings').textContent = activeListings.length;

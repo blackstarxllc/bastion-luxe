@@ -1333,7 +1333,26 @@ async function removeListing(id, btn){
   if(!confirm('Remove this listing? This cannot be undone.')) return;
   btn.disabled = true;
   btn.textContent = '…';
-  const { error } = await supabaseClient.from('deals').delete().eq('id', id);
+  // A listing that has ever been transacted is no longer deletable — the
+  // database refuses it, because deleting one would detach the object behind
+  // a live order, an open dispute, or a payout that has not landed yet.
+  // Archiving keeps the record intact and takes it off the marketplace,
+  // which is what "Remove" actually means to a seller anyway.
+  let { error } = await supabaseClient.from('deals').delete().eq('id', id);
+
+  if(error && /transaction history/i.test(error.message || '')){
+    const archived = await supabaseClient
+      .from('deals').update({ status: 'archived' }).eq('id', id);
+    if(archived.error){
+      alert('Could not remove listing: ' + archived.error.message);
+      btn.disabled = false;
+      btn.textContent = 'Remove';
+      return;
+    }
+    error = null;
+    alert('This listing has order history, so it has been archived instead of deleted. It is off the marketplace, and the order records stay intact.');
+  }
+
   if(error){
     alert('Could not remove listing: ' + error.message);
     btn.disabled = false;

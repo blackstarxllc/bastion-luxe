@@ -16,6 +16,8 @@ const ESCROW_API_BASE = process.env.ESCROW_LIVE_MODE === 'true'
   ? 'https://api.escrow.com/2017-09-01'
   : 'https://api.escrow-sandbox.com/2017-09-01';
 
+const { getWebLink } = require('./_escrow-lib');
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method not allowed' };
@@ -329,53 +331,97 @@ exports.handler = async (event) => {
       };
     }
 
-    // 3. Save the real Escrow.com transaction ID back onto the Bastion row
-    await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}`, {
+    // ------------------------------------------------------------------
+    // 3a. Get a REAL payment link for the buyer.
+    //
+    // The create-transaction response does not contain a payment URL. The
+    // previous code guessed at five field names (url, transaction_url,
+    // landing_url, checkout_url, hosted_url) — Escrow.com returns none of
+    // them, so escrow_transaction_url was ALWAYS null and every buyer was
+    // told to "check your email" instead of being given a button. On a
+    // luxury marketplace that is where checkout quietly dies.
+    //
+    // The documented way to get one is the web_link endpoint, which returns
+    // a real Escrow.com landing page for a given action. 'agree' is the
+    // buyer's next step, and it leads straight into funding.
+    // ------------------------------------------------------------------
+    const payLink = await getWebLink({
+      escrowTransactionId: escrowData.id,
+      action: 'agree',
+      email: ESCROW_EMAIL,
+      apiKey: ESCROW_API_KEY,
+    });
+    if (!payLink) {
+      await logAlertToSupabase(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, 'escrow_transaction_creation',
+        'Escrow.com did not return a payment landing page — the buyer will have to use the email link instead',
+        { transactionId, escrowTransactionId: escrowData.id });
+    }
+
+    // Pick the GOODS item explicitly, by title. There are up to three items
+    // (goods, Shipping, protection fee). Matching on type alone is not
+    // sufficient because Shipping is also a broker_fee item — if Escrow.com
+    // returned it first, the release call would target the shipping line
+    // instead of the actual goods. That is a real money bug.
+    const escrowItemId = (function () {
+      const items = escrowData.items || [];
+      const goodsTitle = txn.item_name || 'Item';
+      let goods = items.find((i) => i.title === goodsTitle);
+      if (!goods) goods = items.find((i) => i.type !== 'broker_fee' && i.title !== 'Shipping');
+      return goods ? goods.id : (items[0] ? items[0].id : null);
+    })();
+
+    if (!escrowItemId) {
+      await logAlertToSupabase(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, 'escrow_transaction_creation',
+        'CRITICAL: created an Escrow.com transaction but could not identify its merchandise item — funds will not be releasable',
+        { transactionId, escrowTransactionId: escrowData.id, items: escrowData.items });
+    }
+
+    // ------------------------------------------------------------------
+    // 3b. Link the real Escrow transaction back onto the Bastion row — and
+    // VERIFY that the write landed.
+    //
+    // This response was previously ignored entirely. A failed PATCH here
+    // leaves a real escrow transaction, holding real money, that Bastion has
+    // no record of: an orphaned financial object nobody can release, refund
+    // or even find. Silence was the worst possible handling.
+    // ------------------------------------------------------------------
+    const linkRes = await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}`, {
       method: 'PATCH',
       headers: {
         apikey: SUPABASE_SERVICE_ROLE_KEY,
         Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
         'Content-Type': 'application/json',
-        Prefer: 'return=minimal',
+        Prefer: 'return=representation',
       },
       body: JSON.stringify({
         escrow_transaction_id: escrowData.id,
         escrow_status: escrowData.status || 'created',
-        // Pick the GOODS item explicitly, by title.
-        //
-        // There are now up to three items on the transaction: the goods,
-        // Shipping, and Bastion's broker fee. Matching on
-        // `type !== 'broker_fee'` is NOT sufficient any more, because the
-        // Shipping item is also type 'general_merchandise' — if Escrow.com
-        // ever returned it first, the release call would target the
-        // shipping line instead of the actual goods. That is a real money
-        // bug, so this matches the goods item by its exact title (which we
-        // set ourselves, just above) and only falls back to type-matching
-        // if that somehow fails.
-        escrow_item_id: (function(){
-          var items = escrowData.items || [];
-          var goodsTitle = txn.item_name || 'Item';
-          var goods = items.find(function(i){ return i.title === goodsTitle; });
-          if (!goods) {
-            goods = items.find(function(i){
-              return i.type !== 'broker_fee' && i.title !== 'Shipping';
-            });
-          }
-          return goods ? goods.id : (items[0] ? items[0].id : null);
-        })(),
-        // Capture a direct link to this transaction on Escrow.com's own
-        // site, IF their response actually includes one — checking every
-        // reasonable field name since the exact response shape hasn't
-        // been confirmed against live documentation. Never fabricated:
-        // if none of these are present, this stays null and the buyer
-        // falls back to checking their email instead.
-        escrow_transaction_url: escrowData.url || escrowData.transaction_url || escrowData.landing_url || escrowData.checkout_url || escrowData.hosted_url || null,
+        escrow_item_id: escrowItemId,
+        escrow_transaction_url: payLink,
       }),
     });
 
+    if (!linkRes.ok) {
+      const detail = await linkRes.text().catch(() => '');
+      await logAlertToSupabase(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, 'escrow_transaction_creation',
+        'CRITICAL: an Escrow.com transaction was created but could not be linked to its Bastion transaction. Orphaned escrow object — reconcile by hand.',
+        { transactionId, escrowTransactionId: escrowData.id, status: linkRes.status, detail: detail.slice(0, 500) });
+
+      // Reported as a failure, because it IS one. The caller must not tell
+      // the buyer their purchase is set up when we cannot find it again.
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          error: 'Your payment was set up with Escrow.com, but we could not finish linking it to this order. Support has been alerted and will contact you — do not pay until you hear from us.',
+          escrow_transaction_id: escrowData.id,
+          linkFailed: true,
+        }),
+      };
+    }
+
     return {
       statusCode: 200,
-      body: JSON.stringify({ escrow_transaction_id: escrowData.id, status: escrowData.status }),
+      body: JSON.stringify({ escrow_transaction_id: escrowData.id, status: escrowData.status, payment_url: payLink }),
     };
   } catch (err) {
     console.error('create-escrow-transaction fatal error:', err);

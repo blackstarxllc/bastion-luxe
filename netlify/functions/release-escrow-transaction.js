@@ -7,9 +7,28 @@
 // immediately — no waiting period, no manual step on Escrow.com's own
 // site required.
 //
-// NOTE: Escrow.com's exact release-endpoint shape is being verified
-// against a real sandbox test — if the first attempt doesn't match their
-// API exactly, the error response will tell us precisely what to adjust.
+// VERIFIED 2026-09-20 against Escrow.com's live API docs:
+//
+//   * The action that disburses funds is 'accept', not 'release'. This
+//     function sent 'release' — an action that does not exist in their API —
+//     so every confirm-receipt ever made here was rejected by Escrow.com.
+//   * 'accept' cannot be performed by a partner on behalf of the buyer.
+//     Bastion IS the partner on every transaction it creates. So there is no
+//     credential Bastion can hold that lets it accept for the buyer.
+//
+// What happens now:
+//   1. Mark the item received on the buyer's behalf ('receive' IS allowed
+//      on-behalf). This starts Escrow.com's inspection clock, which is what
+//      arms their automatic accept-on-lapse. The seller gets paid eventually
+//      even if the buyer never clicks again.
+//   2. Attempt 'accept' As-Customer the buyer, in case this partner account
+//      has been granted wider permission.
+//   3. If Escrow.com refuses that — the expected case — return a real
+//      Escrow.com landing-page link and tell the buyer plainly that the last
+//      click happens there.
+//
+// Bastion writes status='released' ONLY when Escrow.com confirms. It never
+// guesses.
 
 // Sandbox vs live is controlled by a single environment variable, so
 // going live is a config flip — not a code edit that could be half-applied.
@@ -23,7 +42,12 @@ const ESCROW_API_BASE = process.env.ESCROW_LIVE_MODE === 'true'
 // never explicitly released on any transaction, ever. applyActionToAllItems
 // releases every item on the transaction, treating the merchandise item as
 // the one whose success actually matters to the buyer/seller relationship.
-const { applyActionToAllItems } = require('./_escrow-lib');
+const {
+  applyActionToAllItems,
+  markItemsReceived,
+  getWebLink,
+  ACTION_ACCEPT,
+} = require('./_escrow-lib');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -214,24 +238,14 @@ exports.handler = async (event) => {
       };
     }
 
-    // 2. Release every item on the transaction — merchandise, protection
-    //    fee, and shipping — not just the merchandise item. See
-    //    _escrow-lib.js for the full history of why this matters: the fee
-    //    and shipping items were never explicitly released before this fix.
-    const releaseResult = await applyActionToAllItems({
-      escrowTransactionId: txn.escrow_transaction_id,
-      action: 'release',
-      email: ESCROW_EMAIL,
-      apiKey: ESCROW_API_KEY,
-      primaryItemId: txn.escrow_item_id,
+    // Look up the buyer's email — needed for the As-Customer header.
+    const buyerRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${txn.buyer_id}`, {
+      headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
     });
+    const buyerUser = buyerRes.ok ? await buyerRes.json().catch(() => null) : null;
+    const buyerEmail = buyerUser && buyerUser.email;
 
-    // Log every non-primary failure to system_alerts so a fee or shipping
-    // item that failed to release doesn't disappear into function logs
-    // nobody is watching. This function previously had NO system_alerts
-    // logging at all — every failure path only reached console.error.
-    const secondaryFailures = releaseResult.results.filter((r) => r.ok === false);
-    if (secondaryFailures.length) {
+    async function alert(message, context) {
       try {
         await fetch(`${SUPABASE_URL}/rest/v1/system_alerts`, {
           method: 'POST',
@@ -241,43 +255,129 @@ exports.handler = async (event) => {
             'Content-Type': 'application/json',
             Prefer: 'return=minimal',
           },
-          body: JSON.stringify({
-            source: 'release_escrow_transaction',
-            message: 'One or more non-merchandise items failed to release — revenue may be stuck in escrow',
-            context: { transactionId, escrowTransactionId: txn.escrow_transaction_id, failures: secondaryFailures },
-          }),
+          body: JSON.stringify({ source: 'release_escrow_transaction', message, context: context || {}, transaction_id: transactionId }),
         });
       } catch (e) {
-        console.error('release-escrow-transaction: could not log secondary failure alert', e);
+        console.error('release-escrow-transaction: could not write system_alert', e);
       }
     }
 
-    if (!releaseResult.ok) {
-      console.error('release-escrow-transaction: Escrow.com rejected releasing the merchandise item', {
-        error: releaseResult.primaryError,
+    // STEP 1 — mark received on the buyer's behalf. Allowed for partners,
+    // and it arms Escrow.com's automatic accept-on-inspection-lapse, which
+    // is the safety net that guarantees the seller is eventually paid.
+    if (buyerEmail) {
+      const received = await markItemsReceived({
+        escrowTransactionId: txn.escrow_transaction_id,
+        email: ESCROW_EMAIL,
+        apiKey: ESCROW_API_KEY,
+        primaryItemId: txn.escrow_item_id,
+        asCustomer: buyerEmail,
       });
+      if (!received.ok) {
+        await alert('Could not mark the item received on Escrow.com — the inspection clock may not have started', {
+          escrowTransactionId: txn.escrow_transaction_id, error: received.error,
+        });
+      }
+    }
+
+    // STEP 2 — attempt the real disbursing action.
+    const releaseResult = await applyActionToAllItems({
+      escrowTransactionId: txn.escrow_transaction_id,
+      action: ACTION_ACCEPT,
+      email: ESCROW_EMAIL,
+      apiKey: ESCROW_API_KEY,
+      primaryItemId: txn.escrow_item_id,
+      asCustomer: buyerEmail || undefined,
+    });
+
+    const secondaryFailures = releaseResult.results.filter((r) => r.ok === false);
+    if (secondaryFailures.length && releaseResult.ok) {
+      await alert('One or more non-merchandise items failed to accept — fee or shipping revenue may be stuck in escrow', {
+        escrowTransactionId: txn.escrow_transaction_id, failures: secondaryFailures,
+      });
+    }
+
+    // STEP 3 — Escrow.com refused to let Bastion accept for the buyer. This
+    // is the documented, expected path. Hand the buyer a real link instead
+    // of an error, and change NOTHING about the local money state.
+    if (!releaseResult.ok && releaseResult.needsBuyerAction) {
+      const link = await getWebLink({
+        escrowTransactionId: txn.escrow_transaction_id,
+        action: 'accept',
+        email: ESCROW_EMAIL,
+        apiKey: ESCROW_API_KEY,
+      });
+
+      await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}`, {
+        method: 'PATCH',
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify({ escrow_status: 'awaiting_buyer_acceptance' }),
+      }).catch(() => {});
+
       return {
-        statusCode: 502,
-        body: JSON.stringify({ error: 'Escrow.com rejected the release request', details: releaseResult.primaryError }),
+        statusCode: 200,
+        body: JSON.stringify({
+          released: false,
+          needsBuyerAction: true,
+          acceptUrl: link,
+          message: link
+            ? 'Escrow.com requires you to approve the release from your own Escrow.com account. Use the button to finish — it takes one click, and this page updates automatically.'
+            : 'Escrow.com requires you to approve the release from your own Escrow.com account. Sign in at escrow.com and accept the item there; this page updates automatically once you do.',
+        }),
       };
     }
 
-    // 3. Reflect the real release back onto Bastion's own row.
-    const primaryResult = releaseResult.results.find((r) => String(r.id) === String(txn.escrow_item_id));
-    const releasedStatus = (primaryResult && primaryResult.response && primaryResult.response.status) || 'released';
+    if (!releaseResult.ok) {
+      console.error('release-escrow-transaction: Escrow.com rejected accepting the merchandise item', {
+        error: releaseResult.primaryError,
+      });
+      await alert('Escrow.com rejected the release of the merchandise item', {
+        escrowTransactionId: txn.escrow_transaction_id, error: releaseResult.primaryError,
+      });
+      return {
+        statusCode: 502,
+        body: JSON.stringify({ error: 'Escrow.com did not accept the release request. Nothing was changed.', details: releaseResult.primaryError }),
+      };
+    }
 
-    await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}`, {
+    // STEP 4 — Escrow.com CONFIRMED it. Only now does Bastion record the
+    // release. The browser no longer writes this; the database trigger
+    // enforces that, so this is the single path that can produce it.
+    const nowIso = new Date().toISOString();
+    const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}`, {
       method: 'PATCH',
       headers: {
         apikey: SUPABASE_SERVICE_ROLE_KEY,
         Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
         'Content-Type': 'application/json',
-        Prefer: 'return=minimal',
+        Prefer: 'return=representation',
       },
-      body: JSON.stringify({ escrow_status: releasedStatus }),
+      body: JSON.stringify({ status: 'released', released_at: nowIso, escrow_status: 'accepted' }),
     });
 
-    return { statusCode: 200, body: JSON.stringify({ released: true, escrow_status: releasedStatus }) };
+    if (!patchRes.ok) {
+      const detail = await patchRes.text().catch(() => '');
+      // Money HAS moved but Bastion failed to record it. That is the single
+      // worst state to leave silent, so it is alerted at the top severity.
+      await alert('CRITICAL: Escrow.com released the funds but Bastion could not record it. The database and Escrow.com now disagree.', {
+        escrowTransactionId: txn.escrow_transaction_id, status: patchRes.status, detail: detail.slice(0, 500),
+      });
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          released: true,
+          recordFailed: true,
+          error: 'Your funds were released successfully, but we could not update this page. Support has been alerted — your release is safe and confirmed on Escrow.com.',
+        }),
+      };
+    }
+
+    return { statusCode: 200, body: JSON.stringify({ released: true, escrow_status: 'accepted' }) };
   } catch (err) {
     console.error('release-escrow-transaction fatal error:', err);
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) };

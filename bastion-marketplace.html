@@ -1347,10 +1347,17 @@ async function loadDeals(){
     // "Sold" tag. That's clutter on the main browsing surface and it makes
     // an active marketplace look stale. Completed sales now live on the
     // seller's profile as history, which is where a track record belongs.
+    //
+    // Allowlisted rather than excluding 'sold': a seller can now archive a
+    // listing that has transaction history instead of deleting it (the
+    // database refuses the delete outright), and the archive confirmation
+    // tells them it's "off the marketplace" — a plain .neq('status','sold')
+    // would have left it fully browsable and buyable, which is exactly the
+    // outcome archiving is supposed to prevent.
     const { data, error } = await supabaseClient
       .from(TABLE_NAME)
       .select('*')
-      .neq('status', 'sold')
+      .in('status', ['active', 'pending'])
       .order('created_at', { ascending: false });
 
     // Strict newest-first made the grid read as a chronological upload log

@@ -12,7 +12,14 @@
 // rest of the codebase never needs to know which one is behind it. Adding a
 // third provider later means adding a case here, not touching any page.
 
-const PROVIDER = (process.env.SHIPPING_PROVIDER || 'shippo').toLowerCase();
+// The default here used to be 'shippo'. That was a live landmine: the only
+// Shippo credential in production is a TEST key, so if SHIPPING_PROVIDER were
+// ever unset, deleted, or dropped by a bad deploy, the code would silently
+// fall back to Shippo, read a test key, and hand sellers test labels that no
+// carrier accepts — while SHIPPING_TEST_MODE=false made every guard believe
+// it was live. Defaulting to the provider that is actually configured for
+// production removes that failure mode entirely.
+const PROVIDER = (process.env.SHIPPING_PROVIDER || 'easypost').toLowerCase();
 const SHIPPING_TEST_MODE = process.env.SHIPPING_TEST_MODE === 'true';
 
 // ---------------------------------------------------------------
@@ -35,13 +42,22 @@ const SHIPPING_TEST_MODE = process.env.SHIPPING_TEST_MODE === 'true';
 // shippingConfigWarning() so the calling function can alert on it.
 // ---------------------------------------------------------------
 function shippingConfigWarning() {
-  const key = process.env.SHIPPO_API_KEY || process.env.EASYPOST_API_KEY || '';
-  if (!key) return 'No shipping API key is configured.';
+  if (PROVIDER !== 'shippo' && PROVIDER !== 'easypost') {
+    return 'SHIPPING_PROVIDER is set to "' + PROVIDER + '", which is not a provider this code supports. Use "easypost" or "shippo".';
+  }
+
+  // Check the key belonging to the ACTIVE provider only. Reading whichever
+  // key happened to be set meant a leftover Shippo test key could be
+  // inspected while EasyPost was the live provider.
+  const activeKey = PROVIDER === 'easypost'
+    ? (process.env.EASYPOST_API_KEY || '')
+    : (process.env.SHIPPO_API_KEY || '');
+  if (!activeKey) {
+    return 'SHIPPING_PROVIDER is "' + PROVIDER + '" but its API key is not set. No shipping quote or label can be produced.';
+  }
 
   if (PROVIDER === 'shippo') {
-    if (!process.env.SHIPPO_API_KEY) {
-      return 'SHIPPING_PROVIDER is "shippo" but SHIPPO_API_KEY is not set.';
-    }
+    const key = activeKey;
     const looksTest = key.startsWith('shippo_test_');
     const looksLive = key.startsWith('shippo_live_');
     if (looksLive && SHIPPING_TEST_MODE) {
@@ -58,10 +74,7 @@ function shippingConfigWarning() {
   // it would never fire at all — silently leaving the most expensive
   // misconfiguration undetected.
   if (PROVIDER === 'easypost') {
-    if (!process.env.EASYPOST_API_KEY) {
-      return 'SHIPPING_PROVIDER is "easypost" but EASYPOST_API_KEY is not set. (A SHIPPO_API_KEY will NOT be used — the provider setting decides which key is read.)';
-    }
-    const epKey = process.env.EASYPOST_API_KEY;
+    const epKey = activeKey;
     const looksTest = epKey.startsWith('EZTK');
     const looksLive = epKey.startsWith('EZAK');
     if (looksLive && SHIPPING_TEST_MODE) {

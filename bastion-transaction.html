@@ -1012,9 +1012,27 @@ function setupDisputeForm(txnId){
   };
 }
 
+// Server-supplied strings are rendered into innerHTML in a couple of
+// places below. They come from our own functions, but escaping them costs
+// nothing and removes the whole question.
+function escapeHtml(str){
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 async function markShipped(txnId, btn){
+  // Guard: "Confirm Handoff" is an IN-PERSON control. If this order has a
+  // shipment, its fulfilment state belongs to the carrier, not to a button.
+  // The database refuses this transition when a shipment exists, so without
+  // the check the seller would just get a raw Postgres error.
+  if(window.__bastionTxn && window.__bastionTxn.__shipment){
+    alert('This is a shipped order. Generate the shipping label instead \u2014 the status updates automatically once the carrier scans the package.');
+    return;
+  }
+
   btn.disabled = true;
-  btn.textContent = 'UPDATING…';
+  btn.textContent = 'UPDATING\u2026';
   const { error } = await supabaseClient
     .from('transactions')
     .update({ status: 'shipped', shipped_at: new Date().toISOString() })
@@ -1030,12 +1048,24 @@ async function markShipped(txnId, btn){
 
 async function releaseFunds(txnId, dealId, btn, releaseCode){
   btn.disabled = true;
-  btn.textContent = 'RELEASING…';
+  btn.textContent = 'RELEASING\u2026';
 
-  // Tell Escrow.com to actually release the real money first. If this
-  // fails, we stop here and show the real reason — we never want Bastion's
-  // own status to say "released" while the real funds are still sitting
-  // in escrow untouched.
+  // ------------------------------------------------------------------
+  // The server is the ONLY thing that records a release.
+  //
+  // This used to call the escrow function and then, regardless of what
+  // came back, PATCH the transaction to status='released' straight from
+  // the browser. That is how a buyer could end up looking at "funds
+  // released" while the real money was still sitting in escrow — and
+  // Escrow.com was in fact rejecting every one of those calls, because
+  // the action name being sent didn't exist in their API.
+  //
+  // release-escrow-transaction.js now writes the released status itself,
+  // only after Escrow.com confirms. The database enforces this too: a
+  // browser PATCH to 'released' is refused outright. So this function
+  // asks, reads the answer, and reports it. Nothing more.
+  // ------------------------------------------------------------------
+  let data;
   try {
     const res = await fetch('/.netlify/functions/release-escrow-transaction', {
       method: 'POST',
@@ -1045,14 +1075,20 @@ async function releaseFunds(txnId, dealId, btn, releaseCode){
       },
       body: JSON.stringify({ transactionId: txnId, releaseCode: releaseCode || undefined })
     });
+    data = await res.json().catch(function(){ return {}; });
+
     if(!res.ok){
-      const data = await res.json().catch(() => ({}));
-      // A wrong release code is an expected, ordinary outcome — show it
-      // inline next to the field rather than in an alert box.
+      // A wrong release code is an ordinary outcome, not an error state —
+      // show it inline next to the field rather than in an alert box.
       const codeError = document.getElementById('codeError');
       if((data.codeInvalid || data.codeRequired) && codeError){
         codeError.textContent = data.error || 'That code doesn\u2019t match. Double-check with the seller.';
         codeError.classList.remove('hidden');
+      } else if(data.recordFailed){
+        // Money moved but we failed to record it. Never imply otherwise.
+        alert(data.error);
+        window.location.reload();
+        return;
       } else {
         alert(data.error || ('Could not release funds: ' + res.status));
       }
@@ -1063,23 +1099,33 @@ async function releaseFunds(txnId, dealId, btn, releaseCode){
   } catch (escrowErr) {
     alert('Could not reach the payment system. Please try again.');
     btn.disabled = false;
-    btn.textContent = 'Confirm Receipt & Release Funds';
+    btn.textContent = releaseCode ? 'Release Funds Now' : 'Confirm Receipt & Release Funds';
     return;
   }
 
-  const { error } = await supabaseClient
-    .from('transactions')
-    .update({ status: 'released', released_at: new Date().toISOString() })
-    .eq('id', txnId);
-  if(error){
-    alert('Could not update: ' + error.message);
-    btn.disabled = false;
-    btn.textContent = 'Confirm Receipt & Release Funds';
+  // Escrow.com requires the buyer to approve the release from their own
+  // Escrow.com account — a partner is not permitted to accept on a
+  // buyer's behalf. This is an expected path, so it gets a real button
+  // rather than an error.
+  if(data && data.needsBuyerAction){
+    const area = document.getElementById('actionArea');
+    if(area){
+      area.innerHTML =
+        '<div class="waiting-note" role="status">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>' +
+          '<span>' + escapeHtml(data.message || 'Escrow.com needs you to approve this release from your own account.') + '</span>' +
+        '</div>' +
+        (data.acceptUrl
+          ? '<a class="action-btn" style="display:block;box-sizing:border-box;text-align:center;text-decoration:none;margin-top:16px;" href="' +
+            String(data.acceptUrl).replace(/"/g, '&quot;') + '" target="_blank" rel="noopener">Approve Release on Escrow.com \u2192</a>'
+          : '');
+    } else {
+      alert(data.message || 'Please approve the release from your Escrow.com account.');
+    }
     return;
   }
-  if(dealId){
-    await supabaseClient.from('deals').update({ status: 'sold' }).eq('id', dealId);
-  }
+
+  // Confirmed by Escrow.com and already recorded server-side. Just reload.
   window.location.reload();
 }
 
@@ -1723,8 +1769,22 @@ function renderActionArea(txn, isBuyer, isSeller){
 
   if(status === 'funded'){
     if(isSeller){
-      area.innerHTML = `<button class="action-btn" id="shipBtn">Confirm Handoff</button>` + buildCodeBox(txn) + buildPayoutNote();
-      document.getElementById('shipBtn').addEventListener('click', function(){ markShipped(txn.id, this); });
+      // A funded order with a shipment row is a SHIPPED order that simply
+      // has no label yet. Offering "Confirm Handoff" here let a seller move
+      // a shipped order to 'shipped' through the in-person path \u2014 no label,
+      // no tracking, no carrier proof, and the buyer's delivery-gated
+      // release then had nothing to gate on. The fulfilment method is fixed
+      // at purchase and is not the seller's to change afterwards.
+      if(txn.__shipment){
+        area.innerHTML = `
+          <div class="waiting-note" role="status">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+            <span>This is a shipped order. Generate your shipping label above \u2014 the status updates on its own once the carrier scans the package.</span>
+          </div>` + buildPayoutNote();
+      } else {
+        area.innerHTML = `<button class="action-btn" id="shipBtn">Confirm Handoff</button>` + buildCodeBox(txn) + buildPayoutNote();
+        document.getElementById('shipBtn').addEventListener('click', function(){ markShipped(txn.id, this); });
+      }
     } else if(isBuyer){
       area.innerHTML = `
         <div class="waiting-note">
@@ -1921,6 +1981,9 @@ async function loadTransaction(){
     // in-person or shipped order. Reversed, __shipment would always be
     // undefined and the code-entry box would show on shipped orders.
     await loadShipmentPanel(txn, isBuyer, isSeller);
+    // markShipped() needs to know whether this order has a shipment before
+    // it will allow the in-person handoff transition.
+    window.__bastionTxn = txn;
     await loadReleaseCode(txn, isSeller);
     await loadDeadlines(txn, isBuyer, isSeller);
     renderActionArea(txn, isBuyer, isSeller);

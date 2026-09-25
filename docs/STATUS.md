@@ -1,11 +1,11 @@
-# Bastion: actual state, 2026-09-25
+# Bastion: actual state, 2026-09-25 (round 5)
 
 Written against the live Supabase database, the live Netlify configuration
 and the deployed code (PR #80, 2026-09-20). Where the other files in this
 folder disagree with this one, this one is right.
 
 ## Verified continuously
-- `node tests/run.js`: 67 checks, run by Netlify before EVERY deploy. A
+- `node tests/run.js`: 75 checks, run by Netlify before EVERY deploy. A
   failure blocks the deploy.
 - `sql/tests/security_regression.sql`: 35 live database attack/flow checks.
   Last run 2026-09-25: 38/38 PASS. Everything rolls back; re-run after any
@@ -42,12 +42,27 @@ HMAC-signed (X-Hmac-Signature); the old URL-secret webhook was deleted.
 Only USPS, UPS and FedEx rates are offered. Items above
 SHIPPING_MAX_ITEM_VALUE (default $50,000) are in-person / concierge only.
 
+## Email (verified 2026-09-25)
+Resend domain bastionmarket.com verified (DKIM + SPF). A live notification
+sent through the production pipeline reached the owner's Gmail INBOX in 2 s,
+marked Important. Each notification now records email_status
+('queued' / 'sent' / 'failed'); the hourly sweep retries failures (max 3,
+48 h) with a Resend idempotency key, so a retry can never duplicate an email.
+support@bastionmarket.com forwards to the support Gmail inbox (owner-managed).
+
+## Provider audit trail
+public.provider_actions records every money-moving call to Escrow.com
+(create / ship / receive / accept / cancel): order, item, on whose behalf,
+HTTP status and Escrow.com's exact response. Admin-read only.
+
 ## Owner actions still open
 1. Supabase > Authentication > Providers > Email: turn on leaked-password protection.
 2. Change `ESCROW_LIVE_EMAIL` off `blackstarxllc@gmail.com` (that account also owns live listings; Escrow.com rejects a deal where broker and seller are the same person).
-3. Set SHIP_FROM_PHONE in Netlify (UPS/FedEx labels need a shipper phone).
 4. One real low-value purchase end to end.
 
-## Post-deploy step (Claude)
+## Post-deploy steps (Claude)
+`sql/2026-09-25_f_POST_DEPLOY_email_trigger.sql` switches on email delivery
+tracking; it must run only after the 2026-09-25 round-5 code is live.
+
 `sql/2026-09-24_c_POST_DEPLOY_profile_privacy.sql` hides private profile
 columns. It must run AFTER this code is live, never before.

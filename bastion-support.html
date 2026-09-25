@@ -253,17 +253,20 @@ document.getElementById('supportForm').addEventListener('submit', async function
   statusEl.className = 'status-line';
   statusEl.textContent = '';
 
-  let userId = null;
-  try{
-    const { data: sessionData } = await supabaseClient.auth.getSession();
-    if(sessionData && sessionData.session) userId = sessionData.session.user.id;
-  } catch(e){ /* not signed in — fine, support requests don't require an account */ }
-
   try{
     const res = await fetch('/.netlify/functions/send-support-request', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, subject, message, user_id: userId })
+      // The server links the ticket to an account only from a verified
+      // session token, never from a user id the page supplies.
+      headers: await (async function(){
+        const h = { 'Content-Type': 'application/json' };
+        try {
+          const { data } = await supabaseClient.auth.getSession();
+          if (data && data.session) h.Authorization = 'Bearer ' + data.session.access_token;
+        } catch (e) {}
+        return h;
+      })(),
+      body: JSON.stringify({ name, email, subject, message })
     });
     const data = await res.json();
 

@@ -302,8 +302,18 @@ exports.handler = async (event) => {
     }
 
     // Journal the exact EasyPost shipment BEFORE paying for it.
-    await lib.sbPatch('shipments', 'id=eq.' + encodeURIComponent(shipmentId),
-      { pending_provider_shipment_id: requote.providerShipmentId });
+    // The journal write is a HARD prerequisite: no confirmed row, no purchase.
+    // Without it an interrupted purchase could not be found and adopted.
+    let journaled = null;
+    try {
+      journaled = await lib.sbPatch('shipments', 'id=eq.' + encodeURIComponent(shipmentId),
+        { pending_provider_shipment_id: requote.providerShipmentId }, true);
+    } catch (journalErr) { journaled = null; }
+    if (!journaled || !journaled.length || journaled[0].pending_provider_shipment_id !== requote.providerShipmentId) {
+      await releaseLabelClaim();
+      await lib.logAlert('shipping_label', 'Could not record the purchase journal; label NOT bought', { shipmentId });
+      return lib.json(503, { error: 'We could not prepare the label safely. Nothing was charged. Please try again in a moment.' });
+    }
 
     let label;
     try {

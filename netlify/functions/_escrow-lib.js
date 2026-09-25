@@ -117,6 +117,35 @@ function looksLikePermissionRefusal(status, body) {
   return /partner cannot|must be performed by the buyer|not authorized|not authorised|permission|forbidden/.test(text);
 }
 
+
+// ------------------------------------------------------------------
+// PROVIDER ACTION AUDIT TRAIL (public.provider_actions)
+// Every call to Escrow.com that can move or commit money is recorded: the
+// action, the order, the item, on whose behalf, the HTTP status and
+// Escrow.com's exact answer. Never throws: auditing must not be able to
+// block a money action, but a failed audit write is itself logged.
+// ------------------------------------------------------------------
+async function logProviderAction(entry) {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return;
+  try {
+    const body = Object.assign({ provider: 'escrow' }, entry);
+    if (body.response !== undefined) {
+      const txt = JSON.stringify(body.response);
+      body.response = txt && txt.length > 8000 ? { truncated: txt.slice(0, 8000) } : body.response;
+    }
+    const res = await fetch(url + '/rest/v1/provider_actions', {
+      method: 'POST',
+      headers: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) console.error('provider_actions write failed', res.status);
+  } catch (e) {
+    console.error('provider_actions write failed', e.message);
+  }
+}
+
 async function fetchTransaction({ escrowTransactionId, email, apiKey }) {
   const res = await fetch(
     `${ESCROW_API_BASE}/transaction/${encodeURIComponent(escrowTransactionId)}`,
@@ -146,7 +175,7 @@ async function fetchTransaction({ escrowTransactionId, email, apiKey }) {
  *     results: [{ id, title, ok|skipped, status, response }]
  *   }
  */
-async function applyActionToAllItems({ escrowTransactionId, action, email, apiKey, primaryItemId, asCustomer, extraBody }) {
+async function applyActionToAllItems({ escrowTransactionId, action, email, apiKey, primaryItemId, asCustomer, extraBody, bastionTransactionId, initiatedBy }) {
   const authHeader = escrowAuthHeader(email, apiKey);
 
   const loaded = await fetchTransaction({ escrowTransactionId, email, apiKey });
@@ -191,6 +220,11 @@ async function applyActionToAllItems({ escrowTransactionId, action, email, apiKe
     const data = await patchRes.json().catch(() => ({}));
 
     results.push({ id: item.id, title: item.title, ok: patchRes.ok, status: patchRes.status, response: data });
+    await logProviderAction({
+      action, transaction_id: bastionTransactionId || null, external_id: String(escrowTransactionId),
+      item_id: String(item.id), as_customer: asCustomer || null, initiated_by: initiatedBy || null,
+      http_status: patchRes.status, ok: patchRes.ok, response: data,
+    });
 
     if (isPrimary) {
       primaryOk = patchRes.ok;
@@ -271,27 +305,28 @@ async function lookupUserEmail(userId) {
 
 // Marks every item shipped, on the seller's behalf. trackingInfo is
 // optional: { carrier, tracking_id }. Omitted for in-person handoffs.
-async function markShipped({ escrowTransactionId, primaryItemId, sellerEmail, trackingInfo }) {
+async function markShipped({ escrowTransactionId, primaryItemId, sellerEmail, trackingInfo, bastionTransactionId, initiatedBy }) {
   const { email, apiKey } = escrowCredentials();
   const extraBody = trackingInfo && trackingInfo.tracking_id
     ? { shipping_information: { tracking_information: { carrier: trackingInfo.carrier || 'Carrier', tracking_id: trackingInfo.tracking_id } } }
     : undefined;
   return applyActionToAllItems({
     escrowTransactionId, action: ACTION_SHIP, email, apiKey, primaryItemId,
-    asCustomer: sellerEmail || undefined, extraBody,
+    asCustomer: sellerEmail || undefined, extraBody, bastionTransactionId, initiatedBy,
   });
 }
 
 // Marks every item received, on the buyer's behalf. Starts inspection.
-async function markReceived({ escrowTransactionId, primaryItemId, buyerEmail }) {
+async function markReceived({ escrowTransactionId, primaryItemId, buyerEmail, bastionTransactionId, initiatedBy }) {
   const { email, apiKey } = escrowCredentials();
   return applyActionToAllItems({
     escrowTransactionId, action: ACTION_RECEIVE, email, apiKey, primaryItemId,
-    asCustomer: buyerEmail || undefined,
+    asCustomer: buyerEmail || undefined, bastionTransactionId, initiatedBy,
   });
 }
 
 module.exports = {
+  logProviderAction,
   ESCROW_API_BASE,
   ACTION_ACCEPT,
   ACTION_CANCEL,

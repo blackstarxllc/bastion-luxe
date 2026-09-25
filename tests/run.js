@@ -223,6 +223,91 @@ test('sweep: refuses unauthenticated manual calls', async () => {
   return sweep.handler({ headers: {} }).then((r) => eq(r.statusCode, 401, 'manual call without secret'));
 });
 
+test('shipping: SHIPPING_MAX_ITEM_VALUE semantics (unset=50k, 0=off, invalid=fail closed)', () => {
+  const saved = process.env.SHIPPING_MAX_ITEM_VALUE;
+  try {
+    delete process.env.SHIPPING_MAX_ITEM_VALUE;
+    eq(shipLib.maxShippableValue(), 50000, 'default');
+    eq(shipLib.exceedsAutoShipCeiling(49999), false, 'under default');
+    process.env.SHIPPING_MAX_ITEM_VALUE = '0';
+    eq(shipLib.exceedsAutoShipCeiling(1), true, '0 must disable automated shipping for everything');
+    process.env.SHIPPING_MAX_ITEM_VALUE = '-5';
+    eq(shipLib.exceedsAutoShipCeiling(1), true, 'negative must fail closed');
+    process.env.SHIPPING_MAX_ITEM_VALUE = 'abc';
+    eq(shipLib.exceedsAutoShipCeiling(1), true, 'garbage must fail closed');
+    process.env.SHIPPING_MAX_ITEM_VALUE = '100000';
+    eq(shipLib.exceedsAutoShipCeiling(99999), false, 'custom cap');
+  } finally {
+    if (saved === undefined) delete process.env.SHIPPING_MAX_ITEM_VALUE; else process.env.SHIPPING_MAX_ITEM_VALUE = saved;
+  }
+});
+
+test('shipping: quote bound to exact price, origin and package', () => {
+  const o = { street1: '5 Oak Ave', street2: 'Suite 2', city: 'Dallas', state: 'TX', zip: '75201' };
+  eq(shipLib.originParcelFingerprint(o, { weight: 12, length: 10, width: 8, height: 4 }),
+     shipLib.originParcelFingerprint(o, { weight: '12.0', length: '10', width: 8, height: '4.00' }), 'numeric formatting');
+  ok(shipLib.originParcelFingerprint(o, { weight: 12, length: 10, width: 8, height: 4 }) !==
+     shipLib.originParcelFingerprint(o, { weight: 13, length: 10, width: 8, height: 4 }), 'weight change not detected');
+  const cs = read('netlify/functions/create-shipment.js');
+  ok(/Number\(quote\.v\) !== Number\(txn\.price\)/.test(cs), 'exact price not enforced');
+  ok(/quote\.p !== originNow/.test(cs), 'origin/parcel not enforced');
+  ok(cs.indexOf('const priv = ') < cs.indexOf('originParcelFingerprint('), 'origin check runs before the origin is loaded');
+});
+
+test('labels: the purchase journal must be confirmed before paying', () => {
+  const code = read('netlify/functions/create-shipping-label.js');
+  ok(/journaled\[0\]\.pending_provider_shipment_id !== requote\.providerShipmentId/.test(code), 'journal not verified');
+  ok(code.indexOf('journaled') < code.indexOf('lib.buyLabel(token)'), 'journal checked after purchase');
+});
+
+test('escrow creation: unknown outcomes keep the claim', () => {
+  const code = read('netlify/functions/create-escrow-transaction.js');
+  ok(/markCreationUnknown/.test(code) && /createRes\.status >= 500/.test(code), 'network/5xx treated as definite failure');
+  const netBlock = code.slice(code.indexOf('} catch (netErr) {'), code.indexOf('} catch (netErr) {') + 400);
+  ok(!/releaseClaim/.test(netBlock), 'network error releases the claim');
+});
+
+test('webhooks: an unprocessed duplicate is resumed, not dropped', () => {
+  for (const f of ['shipping-webhook.js', 'escrow-webhook.js']) {
+    const code = read('netlify/functions/' + f);
+    ok(/processed_at/.test(code) && /attempts/.test(code), f + ' skips unprocessed duplicates');
+  }
+  eq(typeof shippingWebhook.processTracking, 'function', 'shared tracking processor');
+  ok(!/hmac-sha256-hex/.test(read('netlify/functions/deadline-sweep.js')), 'sweep still forges signed webhooks');
+});
+
+test('sweep: failed reads alert, time budget and rotation present', () => {
+  const code = read('netlify/functions/deadline-sweep.js');
+  ok(/BUDGET_MS/.test(code) && /CONCURRENCY/.test(code), 'no time budget / concurrency');
+  ok(/provider_checked_at\.asc\.nullsfirst/.test(code) && /tracking_checked_at\.asc\.nullsfirst/.test(code), 'no fair rotation');
+  ok(/could not read/.test(code), 'failed reads are silent');
+});
+
+test('email: fails closed, never uses the Resend test sender, links stay on-site', async () => {
+  const sender = require(path.join(FN, 'send-notification-email.js'));
+  const saved = { k: process.env.RESEND_API_KEY, f: process.env.RESEND_FROM_EMAIL, s: process.env.INTERNAL_WEBHOOK_SECRET };
+  process.env.INTERNAL_WEBHOOK_SECRET = 'unit-secret';
+  delete process.env.RESEND_API_KEY; delete process.env.RESEND_FROM_EMAIL;
+  const r = await sender.handler({ httpMethod: 'POST', headers: { 'x-webhook-secret': 'unit-secret' }, body: JSON.stringify({ to_email: 'a@b.co', subject: 'x' }) });
+  eq(r.statusCode, 503, 'unconfigured email must not report success');
+  const bad = await sender.handler({ httpMethod: 'POST', headers: { 'x-webhook-secret': 'wrong' }, body: '{}' });
+  eq(bad.statusCode, 401, 'wrong secret');
+  eq(sender.safeLink('bastion-deal-detail.html?id=abc-123'), 'bastion-deal-detail.html?id=abc-123');
+  eq(sender.safeLink('https://evil.example/phish'), 'bastion-marketplace.html', 'off-site link');
+  eq(sender.safeLink('javascript:alert(1)'), 'bastion-marketplace.html', 'script link');
+  for (const f of fs.readdirSync(FN)) ok(!/onboarding@resend\.dev/.test(fs.readFileSync(path.join(FN, f), 'utf8')), f + ' falls back to the Resend test sender');
+  process.env.RESEND_API_KEY = saved.k || ''; process.env.RESEND_FROM_EMAIL = saved.f || '';
+  if (saved.s === undefined) delete process.env.INTERNAL_WEBHOOK_SECRET; else process.env.INTERNAL_WEBHOOK_SECRET = saved.s;
+});
+
+test('support: ticket owner comes from the session, never the request body', () => {
+  const code = read('netlify/functions/send-support-request.js');
+  ok(!/const \{[^}]*\buser_id\b[^}]*\} = JSON\.parse/.test(code), 'user_id read from body');
+  ok(/user_id: verifiedUserId/.test(code), 'ticket not tied to verified session');
+  ok(!/Nothing releases while a support case/.test(code), 'false escrow claim still in the customer email');
+  ok(/support@bastionmarket\.com/.test(read('bastion-support.html')), 'support address missing from the support page');
+});
+
 // ---------------------------------------------------------------- consistency
 test('fees: every client-side fee table matches the database schedule', () => {
   // Mirrors public.calculate_protection_fee(): <2000 6%, <10000 5%, <50000 4.5%, else 3%.

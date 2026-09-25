@@ -195,6 +195,7 @@ exports.handler = async (event) => {
       Authorization: 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
       'Content-Type': 'application/json',
     };
+    let inboxKey = null;
     // Webhook inbox (public.provider_events). Escrow.com payloads carry no
     // stable event id, so the key is a hash of the exact body: an identical
     // replay is recognised, while any genuinely new notification is stored.
@@ -207,8 +208,20 @@ exports.handler = async (event) => {
         method: 'POST', headers: Object.assign({}, svc, { Prefer: 'return=minimal' }),
         body: JSON.stringify({ provider: 'escrow', event_key: bodyHash, object_ref: String(escrowTransactionId), payload: (() => { try { return JSON.parse(rawText); } catch (e) { return { raw: rawText.slice(0, 2000) }; } })() }),
       });
+      inboxKey = bodyHash;
       if (inboxRes.status === 409) {
-        return { statusCode: 200, body: JSON.stringify({ received: true, duplicate: true }) };
+        // Skip only if the earlier copy was actually processed; an event
+        // that failed mid-way is resumed (Audit #4 P0-4).
+        const priorRes = await fetch(SUPABASE_URL + '/rest/v1/provider_events?provider=eq.escrow&event_key=eq.' +
+          bodyHash + '&select=processed_at,attempts', { headers: svc });
+        const prior = priorRes.ok ? (await priorRes.json().catch(() => []))[0] : null;
+        if (prior && prior.processed_at) {
+          return { statusCode: 200, body: JSON.stringify({ received: true, duplicate: true }) };
+        }
+        await fetch(SUPABASE_URL + '/rest/v1/provider_events?provider=eq.escrow&event_key=eq.' + bodyHash, {
+          method: 'PATCH', headers: Object.assign({}, svc, { Prefer: 'return=minimal' }),
+          body: JSON.stringify({ attempts: ((prior && prior.attempts) || 0) + 1 }),
+        }).catch(() => {});
       }
     } catch (inboxErr) {
       console.error('escrow-webhook: inbox write failed (processing anyway)', inboxErr);
@@ -302,6 +315,12 @@ exports.handler = async (event) => {
       }
     }
 
+    if (inboxKey) {
+      await fetch(SUPABASE_URL + '/rest/v1/provider_events?provider=eq.escrow&event_key=eq.' + inboxKey, {
+        method: 'PATCH', headers: Object.assign({}, svc, { Prefer: 'return=minimal' }),
+        body: JSON.stringify({ processed_at: new Date().toISOString(), last_error: null }),
+      }).catch(() => {});
+    }
     return { statusCode: 200, body: JSON.stringify({ received: true, verified: true, status: verifiedStatus, applied: next || null }) };
   } catch (err) {
     await logAlert('Fatal error in escrow-webhook', { error: err.message, stack: (err.stack || '').slice(0, 1000) });

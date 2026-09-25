@@ -16,7 +16,7 @@ const ESCROW_API_BASE = process.env.ESCROW_LIVE_MODE === 'true'
   ? 'https://api.escrow.com/2017-09-01'
   : 'https://api.escrow-sandbox.com/2017-09-01';
 
-const { getWebLink } = require('./_escrow-lib');
+const { getWebLink, logProviderAction } = require('./_escrow-lib');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -386,6 +386,15 @@ exports.handler = async (event) => {
       };
     }
 
+    async function markCreationUnknown(reason) {
+      await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}&escrow_transaction_id=is.null`, {
+        method: 'PATCH', headers: Object.assign({}, svcHeaders, { Prefer: 'return=minimal' }),
+        body: JSON.stringify({ escrow_status: 'creation_unknown' }),
+      }).catch(() => {});
+      await logAlertToSupabase(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, 'escrow_transaction_creation',
+        'Escrow.com creation outcome UNKNOWN; claim kept, will be resolved by lookup before any retry', { transactionId, reason });
+    }
+
     // Hands the claim back so the buyer can retry, when creation failed
     // before any Escrow.com transaction existed.
     async function releaseClaim(reason) {
@@ -414,13 +423,19 @@ exports.handler = async (event) => {
         body: JSON.stringify(escrowPayload),
       });
     } catch (netErr) {
-      await releaseClaim('creation_failed');
-      await logAlertToSupabase(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, 'escrow_transaction_creation',
-        'Could not reach Escrow.com to create the transaction', { transactionId, error: String((netErr && netErr.message) || netErr) });
-      return { statusCode: 502, body: JSON.stringify({ error: 'We could not reach Escrow.com. Nothing was charged. Please try again in a moment.' }) };
+      // UNKNOWN outcome: the request may have reached Escrow.com and created
+      // the transaction even though no answer came back. The claim is KEPT;
+      // a retry after five minutes searches Escrow.com for this order and
+      // adopts it if it exists, and only creates one if it does not.
+      await markCreationUnknown('network: ' + String((netErr && netErr.message) || netErr));
+      return { statusCode: 502, body: JSON.stringify({ error: 'We could not confirm the payment setup with Escrow.com. Nothing has been charged. Please check back in a few minutes; do not start a new purchase.', confirming: true }) };
     }
 
     const escrowData = await createRes.json().catch(() => ({}));
+    await logProviderAction({
+      action: 'create', transaction_id: transactionId, external_id: escrowData && escrowData.id ? String(escrowData.id) : null,
+      initiated_by: 'buyer_checkout', http_status: createRes.status, ok: createRes.ok, response: escrowData,
+    });
 
     if (createRes.ok) {
       console.log('create-escrow-transaction: Escrow.com accepted the transaction', JSON.stringify(escrowData).slice(0, 1500));
@@ -437,6 +452,12 @@ exports.handler = async (event) => {
         status: createRes.status,
         escrowResponse: JSON.stringify(escrowData).slice(0, 800),
       });
+      // A 5xx from Escrow.com is as ambiguous as a dropped connection: the
+      // transaction may exist. Only a definite 4xx rejection frees the claim.
+      if (createRes.status >= 500) {
+        await markCreationUnknown('escrow ' + createRes.status);
+        return { statusCode: 502, body: JSON.stringify({ error: 'Escrow.com had a temporary problem. Nothing has been charged. Please check back in a few minutes.', confirming: true }) };
+      }
       await releaseClaim('creation_failed');
       return {
         statusCode: 502,

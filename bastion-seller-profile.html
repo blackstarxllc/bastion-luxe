@@ -495,14 +495,14 @@
 
   <button class="report-toggle" id="reportToggleBtn">Report this seller</button>
   <div class="report-form hidden" id="reportForm">
-    <select id="reportReason" class="report-select">
+    <select id="reportReason" aria-label="Reason for reporting this seller" class="report-select">
       <option value="" disabled selected>Select a reason</option>
       <option value="Scam or fraud">Scam or fraud</option>
       <option value="Fake or counterfeit items">Fake or counterfeit items</option>
       <option value="Harassment or abuse">Harassment or abuse</option>
       <option value="Other">Other</option>
     </select>
-    <textarea id="reportDetails" class="report-textarea" placeholder="What happened? (optional)" maxlength="1000"></textarea>
+    <textarea id="reportDetails" aria-label="Report details (optional)" class="report-textarea" placeholder="What happened? (optional)" maxlength="1000"></textarea>
     <div>
       <button class="report-submit" id="reportSubmitBtn">Submit Report</button>
       <button class="report-cancel" id="reportCancelBtn">Cancel</button>

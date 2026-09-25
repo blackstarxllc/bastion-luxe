@@ -1009,7 +1009,7 @@
       <div>
         <div class="title-row">
           <h1 class="item-name" id="itemName"></h1>
-          <button class="fav-btn-large" id="favBtn">
+          <button class="fav-btn-large" id="favBtn" aria-label="Save to favorites">
             <svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M12 21s-7-4.5-9.5-9C.5 8 2 4 6 4c2 0 3.5 1.2 4 3 .5-1.8 2-3 4-3 4 0 5.5 4 3.5 8-2.5 4.5-9.5 9-9.5 9z"/></svg>
           </button>
         </div>
@@ -1069,8 +1069,8 @@
 
         <div class="offer-form hidden" id="offerForm">
           <div class="offer-form-label">Your offer</div>
-          <input type="number" id="offerAmountInput" placeholder="e.g. 125000" min="1" step="1">
-          <textarea id="offerMessageInput" placeholder="Add a note for the seller (optional)" maxlength="300"></textarea>
+          <input type="number" id="offerAmountInput" aria-label="Offer amount in US dollars" placeholder="e.g. 125000" min="1" step="1">
+          <textarea id="offerMessageInput" aria-label="Note for the seller (optional)" placeholder="Add a note for the seller (optional)" maxlength="300"></textarea>
           <div class="offer-form-actions">
             <button class="submit-secondary" id="offerSubmitBtn" style="width:auto; padding:11px 20px;">Send Offer</button>
             <button class="report-cancel" id="offerCancelBtn">Cancel</button>
@@ -1089,7 +1089,7 @@
 
         <button class="report-toggle" id="reportToggleBtn">Report this listing</button>
         <div class="report-form hidden" id="reportForm">
-          <select id="reportReason" class="report-select">
+          <select id="reportReason" aria-label="Reason for reporting this listing" class="report-select">
             <option value="" disabled selected>Select a reason</option>
             <option value="Suspected counterfeit">Suspected counterfeit</option>
             <option value="Misleading description">Misleading description</option>
@@ -1097,7 +1097,7 @@
             <option value="Prohibited item">Prohibited item</option>
             <option value="Other">Other</option>
           </select>
-          <textarea id="reportDetails" class="report-textarea" placeholder="What's wrong with this listing? (optional)" maxlength="1000"></textarea>
+          <textarea id="reportDetails" aria-label="Report details (optional)" class="report-textarea" placeholder="What's wrong with this listing? (optional)" maxlength="1000"></textarea>
           <div>
             <button class="report-submit" id="reportSubmitBtn">Submit Report</button>
             <button class="report-cancel" id="reportCancelBtn">Cancel</button>
@@ -1167,6 +1167,41 @@ function shipHtmlEscape(v){
 }
 
 // Returns null if the buyer cancelled, or { addressId, rateToken, rate, holdAtLocation }.
+// ------------------------------------------------------------------
+// SHIP OR MEET IN PERSON
+// Listings marked "both" used to go straight into the shipping step with no
+// way to choose an in-person handoff, and cancelling abandoned the purchase.
+// The buyer now picks either option, at any price.
+// ------------------------------------------------------------------
+function chooseFulfilment(deal){
+  var overlay = document.getElementById('shipCheckoutOverlay');
+  if(!overlay) return Promise.resolve('ship');
+  return new Promise(function(resolve){
+    function done(v){
+      overlay.classList.remove('visible');
+      overlay.innerHTML = '';
+      document.body.style.overflow = '';
+      resolve(v);
+    }
+    overlay.innerHTML =
+      '<div class="ship-co-modal" role="dialog" aria-modal="true" aria-labelledby="fulfilTitle">'
+      + '<div class="ship-co-title" id="fulfilTitle">How would you like to receive it?</div>'
+      + '<p class="ship-co-sub">Choose shipping to have it sent with tracking and a signature on delivery, or meet the seller in person. Either way your payment stays in escrow until you confirm.</p>'
+      + '<div class="ship-co-actions">'
+      +   '<button class="ship-co-btn secondary" id="fulfilCancel">Cancel</button>'
+      +   '<button class="ship-co-btn secondary" id="fulfilInPerson">Meet in person</button>'
+      +   '<button class="ship-co-btn" id="fulfilShip">Ship it to me</button>'
+      + '</div>'
+      + '</div>';
+    overlay.classList.add('visible');
+    document.body.style.overflow = 'hidden';
+    document.getElementById('fulfilCancel').addEventListener('click', function(){ done(null); });
+    document.getElementById('fulfilInPerson').addEventListener('click', function(){ done('in_person'); });
+    document.getElementById('fulfilShip').addEventListener('click', function(){ done('ship'); });
+    document.getElementById('fulfilShip').focus();
+  });
+}
+
 async function runShippingCheckout(deal, chargedPrice, chargedFee){
   var overlay = document.getElementById('shipCheckoutOverlay');
   if(!overlay) return null;
@@ -2296,7 +2331,17 @@ async function loadDeal(){
         // go straight through, exactly as before.
         var shipChoice = null;
         var dealFulfilment = data.fulfilment || 'meetup';
-        if(dealFulfilment !== 'meetup'){
+        var wantsShipping = dealFulfilment === 'shipping';
+        if(dealFulfilment === 'both'){
+          var mode = await chooseFulfilment(data);
+          if(!mode){
+            btn.disabled = false;
+            btn.textContent = originalText;
+            return;
+          }
+          wantsShipping = (mode === 'ship');
+        }
+        if(wantsShipping){
           shipChoice = await runShippingCheckout(data, confirmedPrice, confirmedPrice * feeRateForPrice(confirmedPrice));
           if(!shipChoice){
             btn.disabled = false;

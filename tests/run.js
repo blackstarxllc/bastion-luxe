@@ -186,14 +186,12 @@ test('shipping: carrier allowlist and Vault express policy fail closed', () => {
   ok(!shipLib.filterForTier(rates, shipLib.tierRules('standard')).some((r) => /dhl/i.test(r.carrier)), 'DHL offered');
 });
 
-test('shipping: quote bound to the exact address, and high-value ceiling enforced', () => {
+test('shipping: quote bound to the exact address; no value ceiling', () => {
   const a = { line1: '1 Main St', line2: 'Apt 2', city: 'Dallas', state: 'TX', postal_code: '75201' };
   eq(shipLib.addressFingerprint(a), shipLib.addressFingerprint({ street1: '1 MAIN ST.', street2: 'apt 2', city: 'dallas', state: 'tx', zip: '75201-1234' }), 'formatting');
   ok(shipLib.addressFingerprint(a) !== shipLib.addressFingerprint(Object.assign({}, a, { line1: '9 Elm St' })), 'same ZIP, different street');
-  eq(shipLib.exceedsAutoShipCeiling(230000), true);
-  eq(shipLib.exceedsAutoShipCeiling(40000), false);
   const quote = read('netlify/functions/shipping-quote.js');
-  ok(/exceedsAutoShipCeiling\(itemValue\)/.test(quote), 'quote does not enforce the ceiling');
+  ok(!/exceedsAutoShipCeiling|maxShippableValue|concierge/.test(quote), 'a value ceiling blocks shipping (owner policy: any value ships)');
   ok(/status=eq\.accepted/.test(quote), 'quote does not price from the accepted offer');
   ok(/quote\.f !== lib\.addressFingerprint\(addr\)/.test(read('netlify/functions/create-shipment.js')), 'address fingerprint not verified');
 });
@@ -223,24 +221,6 @@ test('sweep: refuses unauthenticated manual calls', async () => {
   return sweep.handler({ headers: {} }).then((r) => eq(r.statusCode, 401, 'manual call without secret'));
 });
 
-test('shipping: SHIPPING_MAX_ITEM_VALUE semantics (unset=50k, 0=off, invalid=fail closed)', () => {
-  const saved = process.env.SHIPPING_MAX_ITEM_VALUE;
-  try {
-    delete process.env.SHIPPING_MAX_ITEM_VALUE;
-    eq(shipLib.maxShippableValue(), 50000, 'default');
-    eq(shipLib.exceedsAutoShipCeiling(49999), false, 'under default');
-    process.env.SHIPPING_MAX_ITEM_VALUE = '0';
-    eq(shipLib.exceedsAutoShipCeiling(1), true, '0 must disable automated shipping for everything');
-    process.env.SHIPPING_MAX_ITEM_VALUE = '-5';
-    eq(shipLib.exceedsAutoShipCeiling(1), true, 'negative must fail closed');
-    process.env.SHIPPING_MAX_ITEM_VALUE = 'abc';
-    eq(shipLib.exceedsAutoShipCeiling(1), true, 'garbage must fail closed');
-    process.env.SHIPPING_MAX_ITEM_VALUE = '100000';
-    eq(shipLib.exceedsAutoShipCeiling(99999), false, 'custom cap');
-  } finally {
-    if (saved === undefined) delete process.env.SHIPPING_MAX_ITEM_VALUE; else process.env.SHIPPING_MAX_ITEM_VALUE = saved;
-  }
-});
 
 test('shipping: quote bound to exact price, origin and package', () => {
   const o = { street1: '5 Oak Ave', street2: 'Suite 2', city: 'Dallas', state: 'TX', zip: '75201' };
@@ -306,6 +286,56 @@ test('support: ticket owner comes from the session, never the request body', () 
   ok(/user_id: verifiedUserId/.test(code), 'ticket not tied to verified session');
   ok(!/Nothing releases while a support case/.test(code), 'false escrow claim still in the customer email');
   ok(/support@bastionmarket\.com/.test(read('bastion-support.html')), 'support address missing from the support page');
+});
+
+test('SEO: listing pages get product data, canonical, noindex when sold; sitemap lists listings', async () => {
+  const html = '<html><head><title>Listing | Bastion</title></head><body></body></html>';
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => String(url).includes('deals?id=eq.')
+    ? new Response(JSON.stringify([{ item_name: 'Watch </script><script>x()</script>', price: 12500, status: 'sold', description: 'd' }]), { status: 200 })
+    : new Response(JSON.stringify([{ id: '11111111-1111-1111-1111-111111111111', created_at: '2026-09-01T00:00:00Z' }]), { status: 200 });
+  try {
+    const ctx = { next: async () => new Response(html, { headers: { 'content-type': 'text/html' } }) };
+    const lp = (await import(path.join(ROOT, 'netlify/edge-functions/listing-preview.js'))).default;
+    const out = await (await lp(new Request('https://bastionmarket.com/bastion-deal-detail.html?id=11111111-1111-1111-1111-111111111111'), ctx)).text();
+    const ld = JSON.parse(out.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
+    eq(ld['@type'], 'Product'); eq(ld.offers.price, '12500.00');
+    ok(!/<\/script><script>x/.test(out), 'listing text escaped out of JSON-LD');
+    ok(/rel="canonical"/.test(out), 'no canonical');
+    ok(/noindex/.test(out), 'sold listing indexable');
+    const sm = (await import(path.join(ROOT, 'netlify/edge-functions/sitemap.js'))).default;
+    const xml = await (await sm(new Request('https://bastionmarket.com/sitemap.xml'), ctx)).text();
+    ok(xml.includes('bastion-deal-detail.html?id=11111111-1111-1111-1111-111111111111'), 'sitemap missing listings');
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test('accessibility: every form control and icon button has an accessible name; every image has alt', () => {
+  const problems = [];
+  for (const f of htmlFiles) {
+    const src = read(f).replace(/<script[\s\S]*?<\/script>/g, '');
+    const fors = new Set((src.match(/<label[^>]*\bfor="([^"]+)"/g) || []).map((m) => m.match(/for="([^"]+)"/)[1]));
+    const labelled = (tag) => /aria-label(ledby)?="[^"]+"|\btitle="[^"]+"/.test(tag) || (/\bid="([^"]+)"/.test(tag) && fors.has(tag.match(/\bid="([^"]+)"/)[1]));
+    // controls wrapped in <label>...</label> are named by their label text
+    const unwrapped = src.replace(/<label\b[\s\S]*?<\/label>/g, '');
+    for (const tag of unwrapped.match(/<(input|select|textarea)\b[^>]*>/g) || []) {
+      if (/type="(hidden|submit|button)"/.test(tag)) continue;
+      if (!labelled(tag)) problems.push(f + ': ' + tag.slice(0, 80));
+    }
+    for (const m of src.match(/<button\b[^>]*>[\s\S]*?<\/button>/g) || []) {
+      const open = m.match(/<button\b[^>]*>/)[0];
+      const text = m.replace(/<[^>]+>/g, '').trim();
+      if (!text && !labelled(open)) problems.push(f + ': ' + open.slice(0, 80));
+    }
+    for (const img of src.match(/<img\b[^>]*>/g) || []) if (!/\balt="/.test(img)) problems.push(f + ': ' + img.slice(0, 80));
+  }
+  eq(problems.join(' | '), '', 'unnamed controls');
+});
+
+test('checkout: "both" listings offer ship AND in-person at any price', () => {
+  const page = read('bastion-deal-detail.html');
+  ok(/function chooseFulfilment/.test(page) && /dealFulfilment === 'both'/.test(page), 'no fulfilment choice');
+  ok(/id="fulfilShip"/.test(page) && /id="fulfilInPerson"/.test(page), 'both options must always be offered');
+  ok(!/AUTO_SHIP_MAX/.test(page), 'a price cut-off removes the shipping option');
 });
 
 // ---------------------------------------------------------------- consistency

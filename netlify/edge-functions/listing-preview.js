@@ -34,7 +34,7 @@ export default async (request, context) => {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 1500);
     const r = await fetch(
-      SUPABASE_URL + '/rest/v1/deals?id=eq.' + id + '&select=item_name,price,image_url,description,status,city,state',
+      SUPABASE_URL + '/rest/v1/deals?id=eq.' + id + '&select=item_name,price,image_url,description,status,city,state,condition,category',
       { headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY }, signal: ctrl.signal }
     );
     clearTimeout(timer);
@@ -66,6 +66,42 @@ export default async (request, context) => {
       // The brand card's size no longer applies to a listing photo.
       html = html.replace(/<meta property="og:image:(width|height)" content="\d+">\n?/g, '');
     }
+
+    // Canonical URL: one address per listing for search engines.
+    const canonical = '<link rel="canonical" href="' + attr(pageUrl) + '">';
+    html = /<link rel="canonical"[^>]*>/.test(html)
+      ? html.replace(/<link rel="canonical"[^>]*>/, canonical)
+      : html.replace('</title>', '</title>\n' + canonical);
+
+    // A sold or withdrawn listing stays viewable (buyers keep order links)
+    // but is kept out of search results.
+    if (d.status !== 'active') {
+      html = setMeta(html, 'name', 'robots', 'noindex, follow');
+    }
+
+    // Structured product data (schema.org): lets search engines show the
+    // item's price and availability in results. '<' is escaped so listing
+    // text can never close the script tag.
+    const ld = {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: d.item_name,
+      description: desc,
+      url: pageUrl,
+      offers: {
+        '@type': 'Offer',
+        priceCurrency: 'USD',
+        price: d.price != null ? Number(d.price).toFixed(2) : undefined,
+        availability: d.status === 'active' ? 'https://schema.org/InStock' : 'https://schema.org/SoldOut',
+        url: pageUrl,
+      },
+    };
+    if (d.image_url && /^https:\/\//.test(d.image_url)) ld.image = [d.image_url];
+    if (d.category) ld.category = String(d.category);
+    if (d.condition) ld.itemCondition = /new/i.test(d.condition) && !/like/i.test(d.condition)
+      ? 'https://schema.org/NewCondition' : 'https://schema.org/UsedCondition';
+    const ldTag = '<script type="application/ld+json">' + JSON.stringify(ld).replace(/</g, '\\u003c') + '</script>';
+    html = html.replace('</head>', ldTag + '\n</head>');
 
     const headers = new Headers(response.headers);
     headers.delete('content-length');

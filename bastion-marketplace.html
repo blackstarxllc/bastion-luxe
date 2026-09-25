@@ -878,7 +878,7 @@
   <div class="toolbar-panel">
     <div class="search-input-wrap">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-      <input type="text" class="search-input" id="searchInput" placeholder="Search listings by name…">
+      <input type="text" class="search-input" id="searchInput" aria-label="Search listings by name" placeholder="Search listings by name…">
     </div>
 
     <div class="filter-bar-wrap">
@@ -909,9 +909,9 @@
     <div class="filter-row2">
       <div class="price-range">
         <span class="price-range-label">$</span>
-        <input type="number" min="0" step="1" id="priceMin" placeholder="Min">
+        <input type="number" min="0" step="1" id="priceMin" aria-label="Minimum price" placeholder="Min">
         <span>–</span>
-        <input type="number" min="0" step="1" id="priceMax" placeholder="Max">
+        <input type="number" min="0" step="1" id="priceMax" aria-label="Maximum price" placeholder="Max">
       </div>
       <div class="condition-bar" id="conditionBar">
         <button class="chip active" data-cond="all">Any Condition</button>
@@ -930,7 +930,7 @@
       </div>
       <div class="sort-wrap">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13" style="color:var(--stone-dim); flex-shrink:0;"><path d="M3 7h11M3 12h7M3 17h4"/><path d="M17 4v16M17 4l-3 3M17 4l3 3"/></svg>
-        <select id="sortSelect" class="sort-select">
+        <select id="sortSelect" aria-label="Sort listings" class="sort-select">
           <option value="newest">Newest First</option>
           <option value="price_asc">Price: Low to High</option>
           <option value="price_desc">Price: High to Low</option>

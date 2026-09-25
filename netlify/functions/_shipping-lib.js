@@ -131,18 +131,6 @@ function isExpressService(serviceName) {
 // recourse. Above the limit a listing sells for in-person handoff, or
 // support arranges concierge logistics. Set SHIPPING_MAX_ITEM_VALUE in
 // Netlify to change it; 0 disables automated shipping entirely.
-// SHIPPING_MAX_ITEM_VALUE semantics (Audit #4 P1-1: the old comment said
-// "0 disables automated shipping", but 0 actually disabled the CEILING):
-//   unset / empty -> $50,000 default
-//   0             -> automated shipping OFF for every item
-//   positive      -> hard maximum item value
-//   negative / not a number -> fail CLOSED (treated as 0: nothing ships)
-function maxShippableValue() {
-  const raw = process.env.SHIPPING_MAX_ITEM_VALUE;
-  if (raw === undefined || raw === '') return 50000;
-  const n = Number(raw);
-  return Number.isFinite(n) && n >= 0 ? n : 0;
-}
 
 // Returns { retail, commercial, margin } — commercial is what Bastion is
 // billed by the carrier, retail is what the buyer is charged.
@@ -546,18 +534,6 @@ function addressFingerprint(a) {
   return crypto.createHash('sha256').update(parts.join('|')).digest('hex').slice(0, 32);
 }
 
-// HIGH-VALUE CEILING
-// maxShippableValue() (SHIPPING_MAX_ITEM_VALUE, default $50,000) existed
-// before 2026-09-24 but nothing called it: it looked like a limit and
-// enforced none. Bastion does not insure shipments, and carrier
-// declared-value limits sit around $50,000 even where coverage is bought,
-// so above the ceiling items are in-person / concierge only. The quote
-// function now enforces it. Setting SHIPPING_MAX_ITEM_VALUE=0 disables it.
-function exceedsAutoShipCeiling(value) {
-  const cap = maxShippableValue();
-  if (cap === 0) return true;
-  return Number(value) > cap;
-}
 
 // Binds a quote to the exact origin address and package it was priced for
 // (Audit #4 P1-3). Weight and dimensions are compared numerically so that
@@ -642,7 +618,6 @@ module.exports = {
   toRetailRate,
   serviceBand,
   isExpressService,
-  maxShippableValue,
   tierForValue,
   tierRules,
   screenDestination,
@@ -664,7 +639,6 @@ module.exports = {
   carrierAllowed,
   filterForTier,
   addressFingerprint,
-  exceedsAutoShipCeiling,
   originParcelFingerprint,
   fetchPurchasedLabel,
 };

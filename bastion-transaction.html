@@ -862,7 +862,7 @@
       <button class="dispute-link hidden" id="disputeLink">Report a problem with this trade</button>
       <div class="review-box hidden" id="disputeForm">
         <div class="review-title">Report a problem</div>
-        <select id="disputeReason" class="dispute-select">
+        <select id="disputeReason" aria-label="Reason for the dispute" class="dispute-select">
           <option value="" disabled selected>Select a reason</option>
           <option value="Item not as described">Item not as described</option>
           <option value="Item not received">Item not received</option>
@@ -870,7 +870,7 @@
           <option value="Other party unresponsive">Other party unresponsive</option>
           <option value="Other">Other</option>
         </select>
-        <textarea id="disputeDetails" placeholder="What happened? This helps our team resolve it faster." maxlength="1000"></textarea>
+        <textarea id="disputeDetails" aria-label="Describe what happened" placeholder="What happened? This helps our team resolve it faster." maxlength="1000"></textarea>
         <br>
         <button class="review-submit" id="disputeSubmitBtn">Submit Report</button>
         <button class="dispute-cancel" id="disputeCancelBtn">Cancel</button>
@@ -886,7 +886,7 @@
         <button type="button" data-star="4">★</button>
         <button type="button" data-star="5">★</button>
       </div>
-      <textarea id="reviewComment" placeholder="How was the trade? (optional)"></textarea>
+      <textarea id="reviewComment" aria-label="Review comment (optional)" placeholder="How was the trade? (optional)"></textarea>
       <br>
       <button class="review-submit" id="submitReview">Submit Review</button>
       <div class="review-done hidden" id="reviewDone">Thanks — your review has been posted.</div>

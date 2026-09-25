@@ -96,7 +96,9 @@ exports.handler = async (event) => {
 
     if (lib.exceedsAutoShipCeiling(itemValue)) {
       return lib.json(422, {
-        error: 'Items valued above $' + lib.maxShippableValue().toLocaleString('en-US') +
+        error: lib.maxShippableValue() === 0
+          ? 'Automatic shipping is currently unavailable. Arrange an in-person handoff, or contact Bastion support for a concierge shipment.'
+          : 'Items valued above $' + lib.maxShippableValue().toLocaleString('en-US') +
           ' are not shipped automatically, because carrier coverage cannot protect them. ' +
           'Arrange an in-person handoff, or contact Bastion support for a concierge shipment.',
         concierge: true,
@@ -189,6 +191,10 @@ exports.handler = async (event) => {
           f: lib.addressFingerprint(address),
           t: tier,
           v: itemValue,
+          p: lib.originParcelFingerprint(
+            { street1: priv.ships_from_street1, street2: priv.ships_from_street2, city: priv.ships_from_city,
+              state: priv.ships_from_state, zip: deal.ships_from_postal },
+            { weight, length: Number(deal.item_length_in), width: Number(deal.item_width_in), height: Number(deal.item_height_in) }),
           c: r.carrier,
           s: r.service,
           a: priced.retail,

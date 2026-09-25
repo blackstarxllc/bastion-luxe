@@ -79,7 +79,8 @@ exports.handler = async (event) => {
     if (quote.u !== user.id || quote.d !== txn.deal_id ||
         quote.z !== lib.normalisePostal(addr.postal_code) ||
         quote.f !== lib.addressFingerprint(addr) ||
-        (quote.t && quote.t !== orderTier) ||
+        quote.t !== orderTier ||
+        Number(quote.v) !== Number(txn.price) ||
         !(Number(quote.a) > 0)) {
       return lib.json(409, {
         error: 'That shipping quote does not match this order or address. Please choose your shipping option again.',
@@ -124,7 +125,7 @@ exports.handler = async (event) => {
     }
 
     const deals = await lib.sbSelect(
-      'deals?id=eq.' + encodeURIComponent(txn.deal_id) + '&select=id,ships_from_postal,fulfilment'
+      'deals?id=eq.' + encodeURIComponent(txn.deal_id) + '&select=id,ships_from_postal,fulfilment,item_weight_oz,item_length_in,item_width_in,item_height_in'
     );
     const deal = deals && deals[0];
     if (!deal) return lib.json(404, { error: 'That listing no longer exists.' });
@@ -143,6 +144,21 @@ exports.handler = async (event) => {
     const priv = privateRes && privateRes[0];
     if (!priv || !priv.ships_from_street1 || !priv.ships_from_city || !priv.ships_from_state || !deal.ships_from_postal) {
       return lib.json(422, { error: 'The seller has not finished setting up a complete shipping origin address for this listing.' });
+    }
+
+    // The quote must also have been priced for THIS origin and THIS package.
+    // Once the order exists the listing's size and weight are frozen by the
+    // database (guard_deal_write), so this check closes the only window in
+    // which they could differ from what was quoted.
+    const originNow = lib.originParcelFingerprint(
+      { street1: priv.ships_from_street1, street2: priv.ships_from_street2, city: priv.ships_from_city,
+        state: priv.ships_from_state, zip: deal.ships_from_postal },
+      { weight: deal.item_weight_oz, length: deal.item_length_in, width: deal.item_width_in, height: deal.item_height_in });
+    if (quote.p !== originNow) {
+      return lib.json(409, {
+        error: 'The seller updated the shipping details after you were quoted. Please choose your shipping option again.',
+        requote: true,
+      });
     }
 
     const itemValue = Number(txn.price) || 0;

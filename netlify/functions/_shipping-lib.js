@@ -131,10 +131,17 @@ function isExpressService(serviceName) {
 // recourse. Above the limit a listing sells for in-person handoff, or
 // support arranges concierge logistics. Set SHIPPING_MAX_ITEM_VALUE in
 // Netlify to change it; 0 disables automated shipping entirely.
+// SHIPPING_MAX_ITEM_VALUE semantics (Audit #4 P1-1: the old comment said
+// "0 disables automated shipping", but 0 actually disabled the CEILING):
+//   unset / empty -> $50,000 default
+//   0             -> automated shipping OFF for every item
+//   positive      -> hard maximum item value
+//   negative / not a number -> fail CLOSED (treated as 0: nothing ships)
 function maxShippableValue() {
   const raw = process.env.SHIPPING_MAX_ITEM_VALUE;
-  const n = raw === undefined || raw === '' ? 50000 : Number(raw);
-  return Number.isFinite(n) && n >= 0 ? n : 50000;
+  if (raw === undefined || raw === '') return 50000;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
 // Returns { retail, commercial, margin } — commercial is what Bastion is
@@ -548,7 +555,20 @@ function addressFingerprint(a) {
 // function now enforces it. Setting SHIPPING_MAX_ITEM_VALUE=0 disables it.
 function exceedsAutoShipCeiling(value) {
   const cap = maxShippableValue();
-  return cap > 0 && Number(value) > cap;
+  if (cap === 0) return true;
+  return Number(value) > cap;
+}
+
+// Binds a quote to the exact origin address and package it was priced for
+// (Audit #4 P1-3). Weight and dimensions are compared numerically so that
+// "12" and "12.0" match.
+function originParcelFingerprint(origin, parcel) {
+  const norm = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const num = (v) => (Number(v) || 0).toFixed(2);
+  const parts = [origin.street1, origin.street2, origin.city, origin.state,
+                 String(origin.zip || '').slice(0, 5)].map(norm)
+    .concat([parcel.weight, parcel.length, parcel.width, parcel.height].map(num));
+  return crypto.createHash('sha256').update(parts.join('|')).digest('hex').slice(0, 32);
 }
 
 // ------------------------------------------------------------------
@@ -645,5 +665,6 @@ module.exports = {
   filterForTier,
   addressFingerprint,
   exceedsAutoShipCeiling,
+  originParcelFingerprint,
   fetchPurchasedLabel,
 };

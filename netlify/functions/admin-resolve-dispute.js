@@ -151,6 +151,8 @@ exports.handler = async (event) => {
       apiKey: ESCROW_API_KEY,
       primaryItemId: txn.escrow_item_id,
       asCustomer: buyerEmailForAction || undefined,
+      bastionTransactionId: transactionId,
+      initiatedBy: 'admin:' + callerUser.id,
     });
 
     async function auditLog(outcome) {

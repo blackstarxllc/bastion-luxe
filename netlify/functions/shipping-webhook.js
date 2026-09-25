@@ -82,6 +82,7 @@ function nextShipmentStatus(current, incoming) {
 }
 
 exports.handler = async (event) => {
+  let eventId = null;
   if (event.httpMethod !== 'POST') {
     return lib.json(405, { error: 'Method not allowed' });
   }
@@ -129,7 +130,7 @@ exports.handler = async (event) => {
 
     // Webhook inbox: record the event once, keyed by EasyPost's own event
     // id. A replayed or duplicate delivery is recognised and skipped.
-    const eventId = payload.id ? String(payload.id) : null;
+    eventId = payload.id ? String(payload.id) : null;
     if (eventId) {
       try {
         await lib.sbInsert('provider_events', {
@@ -137,7 +138,17 @@ exports.handler = async (event) => {
         }, false);
       } catch (inboxErr) {
         if (/409|23505|duplicate/i.test(inboxErr.message)) {
-          return lib.json(200, { received: true, duplicate: true });
+          // A repeat of an event we already hold. Only skip it if that
+          // earlier copy was actually PROCESSED; an event that crashed
+          // mid-way must be resumed, not silently dropped.
+          const prior = await lib.sbSelect('provider_events?provider=eq.easypost&event_key=eq.' +
+            encodeURIComponent(eventId) + '&select=processed_at,attempts');
+          const row = prior && prior[0];
+          if (row && row.processed_at) {
+            return lib.json(200, { received: true, duplicate: true });
+          }
+          await lib.sbPatch('provider_events', 'provider=eq.easypost&event_key=eq.' + encodeURIComponent(eventId),
+            { attempts: ((row && row.attempts) || 0) + 1 }).catch(() => {});
         }
         await lib.logAlert('shipping_webhook', 'Could not record event in the inbox (processing anyway)', { eventId, error: inboxErr.message });
       }
@@ -153,110 +164,20 @@ exports.handler = async (event) => {
       return lib.json(200, { received: true, foundTracking: false });
     }
 
-    const shipments = await lib.sbSelect(
-      'shipments?tracking_number=eq.' + encodeURIComponent(trackingNumber) + '&select=*'
-    );
-    const shipment = shipments && shipments[0];
-    if (!shipment) {
-      await lib.logAlert('shipping_webhook', 'No Bastion shipment matches this tracking number', {
-        trackingNumber,
-      });
-      return lib.json(200, { received: true, matched: false });
-    }
-
-    // --- Re-verify with the provider ----------------------------------
-    const verified = await verifyTracking(shipment.carrier, trackingNumber);
-    if (!verified) {
-      await lib.logAlert('shipping_webhook', 'Could not verify tracking with the provider', {
-        trackingNumber, shipmentId: shipment.id,
-      });
-      return lib.json(200, { received: true, verified: false });
-    }
-
-    const newStatus = lib.normaliseTrackingStatus(verified.status);
-    if (!newStatus) {
-      return lib.json(200, { received: true, verified: true, mapped: false });
-    }
-
-    // --- Record the scan (append-only chain of custody) ----------------
-    //
-    // BUG FIXED HERE: this used to dedupe on an exact match of
-    // (status, occurred_at). When a carrier response has no timestamp —
-    // which happens — the code fell back to `new Date().toISOString()`,
-    // generating a brand-new value on every single call. That meant the
-    // dedup match NEVER fired for any event missing a carrier timestamp:
-    // every webhook retry (providers explicitly deliver "at least once",
-    // so retries are expected, not rare) would insert a fresh duplicate
-    // row. A tracking timeline padded with near-identical duplicate scans
-    // at slightly different timestamps is exactly what tampering would
-    // look like — the opposite of what an append-only chain of custody is
-    // supposed to guarantee in a dispute.
-    //
-    // Fixed by deduping on (status, location, description) instead, which
-    // does not depend on a timestamp existing or being stable across calls.
-    // A genuine repeat delivery of the same scan has identical status,
-    // location and description. A genuinely new scan — the package moving
-    // to a new facility under the same status — will differ in location or
-    // description and is correctly kept as a new row.
-    const occurredAt = verified.occurredAt || new Date().toISOString();
-    const eventLocation = verified.location || null;
-    const eventDescription = verified.description || null;
-
-    let dedupeFilter =
-      'shipment_events?shipment_id=eq.' + encodeURIComponent(shipment.id) +
-      '&status=eq.' + encodeURIComponent(newStatus);
-    dedupeFilter += eventLocation
-      ? '&location=eq.' + encodeURIComponent(eventLocation)
-      : '&location=is.null';
-    dedupeFilter += eventDescription
-      ? '&description=eq.' + encodeURIComponent(eventDescription)
-      : '&description=is.null';
-    dedupeFilter += '&select=id';
-
-    const existingEvents = await lib.sbSelect(dedupeFilter);
-
-    if (!existingEvents || !existingEvents.length) {
-      await lib.sbInsert('shipment_events', {
-        shipment_id: shipment.id,
-        status: newStatus,
-        description: eventDescription,
-        location: eventLocation,
-        occurred_at: occurredAt,
-        raw: verified.raw || null,
-      });
-    }
-
-    // --- Advance the shipment ------------------------------------------
-    // Never move backwards. Carriers do re-send older scans out of order,
-    // and a "delivered" shipment must not revert to "in transit".
-    const patch = {};
-    const advanced = nextShipmentStatus(shipment.status, newStatus);
-    if (advanced) patch.status = advanced;
-
-    if (['in_transit', 'out_for_delivery', 'delivered'].includes(newStatus) && !shipment.first_scan_at) {
-      patch.first_scan_at = occurredAt;
-    }
-    if (newStatus === 'delivered' && !shipment.delivered_at) {
-      patch.delivered_at = occurredAt;
-      if (verified.signedBy) patch.delivery_signed_by = verified.signedBy;
-    }
-
-    if (Object.keys(patch).length) {
-      await lib.sbPatch('shipments', 'id=eq.' + encodeURIComponent(shipment.id), patch);
-    }
-
-    // --- Mirror onto the transaction -----------------------------------
-    await syncTransaction(shipment, newStatus, occurredAt);
-
+    const outcome = await processTracking(trackingNumber);
     if (eventId) {
       await lib.sbPatch('provider_events', 'provider=eq.easypost&event_key=eq.' + encodeURIComponent(eventId),
-        { processed_at: new Date().toISOString() }).catch(() => {});
+        { processed_at: new Date().toISOString(), last_error: null }).catch(() => {});
     }
-    return lib.json(200, { received: true, verified: true, status: newStatus });
+    return lib.json(200, Object.assign({ received: true }, outcome));
   } catch (err) {
     await lib.logAlert('shipping_webhook', 'Fatal error in shipping webhook', {
       error: err.message, stack: (err.stack || '').slice(0, 800),
     });
+    if (typeof eventId === 'string' && eventId) {
+      await lib.sbPatch('provider_events', 'provider=eq.easypost&event_key=eq.' + encodeURIComponent(eventId),
+        { last_error: String((err && err.message) || err).slice(0, 500) }).catch(() => {});
+    }
     return lib.json(200, { received: true, fatalError: true });
   }
 };
@@ -399,6 +320,113 @@ async function syncTransaction(shipment, newStatus, occurredAt) {
   }
 }
 
+
+// ------------------------------------------------------------------
+// THE ONE PLACE CARRIER STATE IS APPLIED.
+// Called by the webhook (after authentication and the inbox) and directly by
+// the hourly reconciler. The reconciler used to replay a synthetic, signed
+// "webhook" through the HTTP handler; now both share this function and
+// neither pretends to be EasyPost.
+// Returns a plain result object; throws only on unexpected errors.
+// ------------------------------------------------------------------
+async function processTracking(trackingNumber) {
+  const shipments = await lib.sbSelect(
+    'shipments?tracking_number=eq.' + encodeURIComponent(trackingNumber) + '&select=*'
+  );
+  const shipment = shipments && shipments[0];
+  if (!shipment) {
+    await lib.logAlert('shipping_webhook', 'No Bastion shipment matches this tracking number', {
+      trackingNumber,
+    });
+    return { matched: false };
+  }
+
+  // --- Re-verify with the provider ----------------------------------
+  const verified = await verifyTracking(shipment.carrier, trackingNumber);
+  if (!verified) {
+    await lib.logAlert('shipping_webhook', 'Could not verify tracking with the provider', {
+      trackingNumber, shipmentId: shipment.id,
+    });
+    return { verified: false };
+  }
+
+  const newStatus = lib.normaliseTrackingStatus(verified.status);
+  if (!newStatus) {
+    return { verified: true, mapped: false };
+  }
+
+  // --- Record the scan (append-only chain of custody) ----------------
+  //
+  // BUG FIXED HERE: this used to dedupe on an exact match of
+  // (status, occurred_at). When a carrier response has no timestamp —
+  // which happens — the code fell back to `new Date().toISOString()`,
+  // generating a brand-new value on every single call. That meant the
+  // dedup match NEVER fired for any event missing a carrier timestamp:
+  // every webhook retry (providers explicitly deliver "at least once",
+  // so retries are expected, not rare) would insert a fresh duplicate
+  // row. A tracking timeline padded with near-identical duplicate scans
+  // at slightly different timestamps is exactly what tampering would
+  // look like — the opposite of what an append-only chain of custody is
+  // supposed to guarantee in a dispute.
+  //
+  // Fixed by deduping on (status, location, description) instead, which
+  // does not depend on a timestamp existing or being stable across calls.
+  // A genuine repeat delivery of the same scan has identical status,
+  // location and description. A genuinely new scan — the package moving
+  // to a new facility under the same status — will differ in location or
+  // description and is correctly kept as a new row.
+  const occurredAt = verified.occurredAt || new Date().toISOString();
+  const eventLocation = verified.location || null;
+  const eventDescription = verified.description || null;
+
+  let dedupeFilter =
+    'shipment_events?shipment_id=eq.' + encodeURIComponent(shipment.id) +
+    '&status=eq.' + encodeURIComponent(newStatus);
+  dedupeFilter += eventLocation
+    ? '&location=eq.' + encodeURIComponent(eventLocation)
+    : '&location=is.null';
+  dedupeFilter += eventDescription
+    ? '&description=eq.' + encodeURIComponent(eventDescription)
+    : '&description=is.null';
+  dedupeFilter += '&select=id';
+
+  const existingEvents = await lib.sbSelect(dedupeFilter);
+
+  if (!existingEvents || !existingEvents.length) {
+    await lib.sbInsert('shipment_events', {
+      shipment_id: shipment.id,
+      status: newStatus,
+      description: eventDescription,
+      location: eventLocation,
+      occurred_at: occurredAt,
+      raw: verified.raw || null,
+    });
+  }
+
+  // --- Advance the shipment ------------------------------------------
+  // Never move backwards. Carriers do re-send older scans out of order,
+  // and a "delivered" shipment must not revert to "in transit".
+  const patch = {};
+  const advanced = nextShipmentStatus(shipment.status, newStatus);
+  if (advanced) patch.status = advanced;
+
+  if (['in_transit', 'out_for_delivery', 'delivered'].includes(newStatus) && !shipment.first_scan_at) {
+    patch.first_scan_at = occurredAt;
+  }
+  if (newStatus === 'delivered' && !shipment.delivered_at) {
+    patch.delivered_at = occurredAt;
+    if (verified.signedBy) patch.delivery_signed_by = verified.signedBy;
+  }
+
+  if (Object.keys(patch).length) {
+    await lib.sbPatch('shipments', 'id=eq.' + encodeURIComponent(shipment.id), patch);
+  }
+
+  // --- Mirror onto the transaction -----------------------------------
+  await syncTransaction(shipment, newStatus, occurredAt);
+  return { verified: true, status: newStatus, shipmentId: shipment.id };
+}
+
 // Marks the Escrow.com item shipped on the first carrier scan and received on
 // delivery. Each step is skipped if Escrow.com already shows it done, so a
 // repeated or out-of-order webhook is harmless. Failures never throw: they
@@ -411,6 +439,8 @@ async function advanceEscrow(shipment, txn, newStatus) {
       primaryItemId: txn.escrow_item_id,
       sellerEmail,
       trackingInfo: { carrier: shipment.carrier, tracking_id: shipment.tracking_number },
+      bastionTransactionId: txn.id,
+      initiatedBy: 'carrier_scan',
     });
     if (!shipped.ok) {
       await lib.logAlert('escrow_lifecycle', 'Could not mark the item shipped on Escrow.com', {
@@ -425,6 +455,8 @@ async function advanceEscrow(shipment, txn, newStatus) {
       escrowTransactionId: txn.escrow_transaction_id,
       primaryItemId: txn.escrow_item_id,
       buyerEmail,
+      bastionTransactionId: txn.id,
+      initiatedBy: 'carrier_delivery',
     });
     if (!received.ok) {
       await lib.logAlert('escrow_lifecycle',
@@ -439,3 +471,4 @@ async function advanceEscrow(shipment, txn, newStatus) {
 
 module.exports.nextShipmentStatus = nextShipmentStatus;
 module.exports.isAuthentic = isAuthentic;
+module.exports.processTracking = processTracking;

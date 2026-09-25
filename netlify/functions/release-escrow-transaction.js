@@ -277,6 +277,8 @@ exports.handler = async (event) => {
         escrowTransactionId: txn.escrow_transaction_id,
         primaryItemId: txn.escrow_item_id,
         sellerEmail,
+        bastionTransactionId: transactionId,
+        initiatedBy: 'buyer_release',
       });
       if (!shipped.ok) {
         await alert('Could not mark the item shipped on Escrow.com before release', {
@@ -287,6 +289,8 @@ exports.handler = async (event) => {
           escrowTransactionId: txn.escrow_transaction_id,
           primaryItemId: txn.escrow_item_id,
           buyerEmail,
+          bastionTransactionId: transactionId,
+          initiatedBy: 'buyer_release',
         });
         if (!received.ok) {
           await alert('Could not mark the item received on Escrow.com; the inspection clock may not have started', {
@@ -304,6 +308,8 @@ exports.handler = async (event) => {
       apiKey: ESCROW_API_KEY,
       primaryItemId: txn.escrow_item_id,
       asCustomer: buyerEmail || undefined,
+      bastionTransactionId: transactionId,
+      initiatedBy: 'buyer_release',
     });
 
     const secondaryFailures = releaseResult.results.filter((r) => r.ok === false);

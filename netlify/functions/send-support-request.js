@@ -21,7 +21,21 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { name, email, subject, message, user_id } = JSON.parse(event.body || '{}');
+    // user_id is NEVER taken from the request body. If the caller is signed
+    // in, the account is derived from their verified session token; a
+    // browser could otherwise file a ticket under someone else's account.
+    const { name, email, subject, message } = JSON.parse(event.body || '{}');
+    let verifiedUserId = null;
+    const bearer = (event.headers.authorization || event.headers.Authorization || '').replace(/^Bearer\s+/i, '');
+    if (bearer && process.env.SUPABASE_URL) {
+      const who = await fetch(process.env.SUPABASE_URL + '/auth/v1/user', {
+        headers: { apikey: process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY, Authorization: 'Bearer ' + bearer },
+      }).catch(() => null);
+      if (who && who.ok) {
+        const u = await who.json().catch(() => null);
+        if (u && u.id) verifiedUserId = u.id;
+      }
+    }
 
     if (!name || !email || !subject || !message) {
       return { statusCode: 400, body: JSON.stringify({ error: 'name, email, subject, and message are all required' }) };
@@ -84,7 +98,7 @@ exports.handler = async (event) => {
       },
       body: JSON.stringify({
         name, email, subject, message,
-        user_id: user_id || null,
+        user_id: verifiedUserId,
         ip_address: clientIp !== 'unknown' ? clientIp : null,
       }),
     });
@@ -102,7 +116,6 @@ exports.handler = async (event) => {
     // replying to support@ — not to a no-reply notifications mailbox.
     const SUPPORT_FROM_EMAIL = process.env.SUPPORT_FROM_EMAIL
       || 'Bastion Support <support@bastionmarket.com>';
-    const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'Bastion <onboarding@resend.dev>';
     const SUPPORT_NOTIFY_EMAIL = process.env.SUPPORT_NOTIFY_EMAIL;
 
     if (!SUPPORT_NOTIFY_EMAIL) {
@@ -176,7 +189,7 @@ exports.handler = async (event) => {
               <p style="font-size:13px;color:#8D8F94;margin:0 0 8px;"><strong style="color:#F1ECE1;">${escapeHtml(subject)}</strong></p>
               <p style="font-size:13px;line-height:1.6;color:#8D8F94;white-space:pre-wrap;margin:0;">${escapeHtml(message)}</p>
             </div>
-            <p style="font-size:12px;color:#5B5D62;line-height:1.6;margin:0;">If this is about a live transaction, your funds stay held in escrow while we look into it. Nothing releases while a support case or dispute is open.</p>
+            <p style="font-size:12px;color:#5B5D62;line-height:1.6;margin:0;">If this is about a live order, please note that contacting support does not pause your order. If something is wrong with an item you received, open a dispute from the order page before your inspection period ends: that is what holds the funds in escrow.</p>
           </div>
         </div>`;
 

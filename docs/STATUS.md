@@ -5,7 +5,7 @@ and the deployed code (PR #80, 2026-09-20). Where the other files in this
 folder disagree with this one, this one is right.
 
 ## Verified continuously
-- `node tests/run.js`: 75 checks, run by Netlify before EVERY deploy. A
+- `node tests/run.js`: 78 checks, run by Netlify before EVERY deploy. A
   failure blocks the deploy.
 - `sql/tests/security_regression.sql`: 35 live database attack/flow checks.
   Last run 2026-09-25: 38/38 PASS. Everything rolls back; re-run after any
@@ -39,8 +39,7 @@ Escrow.com after 24 hours. Worst case for a lost webhook: one hour.
 ## EasyPost (verified 2026-09-25)
 Production webhook `hook_09549c74...` -> /.netlify/functions/shipping-webhook,
 HMAC-signed (X-Hmac-Signature); the old URL-secret webhook was deleted.
-Only USPS, UPS and FedEx rates are offered. Items above
-SHIPPING_MAX_ITEM_VALUE (default $50,000) are in-person / concierge only.
+Only USPS, UPS and FedEx rates are offered. No value ceiling.
 
 ## Email (verified 2026-09-25)
 Resend domain bastionmarket.com verified (DKIM + SPF). A live notification
@@ -54,6 +53,19 @@ support@bastionmarket.com forwards to the support Gmail inbox (owner-managed).
 public.provider_actions records every money-moving call to Escrow.com
 (create / ship / receive / accept / cancel): order, item, on whose behalf,
 HTTP status and Escrow.com's exact response. Admin-read only.
+
+## Checkout
+Listings marked "both" now ask the buyer "Ship it to me" or "Meet in
+person", at any price. There is NO value ceiling on shipping (owner policy:
+high-value items ship under Bastion's video verification process).
+Full buyer/seller flows (offer -> accept -> buy -> pay -> handoff or ship ->
+deliver -> dispute -> release -> review) were simulated on production with
+every notification verified, 10/10 steps passing (rolled back).
+
+## SEO
+/sitemap.xml is generated live (edge function) with every active listing;
+listing pages carry a canonical URL, schema.org Product data (price,
+availability, condition) and noindex once sold.
 
 ## Owner actions still open
 1. Supabase > Authentication > Providers > Email: turn on leaked-password protection.

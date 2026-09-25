@@ -94,16 +94,6 @@ exports.handler = async (event) => {
     const tier = lib.tierForValue(itemValue);
     const rules = lib.tierRules(tier);
 
-    if (lib.exceedsAutoShipCeiling(itemValue)) {
-      return lib.json(422, {
-        error: lib.maxShippableValue() === 0
-          ? 'Automatic shipping is currently unavailable. Arrange an in-person handoff, or contact Bastion support for a concierge shipment.'
-          : 'Items valued above $' + lib.maxShippableValue().toLocaleString('en-US') +
-          ' are not shipped automatically, because carrier coverage cannot protect them. ' +
-          'Arrange an in-person handoff, or contact Bastion support for a concierge shipment.',
-        concierge: true,
-      });
-    }
 
     if (address.hold_at_location && !rules.allowHoldAtLocation) {
       return lib.json(422, {

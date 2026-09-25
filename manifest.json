@@ -1,8 +1,8 @@
 {
   "name": "Bastion",
   "short_name": "Bastion",
-  "description": "Verified escrow exchange for luxury goods",
-  "start_url": "/bastion-auth.html",
+  "description": "Escrow-protected marketplace for high-value luxury goods",
+  "start_url": "/bastion-marketplace.html",
   "display": "standalone",
   "background_color": "#0b0d12",
   "theme_color": "#0b0d12",

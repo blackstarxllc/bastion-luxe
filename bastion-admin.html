@@ -322,7 +322,7 @@
   <div id="listingsList"></div>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1/dist/umd/supabase.js" integrity="sha384-K1nraABOP/zFehpLIUksXebbs7jMpB8gYMlb+uhVKZcWT/9Vkq1+qhv6ndC+1Yuz" crossorigin="anonymous"></script>
 <script src="bastion-account-skirt.js"></script>
 <script>
 const SUPABASE_URL = 'https://xokyqobttfhugdponfpg.supabase.co';
@@ -458,11 +458,9 @@ async function checkAdminAccess(){
 
 async function loadUsers(searchTerm){
   const list = document.getElementById('usersList');
-  let query = supabaseClient.from('profiles').select('*').order('created_at', { ascending: false }).limit(50);
-  if(searchTerm){
-    query = supabaseClient.from('profiles').select('*').ilike('handle', '%' + searchTerm + '%').limit(50);
-  }
-  const { data, error } = await query;
+  // Full profile rows (including private fields such as ban reasons) come
+  // from an admin-only RPC; the public profiles table no longer exposes them.
+  const { data, error } = await supabaseClient.rpc('admin_list_profiles', { p_search: searchTerm || null });
 
   if(error){
     list.innerHTML = '<div class="empty-note">Could not load users: ' + escapeHtml(error.message) + '</div>';

@@ -584,6 +584,64 @@ function normaliseTrackingStatus(raw) {
   return null;
 }
 
+
+// ------------------------------------------------------------------
+// SIGNED SHIPPING QUOTES
+//
+// Before 2026-09-24 the buyer's browser told the server what shipping cost.
+// The checkout page quoted a real rate, but then sent that number back as a
+// plain field on the order, and create-shipment stored whatever it was
+// given. A buyer could edit the request, pay $0 shipping, pick overnight
+// service, and Bastion's EasyPost account would pay for the label.
+//
+// Now every rate the quote function returns carries a quoteToken: the exact
+// buyer, listing, destination ZIP, carrier, service and price, signed with a
+// server-only secret and valid for 45 minutes. create-shipment accepts ONLY
+// a valid token, and writes the order's shipping charge from the token
+// itself. A tampered token fails the signature check; an expired one asks
+// the buyer to re-quote. The browser can choose a rate, never set a price.
+// ------------------------------------------------------------------
+const crypto = require('crypto');
+const QUOTE_TTL_MS = 45 * 60 * 1000;
+
+function quoteSecret() {
+  const s = process.env.QUOTE_SIGNING_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!s) throw new Error('No quote signing secret is configured.');
+  return s;
+}
+
+function b64url(buf) {
+  return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function normalisePostal(zip) {
+  return String(zip || '').trim().slice(0, 5);
+}
+
+function signQuote(payload) {
+  const body = b64url(JSON.stringify(Object.assign({}, payload, { exp: Date.now() + QUOTE_TTL_MS })));
+  const sig = b64url(crypto.createHmac('sha256', quoteSecret()).update(body).digest());
+  return body + '.' + sig;
+}
+
+// Returns the payload, or null if the token is malformed, forged or expired.
+function verifyQuote(token) {
+  if (typeof token !== 'string' || token.indexOf('.') < 1) return null;
+  const [body, sig] = token.split('.');
+  const expected = b64url(crypto.createHmac('sha256', quoteSecret()).update(body).digest());
+  const a = Buffer.from(sig || '');
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  let payload;
+  try {
+    payload = JSON.parse(Buffer.from(body.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
+  } catch (e) {
+    return null;
+  }
+  if (!payload || typeof payload.exp !== 'number' || payload.exp < Date.now()) return null;
+  return payload;
+}
+
 function json(statusCode, body) {
   return {
     statusCode,
@@ -613,4 +671,7 @@ module.exports = {
   buyLabel,
   normaliseTrackingStatus,
   json,
+  signQuote,
+  verifyQuote,
+  normalisePostal,
 };

@@ -69,6 +69,7 @@ const ESCROW_API_BASE = process.env.ESCROW_LIVE_MODE === 'true'
 const ACTION_ACCEPT = 'accept';
 const ACTION_CANCEL = 'cancel';
 const ACTION_RECEIVE = 'receive';
+const ACTION_SHIP = 'ship';
 
 function escrowAuthHeader(email, apiKey) {
   return 'Basic ' + Buffer.from(`${email}:${apiKey}`).toString('base64');
@@ -88,6 +89,22 @@ function isItemReceived(item) {
   if (typeof item.status === 'string') return item.status === 'received';
   const s = item.status || {};
   return !!s.received;
+}
+
+function isItemShipped(item) {
+  if (!item) return false;
+  if (typeof item.status === 'string') return ['shipped', 'received', 'accepted'].includes(item.status);
+  const s = item.status || {};
+  return !!(s.shipped || s.received || s.accepted);
+}
+
+// True when `action` has nothing left to do on this item, so it is skipped
+// rather than re-sent (Escrow.com rejects repeating a completed step).
+function itemAlreadyPast(item, action) {
+  if (isItemAlreadySettled(item)) return true;
+  if (action === ACTION_SHIP) return isItemShipped(item);
+  if (action === ACTION_RECEIVE) return isItemReceived(item);
+  return false;
 }
 
 // Escrow.com signals "you are not allowed to do this as this party" with a
@@ -129,7 +146,7 @@ async function fetchTransaction({ escrowTransactionId, email, apiKey }) {
  *     results: [{ id, title, ok|skipped, status, response }]
  *   }
  */
-async function applyActionToAllItems({ escrowTransactionId, action, email, apiKey, primaryItemId, asCustomer }) {
+async function applyActionToAllItems({ escrowTransactionId, action, email, apiKey, primaryItemId, asCustomer, extraBody }) {
   const authHeader = escrowAuthHeader(email, apiKey);
 
   const loaded = await fetchTransaction({ escrowTransactionId, email, apiKey });
@@ -158,8 +175,8 @@ async function applyActionToAllItems({ escrowTransactionId, action, email, apiKe
     const isPrimary = String(item.id) === String(primaryItemId);
     if (isPrimary) primaryFound = true;
 
-    if (isItemAlreadySettled(item)) {
-      results.push({ id: item.id, title: item.title, skipped: true, reason: 'already settled' });
+    if (itemAlreadyPast(item, action)) {
+      results.push({ id: item.id, title: item.title, skipped: true, reason: 'already past ' + action });
       if (isPrimary) primaryOk = true;
       continue;
     }
@@ -169,7 +186,7 @@ async function applyActionToAllItems({ escrowTransactionId, action, email, apiKe
 
     const patchRes = await fetch(
       `${ESCROW_API_BASE}/transaction/${encodeURIComponent(escrowTransactionId)}/item/${encodeURIComponent(item.id)}`,
-      { method: 'PATCH', headers, body: JSON.stringify({ action }) }
+      { method: 'PATCH', headers, body: JSON.stringify(Object.assign({ action }, extraBody || {})) }
     );
     const data = await patchRes.json().catch(() => ({}));
 
@@ -191,43 +208,6 @@ async function applyActionToAllItems({ escrowTransactionId, action, email, apiKe
   }
 
   return { ok: primaryOk && primaryFound, needsBuyerAction, primaryError, itemCount: items.length, results };
-}
-
-/**
- * Marks the merchandise item received on behalf of the buyer. Unlike
- * 'accept', 'receive' IS on Escrow.com's approved on-behalf list, so this
- * one genuinely works with Bastion's own credentials.
- *
- * Receiving starts the inspection clock on Escrow.com's side. That matters:
- * the automatic accept-on-lapse backstop only runs once the item is marked
- * received, so calling this on carrier-confirmed delivery is what guarantees
- * the seller eventually gets paid even if the buyer never clicks anything.
- *
- * Failure here is non-fatal to the caller — it is reported, never thrown.
- */
-async function markItemsReceived({ escrowTransactionId, email, apiKey, primaryItemId, asCustomer }) {
-  const loaded = await fetchTransaction({ escrowTransactionId, email, apiKey });
-  if (!loaded.ok) {
-    return { ok: false, error: { message: 'Could not load transaction', status: loaded.status, detail: loaded.detail } };
-  }
-
-  const items = Array.isArray(loaded.txn.items) ? loaded.txn.items : [];
-  const primary = items.find((i) => String(i.id) === String(primaryItemId));
-  if (!primary) return { ok: false, error: { message: 'Merchandise item not found on Escrow.com' } };
-  if (isItemReceived(primary) || isItemAlreadySettled(primary)) return { ok: true, alreadyReceived: true };
-
-  const headers = {
-    Authorization: escrowAuthHeader(email, apiKey),
-    'Content-Type': 'application/json',
-  };
-  if (asCustomer) headers['As-Customer'] = asCustomer;
-
-  const res = await fetch(
-    `${ESCROW_API_BASE}/transaction/${encodeURIComponent(escrowTransactionId)}/item/${encodeURIComponent(primary.id)}`,
-    { method: 'PATCH', headers, body: JSON.stringify({ action: ACTION_RECEIVE }) }
-  );
-  const data = await res.json().catch(() => ({}));
-  return { ok: res.ok, status: res.status, response: data, error: res.ok ? null : data };
 }
 
 /**
@@ -254,16 +234,79 @@ async function getWebLink({ escrowTransactionId, action, email, apiKey }) {
   }
 }
 
+// ------------------------------------------------------------------
+// LIFECYCLE STEPS THAT BASTION PERFORMS ON THE PARTIES' BEHALF
+//
+// Escrow.com's item lifecycle is: funded -> seller SHIPS -> buyer RECEIVES
+// (this starts the inspection clock) -> buyer ACCEPTS (money disburses) —
+// or, if the buyer does nothing, Escrow.com accepts automatically when the
+// inspection period lapses.
+//
+// Before 2026-09-24 Bastion never sent 'ship' at all, and only sent
+// 'receive' when the buyer clicked "release". So a buyer who simply never
+// clicked left the inspection clock unstarted, and the automatic payout
+// that is supposed to protect the seller could never fire. Both steps are
+// on Escrow.com's approved on-behalf list, so Bastion now performs them
+// itself from carrier scans: first scan -> ship, delivery -> receive.
+// ------------------------------------------------------------------
+function escrowCredentials() {
+  const live = process.env.ESCROW_LIVE_MODE === 'true';
+  return {
+    email: live ? process.env.ESCROW_LIVE_EMAIL : process.env.ESCROW_SANDBOX_EMAIL,
+    apiKey: live ? process.env.ESCROW_LIVE_API_KEY : process.env.ESCROW_SANDBOX_API_KEY,
+  };
+}
+
+async function lookupUserEmail(userId) {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key || !userId) return null;
+  const res = await fetch(`${url}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+    headers: { apikey: key, Authorization: `Bearer ${key}` },
+  }).catch(() => null);
+  if (!res || !res.ok) return null;
+  const u = await res.json().catch(() => null);
+  return (u && u.email) || null;
+}
+
+// Marks every item shipped, on the seller's behalf. trackingInfo is
+// optional: { carrier, tracking_id }. Omitted for in-person handoffs.
+async function markShipped({ escrowTransactionId, primaryItemId, sellerEmail, trackingInfo }) {
+  const { email, apiKey } = escrowCredentials();
+  const extraBody = trackingInfo && trackingInfo.tracking_id
+    ? { shipping_information: { tracking_information: { carrier: trackingInfo.carrier || 'Carrier', tracking_id: trackingInfo.tracking_id } } }
+    : undefined;
+  return applyActionToAllItems({
+    escrowTransactionId, action: ACTION_SHIP, email, apiKey, primaryItemId,
+    asCustomer: sellerEmail || undefined, extraBody,
+  });
+}
+
+// Marks every item received, on the buyer's behalf. Starts inspection.
+async function markReceived({ escrowTransactionId, primaryItemId, buyerEmail }) {
+  const { email, apiKey } = escrowCredentials();
+  return applyActionToAllItems({
+    escrowTransactionId, action: ACTION_RECEIVE, email, apiKey, primaryItemId,
+    asCustomer: buyerEmail || undefined,
+  });
+}
+
 module.exports = {
   ESCROW_API_BASE,
   ACTION_ACCEPT,
   ACTION_CANCEL,
   ACTION_RECEIVE,
+  ACTION_SHIP,
+  isItemShipped,
+  itemAlreadyPast,
+  escrowCredentials,
+  lookupUserEmail,
+  markShipped,
+  markReceived,
   escrowAuthHeader,
   isItemAlreadySettled,
   isItemReceived,
   fetchTransaction,
   applyActionToAllItems,
-  markItemsReceived,
   getWebLink,
 };

@@ -18,7 +18,68 @@
 // Admin panel. Silent to the carrier, loud to Bastion.
 // ==================================================================
 
+const crypto = require('crypto');
 const lib = require('./_shipping-lib');
+const escrow = require('./_escrow-lib');
+
+// ------------------------------------------------------------------
+// AUTHENTICATION
+// A request is accepted only if it proves it came from EasyPost: either a
+// valid X-Hmac-Signature over the exact raw body (EasyPost's own signing
+// scheme, keyed with the webhook secret) or the shared secret in the URL or
+// header the webhook was registered with. Anything else gets 401.
+//
+// This used to log a mismatch and carry on. That was not directly
+// exploitable, because every status is re-fetched from EasyPost with
+// Bastion's own key before anything changes, so a forged call could only
+// trigger a refresh of real data. But an endpoint anyone can make do work
+// is not acceptable, and it let anyone burn Bastion's EasyPost rate limit.
+// ------------------------------------------------------------------
+function rawBody(event) {
+  return event.isBase64Encoded ? Buffer.from(event.body || '', 'base64') : Buffer.from(event.body || '', 'utf8');
+}
+
+function safeEqual(a, b) {
+  const x = Buffer.from(String(a || ''));
+  const y = Buffer.from(String(b || ''));
+  return x.length === y.length && x.length > 0 && crypto.timingSafeEqual(x, y);
+}
+
+function isAuthentic(event, secret) {
+  if (!secret) return false;
+  const headers = event.headers || {};
+  const sig = headers['x-hmac-signature'] || headers['X-Hmac-Signature'];
+  if (sig) {
+    const expected = 'hmac-sha256-hex=' + crypto
+      .createHmac('sha256', String(secret).normalize('NFKD'))
+      .update(rawBody(event))
+      .digest('hex');
+    if (safeEqual(sig, expected)) return true;
+  }
+  const params = event.queryStringParameters || {};
+  const provided = params.secret || headers['x-webhook-secret'] || headers['X-Webhook-Secret'];
+  return safeEqual(provided, secret);
+}
+
+// ------------------------------------------------------------------
+// STATUS PRECEDENCE
+// Carrier status is not a simple ladder. The old code ranked 'delivered'
+// and 'exception' equally and only moved "up", so a package that hit a
+// delay and was then delivered stayed 'exception' forever, and the buyer's
+// release button, which waits for 'delivered', never unlocked. An exception
+// is a side condition: any later real progress clears it.
+// ------------------------------------------------------------------
+const PROGRESS = { awaiting_label: 0, label_created: 1, in_transit: 2, out_for_delivery: 3, delivered: 4 };
+const TERMINAL = ['delivered', 'returned', 'cancelled'];
+
+function nextShipmentStatus(current, incoming) {
+  if (!incoming || incoming === current) return null;
+  if (TERMINAL.includes(current)) return null;
+  if (incoming === 'returned' || incoming === 'cancelled') return incoming;
+  if (incoming === 'exception') return 'exception';
+  if (current === 'exception') return incoming;
+  return (PROGRESS[incoming] ?? -1) > (PROGRESS[current] ?? -1) ? incoming : null;
+}
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -31,22 +92,17 @@ exports.handler = async (event) => {
     // if the provider does not preserve the query string on the registered
     // URL, a hard 401 would fail every legitimate call. The real boundary
     // is the re-verification below.
-    const expected = process.env.SHIPPING_WEBHOOK_SECRET;
-    if (expected) {
-      const params = event.queryStringParameters || {};
-      const provided = params.secret
-        || event.headers['x-webhook-secret']
-        || event.headers['X-Webhook-Secret'];
-      if (provided !== expected) {
-        await lib.logAlert('shipping_webhook',
-          'Webhook secret did not match (proceeding — provider re-verification below is the real boundary)',
-          { providedLength: provided ? String(provided).length : 0 });
-      }
+    if (!isAuthentic(event, process.env.SHIPPING_WEBHOOK_SECRET)) {
+      await lib.logAlert('shipping_webhook', 'Rejected an unauthenticated webhook call', {
+        hasSignature: !!((event.headers || {})['x-hmac-signature'] || (event.headers || {})['X-Hmac-Signature']),
+        secretConfigured: !!process.env.SHIPPING_WEBHOOK_SECRET,
+      });
+      return lib.json(401, { error: 'Unauthorized' });
     }
 
     let payload;
     try {
-      payload = JSON.parse(event.body || '{}');
+      payload = JSON.parse(rawBody(event).toString('utf8') || '{}');
     } catch (e) {
       await lib.logAlert('shipping_webhook', 'Could not parse webhook body', {
         rawBody: (event.body || '').slice(0, 600),
@@ -146,17 +202,11 @@ exports.handler = async (event) => {
     // --- Advance the shipment ------------------------------------------
     // Never move backwards. Carriers do re-send older scans out of order,
     // and a "delivered" shipment must not revert to "in transit".
-    const ORDER = {
-      awaiting_label: 0, label_created: 1, in_transit: 2,
-      out_for_delivery: 3, delivered: 4, exception: 4, returned: 5, cancelled: 5,
-    };
-
     const patch = {};
-    if ((ORDER[newStatus] ?? 0) > (ORDER[shipment.status] ?? 0)) {
-      patch.status = newStatus;
-    }
+    const advanced = nextShipmentStatus(shipment.status, newStatus);
+    if (advanced) patch.status = advanced;
 
-    if (newStatus === 'in_transit' && !shipment.first_scan_at) {
+    if (['in_transit', 'out_for_delivery', 'delivered'].includes(newStatus) && !shipment.first_scan_at) {
       patch.first_scan_at = occurredAt;
     }
     if (newStatus === 'delivered' && !shipment.delivered_at) {
@@ -210,26 +260,9 @@ async function verifyTracking(carrier, trackingNumber) {
       };
     }
 
-    const key = process.env.SHIPPO_API_KEY;
-    if (!key) return null;
-    const provider = carrier || 'shippo';
-    const res = await fetch(
-      'https://api.goshippo.com/tracks/' + encodeURIComponent(provider) + '/' + encodeURIComponent(trackingNumber),
-      { headers: { Authorization: 'ShippoToken ' + key } }
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    const s = data.tracking_status || {};
-    return {
-      status: s.status,
-      description: s.status_details || null,
-      location: s.location
-        ? [s.location.city, s.location.state].filter(Boolean).join(', ')
-        : null,
-      occurredAt: s.status_date || null,
-      signedBy: (data.tracking_status && data.tracking_status.signed_by) || null,
-      raw: s,
-    };
+    // Shippo support was removed on 2026-09-24: EasyPost is the only
+    // configured provider and the Shippo key was deleted from production.
+    return null;
   } catch (e) {
     console.error('verifyTracking failed:', e.message);
     return null;
@@ -246,7 +279,7 @@ async function verifyTracking(carrier, trackingNumber) {
 // ---------------------------------------------------------------
 async function syncTransaction(shipment, newStatus, occurredAt) {
   const txns = await lib.sbSelect(
-    'transactions?id=eq.' + encodeURIComponent(shipment.transaction_id) + '&select=id,status,buyer_id,seller_id'
+    'transactions?id=eq.' + encodeURIComponent(shipment.transaction_id) + '&select=id,status,buyer_id,seller_id,escrow_transaction_id,escrow_item_id'
   );
   const txn = txns && txns[0];
   if (!txn) return;
@@ -300,6 +333,13 @@ async function syncTransaction(shipment, newStatus, occurredAt) {
     await lib.sbPatch('transactions', 'id=eq.' + encodeURIComponent(txn.id), patch);
   }
 
+  // Keep Escrow.com's own record in step with the carrier. Outbound only:
+  // a return shipment moves money the other way and is settled by staff.
+  if (shipment.direction === 'outbound' && txn.escrow_transaction_id && txn.escrow_item_id &&
+      ['in_transit', 'out_for_delivery', 'delivered'].includes(newStatus)) {
+    await advanceEscrow(shipment, txn, newStatus);
+  }
+
   if (notifyTitle) {
     await lib.sbInsert('notifications', {
       user_id: notifyUser,
@@ -323,3 +363,44 @@ async function syncTransaction(shipment, newStatus, occurredAt) {
     }
   }
 }
+
+// Marks the Escrow.com item shipped on the first carrier scan and received on
+// delivery. Each step is skipped if Escrow.com already shows it done, so a
+// repeated or out-of-order webhook is harmless. Failures never throw: they
+// raise a system alert, and the delivery still records on Bastion's side.
+async function advanceEscrow(shipment, txn, newStatus) {
+  try {
+    const sellerEmail = await escrow.lookupUserEmail(txn.seller_id);
+    const shipped = await escrow.markShipped({
+      escrowTransactionId: txn.escrow_transaction_id,
+      primaryItemId: txn.escrow_item_id,
+      sellerEmail,
+      trackingInfo: { carrier: shipment.carrier, tracking_id: shipment.tracking_number },
+    });
+    if (!shipped.ok) {
+      await lib.logAlert('escrow_lifecycle', 'Could not mark the item shipped on Escrow.com', {
+        transactionId: txn.id, error: shipped.primaryError,
+      });
+      return;
+    }
+    if (newStatus !== 'delivered') return;
+
+    const buyerEmail = await escrow.lookupUserEmail(txn.buyer_id);
+    const received = await escrow.markReceived({
+      escrowTransactionId: txn.escrow_transaction_id,
+      primaryItemId: txn.escrow_item_id,
+      buyerEmail,
+    });
+    if (!received.ok) {
+      await lib.logAlert('escrow_lifecycle',
+        'Could not mark the item received on Escrow.com; the inspection clock has NOT started, so the automatic payout cannot fire until this is fixed', {
+          transactionId: txn.id, error: received.primaryError,
+        });
+    }
+  } catch (e) {
+    await lib.logAlert('escrow_lifecycle', 'Unexpected error advancing Escrow.com state', { transactionId: txn.id, error: e.message });
+  }
+}
+
+module.exports.nextShipmentStatus = nextShipmentStatus;
+module.exports.isAuthentic = isAuthentic;

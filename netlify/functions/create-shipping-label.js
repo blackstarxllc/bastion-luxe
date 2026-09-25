@@ -31,7 +31,8 @@ exports.handler = async (event) => {
       return lib.json(400, { error: 'Could not read that request.' });
     }
 
-    const { shipmentId, rateToken, packingChecklistConfirmed } = body;
+    // rateToken is deliberately NOT read from the request. See below.
+    const { shipmentId, packingChecklistConfirmed } = body;
     if (!shipmentId) return lib.json(400, { error: 'shipmentId is required' });
 
     const shipments = await lib.sbSelect(
@@ -75,7 +76,7 @@ exports.handler = async (event) => {
     // --- Escrow must actually be funded first -------------------------
     const txns = await lib.sbSelect(
       'transactions?id=eq.' + encodeURIComponent(shipment.transaction_id) +
-      '&select=id,status,price,deal_id'
+      '&select=id,status,price,deal_id,funded_at'
     );
     const txn = txns && txns[0];
     if (!txn) return lib.json(404, { error: 'The order for this shipment no longer exists.' });
@@ -134,20 +135,26 @@ exports.handler = async (event) => {
     // Normally the buyer's chosen rate token was carried through. If it
     // has expired (carrier rate tokens are short-lived), re-quote and take
     // the cheapest compliant service rather than failing the seller.
-    let token = rateToken;
-    if (!token) {
-      // Use the address snapshotted onto the shipment at purchase time, not
-      // a fresh listing lookup — this is the exact origin the buyer's rate
-      // was quoted against, and stays correct even if the seller has since
-      // edited their listing's address.
-      const from = lib.senderIdentity({
-        street1: shipment.from_street1,
-        street2: shipment.from_street2,
-        city: shipment.from_city,
-        state: shipment.from_state,
-        zip: shipment.from_postal,
-      });
-      const requote = await lib.fetchRates({
+    // ------------------------------------------------------------------
+    // The label is ALWAYS bought from a fresh server-side quote for THIS
+    // shipment's stored addresses.
+    //
+    // This used to accept a rateToken from the browser and buy whatever it
+    // pointed to. A token names a shipment and rate inside Bastion's own
+    // EasyPost account, so a seller could submit one from a different quote
+    // (another address, another parcel, overnight service) and Bastion
+    // would pay for it. The browser no longer has any say in what is bought.
+    // ------------------------------------------------------------------
+    const from = lib.senderIdentity({
+      street1: shipment.from_street1,
+      street2: shipment.from_street2,
+      city: shipment.from_city,
+      state: shipment.from_state,
+      zip: shipment.from_postal,
+    });
+    let requote;
+    try {
+      requote = await lib.fetchRates({
         from,
         to: {
           name: shipment.to_name, line1: shipment.to_line1, line2: shipment.to_line2,
@@ -159,71 +166,67 @@ exports.handler = async (event) => {
         declaredValue: shipment.declared_value,
         tier: shipment.tier,
       });
-      let candidates = (requote.rates || []).filter((r) => r.amount > 0);
-      if (rules.minCarrierService === 'express') {
-        const expressish = candidates.filter((r) =>
-          /express|priority|overnight|2.?day|next.?day/i.test(r.service || '')
-        );
-        if (expressish.length) candidates = expressish;
-      }
-      if (!candidates.length) {
-        return lib.json(422, { error: 'No carrier service is currently available for this shipment.' });
-      }
+    } catch (rateErr) {
+      await lib.logAlert('shipping_label', 'Carrier rate lookup failed at label time', { shipmentId, error: rateErr.message });
+      return lib.json(502, { error: 'We could not reach the carrier just now. Please try again in a moment \u2014 you have not been charged.' });
+    }
+    let candidates = (requote.rates || []).filter((r) => r.amount > 0);
+    if (rules.minCarrierService === 'express') {
+      const expressish = candidates.filter((r) =>
+        /express|priority|overnight|2.?day|next.?day/i.test(r.service || '')
+      );
+      if (expressish.length) candidates = expressish;
+    }
+    if (!candidates.length) {
+      return lib.json(422, { error: 'No carrier service is currently available for this shipment.' });
+    }
 
-      // ------------------------------------------------------------------
-      // Buy the service the BUYER PAID FOR, not the cheapest one available.
-      //
-      // This previously sorted by price and took candidates[0]. Since the
-      // buyer's selection was never persisted, a buyer could pay for a
-      // 2-day service and receive ground, with the price difference
-      // disappearing into the payout. Rate tokens are short-lived and
-      // escrow funding can take days, so the durable key is the carrier +
-      // service level recorded at purchase, re-matched against a fresh
-      // quote here.
-      // ------------------------------------------------------------------
-      let picked = null;
-      if (shipment.chosen_service) {
-        const wantService = String(shipment.chosen_service).trim().toLowerCase();
-        const wantCarrier = String(shipment.chosen_carrier || '').trim().toLowerCase();
-        picked = candidates.find((r) =>
-          String(r.service || '').trim().toLowerCase() === wantService &&
-          (!wantCarrier || String(r.carrier || '').trim().toLowerCase() === wantCarrier)
-        );
-        // Same service, any carrier, before giving up on the choice.
+    // Honour what the buyer paid for: exact carrier and service first, then
+    // the same service on any carrier. If neither exists, take the cheapest
+    // service in the SAME OR A FASTER speed band, never a slower one. The old
+    // fallback was "cheapest compliant rate", which could hand a buyer who
+    // paid for 2-Day a Ground label. Logging that was not consent.
+    const SPEED = { ground: 1, default: 2, priority: 3, express: 4 };
+    let picked = null;
+    let substituted = false;
+    if (shipment.chosen_service) {
+      const wantService = String(shipment.chosen_service).trim().toLowerCase();
+      const wantCarrier = String(shipment.chosen_carrier || '').trim().toLowerCase();
+      picked = candidates.find((r) =>
+        String(r.service || '').trim().toLowerCase() === wantService &&
+        (!wantCarrier || String(r.carrier || '').trim().toLowerCase() === wantCarrier)
+      ) || candidates.find((r) => String(r.service || '').trim().toLowerCase() === wantService) || null;
+
+      if (!picked) {
+        const minSpeed = SPEED[lib.serviceBand(shipment.chosen_service)] || SPEED.default;
+        const sameOrFaster = candidates
+          .filter((r) => (SPEED[lib.serviceBand(r.service)] || SPEED.default) >= minSpeed)
+          .sort((a, b) => a.amount - b.amount);
+        picked = sameOrFaster[0] || null;
+        substituted = !!picked;
         if (!picked) {
-          picked = candidates.find((r) =>
-            String(r.service || '').trim().toLowerCase() === wantService
-          );
-        }
-        if (!picked) {
-          // The carrier no longer offers what the buyer bought. Falling back
-          // silently would hand them a slower service than they paid for, so
-          // this is recorded for review rather than swallowed.
           await lib.logAlert('shipping_label',
-            'Buyer\u2019s chosen service is no longer available \u2014 fell back to cheapest compliant rate',
+            'The service the buyer paid for is unavailable and nothing equally fast is offered; label NOT bought',
             {
               shipmentId,
               chosenCarrier: shipment.chosen_carrier,
               chosenService: shipment.chosen_service,
-              quotedCost: shipment.quoted_cost,
               available: candidates.map((r) => (r.carrier || '') + ' ' + (r.service || '')).join(' | ').slice(0, 400),
             });
+          return lib.json(409, {
+            error: 'The shipping service the buyer paid for is not available from the carrier right now, and we will not substitute a slower one. Support has been alerted and will contact you shortly.',
+            serviceUnavailable: true,
+          });
         }
       }
-
-      if (!picked) {
-        candidates.sort((a, b) => a.amount - b.amount);
-        picked = candidates[0];
-      }
-
-      token = lib.PROVIDER === 'easypost'
-        ? requote.providerShipmentId + '|' + picked.id
-        : picked.id;
+    } else {
+      candidates.sort((a, b) => a.amount - b.amount);
+      picked = candidates[0];
     }
+    const token = lib.PROVIDER === 'easypost'
+      ? requote.providerShipmentId + '|' + picked.id
+      : picked.id;
 
-    // Fail loudly on a key/mode mismatch rather than handing the seller a
-    // label a carrier will refuse. See shippingConfigWarning() for why
-    // this specific failure is worth its own check.
     const configWarning = lib.shippingConfigWarning();
     if (configWarning) {
       await lib.logAlert('shipping_config', configWarning, {
@@ -237,11 +240,36 @@ exports.handler = async (event) => {
       });
     }
 
+    // ------------------------------------------------------------------
+    // ATOMIC CLAIM: one real label per shipment, ever.
+    // The tracking_number check above is a read, so two clicks together both
+    // pass it and both would buy a label with real money. Only one request
+    // can win this conditional update. A claim older than five minutes is
+    // considered abandoned and may be taken over.
+    // ------------------------------------------------------------------
+    const staleBefore = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const claimed = await lib.sbPatch(
+      'shipments',
+      'id=eq.' + encodeURIComponent(shipmentId) +
+        '&tracking_number=is.null&or=(label_claimed_at.is.null,label_claimed_at.lt.' + encodeURIComponent(staleBefore) + ')',
+      { label_claimed_at: new Date().toISOString() },
+      true
+    );
+    if (!claimed || !claimed.length) {
+      return lib.json(409, { error: 'A label for this shipment is already being created. Refresh the page in a moment.', inProgress: true });
+    }
+    async function releaseLabelClaim() {
+      await lib.sbPatch('shipments', 'id=eq.' + encodeURIComponent(shipmentId) + '&tracking_number=is.null',
+        { label_claimed_at: null }).catch(() => {});
+    }
+
     let label;
     try {
       label = await lib.buyLabel(token);
     } catch (labelErr) {
+      await releaseLabelClaim();
       await lib.logAlert('shipping_label', 'Carrier label purchase failed', {
+
         shipmentId, error: labelErr.message,
       });
       return lib.json(502, {
@@ -250,6 +278,7 @@ exports.handler = async (event) => {
     }
 
     if (!label.trackingNumber || !label.labelUrl) {
+      await releaseLabelClaim();
       await lib.logAlert('shipping_label', 'Carrier returned an incomplete label', {
         shipmentId, label: JSON.stringify(label).slice(0, 400),
       });
@@ -269,12 +298,23 @@ exports.handler = async (event) => {
     // fired, but the deadline-setting step failed for some other reason —
     // logged as a system_alert when that happens, so it's never silent).
     // The normal path preserves whatever escrow-webhook.js already set.
-    const shipBy = shipment.ship_by || new Date(Date.now() + rules.shipByHours * 3600 * 1000).toISOString();
-    if (!shipment.ship_by) {
-      await lib.logAlert('shipping_label', 'Shipment had no ship_by deadline at label creation — funding webhook may not have set one', { shipmentId });
+    // The seller's ship-by clock starts when the buyer's money is confirmed,
+    // never when the label happens to be printed. A missing deadline is
+    // repaired from the verified funding time, so a late label can never
+    // quietly buy the seller a fresh 48-72 hours.
+    let shipBy = shipment.ship_by;
+    if (!shipBy) {
+      const fromFunding = !isReturn && txn.funded_at;
+      const anchor = fromFunding ? new Date(txn.funded_at).getTime() : Date.now();
+      shipBy = new Date(anchor + rules.shipByHours * 3600 * 1000).toISOString();
+      await lib.logAlert('shipping_label',
+        'Shipment had no ship_by deadline at label time; set it from ' + (fromFunding ? 'the funding timestamp' : 'now (return label)'),
+        { shipmentId, shipBy });
     }
 
+    try {
     await lib.sbPatch('shipments', 'id=eq.' + encodeURIComponent(shipmentId), {
+
       tracking_number: label.trackingNumber,
       label_url: label.labelUrl,
       carrier: label.carrier,
@@ -284,7 +324,28 @@ exports.handler = async (event) => {
       status: 'label_created',
       label_created_at: new Date().toISOString(),
       ship_by: shipBy,
+      label_claimed_at: null,
     });
+    } catch (recordErr) {
+      // A real label was bought and paid for, but Bastion failed to record
+      // it. The claim is deliberately NOT released, so nobody can buy a
+      // second label; support must attach this one by hand.
+      await lib.logAlert('shipping_label', 'CRITICAL: label purchased but could not be recorded on the shipment; attach it manually', {
+        shipmentId, trackingNumber: label.trackingNumber, labelUrl: label.labelUrl, error: recordErr.message,
+      });
+      return lib.json(500, {
+        error: 'Your label was created, but we could not save it to this order. Support has been alerted and will send it to you. Please do not try again.',
+        trackingNumber: label.trackingNumber,
+        labelUrl: label.labelUrl,
+      });
+    }
+    if (substituted) {
+      await lib.logAlert('shipping_label', 'Buyer\u2019s exact service was unavailable; an equal-or-faster service was bought instead', {
+        shipmentId, paidFor: (shipment.chosen_carrier || '') + ' ' + (shipment.chosen_service || ''),
+        bought: (label.carrier || '') + ' ' + (label.service || ''),
+      });
+    }
+
 
     // If the label cost materially more than the buyer was charged, the
     // seller absorbs the gap. Surface it rather than letting it accumulate

@@ -125,12 +125,10 @@ function isExpressService(serviceName) {
   return serviceBand(serviceName) === 'express';
 }
 
-// Items worth more than this are not shipped through the automated flow.
-// Declared value is not insurance, and Bastion does not insure shipments, so
-// past this point a carrier loss would fall on a buyer or seller with no
-// recourse. Above the limit a listing sells for in-person handoff, or
-// support arranges concierge logistics. Set SHIPPING_MAX_ITEM_VALUE in
-// Netlify to change it; 0 disables automated shipping entirely.
+// Owner policy: there is NO value ceiling on shipping. Items at any price
+// can ship; high-value shipments are covered by Bastion's video
+// verification process. Do not add a cap that pushes expensive items to
+// in-person only (tests/run.js fails the deploy if one is reintroduced).
 
 // Returns { retail, commercial, margin } — commercial is what Bastion is
 // billed by the carrier, retail is what the buyer is charged.

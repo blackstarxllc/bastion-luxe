@@ -7,6 +7,9 @@
 
 [build]
   publish = "."
+  # The test suite runs before every deploy. If any test fails, Netlify
+  # stops and the live site stays exactly as it was. See tests/run.js.
+  command = "node tests/run.js"
 
 [[headers]]
   for = "/*"
@@ -110,6 +113,12 @@
   force = true
 
 [[redirects]]
+  from = "/tests/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
   from = "/sql/*"
   to = "/404.html"
   status = 404
@@ -138,8 +147,3 @@
   force = true
 
 # The logo construction sheet is a design reference, not a page.
-[[redirects]]
-  from = "/bastion-mark-compass.html"
-  to = "/404.html"
-  status = 404
-  force = true

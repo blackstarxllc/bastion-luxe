@@ -339,6 +339,7 @@
   .status-badge.shipped{ color:#8FB3D9; background:rgba(143,179,217,0.12); }
   .status-badge.released{ color:#8FBBAC; background:rgba(143,187,172,0.12); }
   .status-badge.accepted{ color:#8FBBAC; background:rgba(143,187,172,0.12); }
+  .status-badge.countered{ color:#8FB3D9; background:rgba(143,179,217,0.12); }
   .status-badge.declined{ color:#E0958D; background:rgba(140,63,55,0.12); }
   .status-badge.withdrawn{ color:var(--stone-dim); background:rgba(255,255,255,0.04); }
   .status-badge.cancelled{ color:var(--stone-dim); background:rgba(255,255,255,0.04); }
@@ -1049,7 +1050,7 @@
 
 <script src="bastion-account-skirt.js"></script>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1/dist/umd/supabase.js" integrity="sha384-K1nraABOP/zFehpLIUksXebbs7jMpB8gYMlb+uhVKZcWT/9Vkq1+qhv6ndC+1Yuz" crossorigin="anonymous"></script>
 <script>
 const SUPABASE_URL = 'https://xokyqobttfhugdponfpg.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nb18Wk7poF2HR0ZjpiJFnQ_tvv4wl0o';
@@ -1218,15 +1219,22 @@ function renderOffers(offers, userId){
       : `<span class="no-photo-seal">B</span>`;
     const isBuyer = o.buyer_id === userId;
     const role = isBuyer ? 'Buying' : 'Selling';
-    const myTurn = o.status === 'pending' && (
+    // An offer past its expiry can no longer be accepted (the database
+    // refuses it), so it must not be shown with live Accept/Counter buttons.
+    const expired = o.status === 'pending' && o.expires_at && new Date(o.expires_at) <= new Date();
+    const myTurn = o.status === 'pending' && !expired && (
       (isBuyer && o.made_by === 'seller') || (!isBuyer && o.made_by === 'buyer')
     );
 
-    let statusLabel = o.status;
+    const STATUS_LABELS = { pending: 'Pending', accepted: 'Accepted', declined: 'Declined', withdrawn: 'Withdrawn', countered: 'Countered' };
+    let statusLabel = STATUS_LABELS[o.status] || o.status;
     let note = '';
     let actions = '';
 
-    if(o.status === 'pending'){
+    if(expired){
+      statusLabel = 'Expired';
+      note = `<div class="offer-card-note">This offer expired without a response.</div>`;
+    } else if(o.status === 'pending'){
       statusLabel = myTurn ? 'Awaiting your response' : 'Pending';
       if(!myTurn){
         note = `<div class="offer-card-note">Waiting on the ${isBuyer ? 'seller' : 'buyer'} to respond.</div>`;
@@ -1254,6 +1262,8 @@ function renderOffers(offers, userId){
       note = `<div class="offer-card-note">This negotiation was declined.</div>`;
     } else if(o.status === 'withdrawn'){
       note = `<div class="offer-card-note">Withdrawn.</div>`;
+    } else if(o.status === 'countered'){
+      note = `<div class="offer-card-note">A counter-offer replaced this one. See the newer offer above.</div>`;
     }
 
     return `
@@ -1913,11 +1923,10 @@ async function loadProfileSettings(){
     const emailEl = document.getElementById('setEmail');
     if(emailEl) emailEl.value = user.email || '';
 
-    const { data, error } = await supabaseClient
-      .from('profiles')
-      .select('display_name, phone, bio, notify_email, notify_offers, notify_shipping')
-      .eq('id', user.id)
-      .maybeSingle();
+    // Phone number and notification settings are private: they are read
+    // through an RPC that only ever returns the signed-in user's own row.
+    // (Until 2026-09-24 every profile's phone field was publicly readable.)
+    const { data, error } = await supabaseClient.rpc('get_my_profile_private');
     if(error || !data) return;
 
     const set = function(id, val){ const el = document.getElementById(id); if(el) el.value = val || ''; };

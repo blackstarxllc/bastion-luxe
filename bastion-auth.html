@@ -817,7 +817,7 @@
 
 <div class="toast" id="toast"><span class="dot"></span><span id="toastText"></span></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1/dist/umd/supabase.js" integrity="sha384-K1nraABOP/zFehpLIUksXebbs7jMpB8gYMlb+uhVKZcWT/9Vkq1+qhv6ndC+1Yuz" crossorigin="anonymous"></script>
 <script>
 const SUPABASE_URL = 'https://xokyqobttfhugdponfpg.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nb18Wk7poF2HR0ZjpiJFnQ_tvv4wl0o';
@@ -956,11 +956,10 @@ async function handleSubmit(e, kind){
 
       if(session){
         // Block banned accounts immediately, even though they signed in successfully.
-        const { data: profile } = await supabaseClient
-          .from('profiles')
-          .select('is_banned, ban_reason')
-          .eq('id', session.user.id)
-          .single();
+        // Private account fields (ban reason, phone, notification
+        // settings) are no longer readable through the public profiles
+        // table. This RPC returns them for the signed-in user only.
+        const { data: profile } = await supabaseClient.rpc('get_my_profile_private');
 
         if(profile && profile.is_banned){
           await supabaseClient.auth.signOut();
@@ -1006,11 +1005,7 @@ function showToast(message, isError){
   try{
     const { data } = await supabaseClient.auth.getSession();
     if(data && data.session){
-      const { data: profile } = await supabaseClient
-        .from('profiles')
-        .select('is_banned, ban_reason')
-        .eq('id', data.session.user.id)
-        .single();
+      const { data: profile } = await supabaseClient.rpc('get_my_profile_private');
       if(profile && profile.is_banned){
         await supabaseClient.auth.signOut();
         setStatus('This account has been suspended' + (profile.ban_reason ? ': ' + profile.ban_reason : '.') + ' Contact support if you believe this is a mistake.', 'bad');

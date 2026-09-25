@@ -29,14 +29,14 @@ exports.handler = async (event) => {
       return lib.json(400, { error: 'Could not read that request.' });
     }
 
-    const { transactionId, addressId, holdAtLocation, chosenCarrier, chosenService, quotedCost } = body;
+    const { transactionId, addressId, holdAtLocation, quoteToken } = body;
     if (!transactionId) return lib.json(400, { error: 'transactionId is required' });
     if (!addressId) return lib.json(400, { error: 'A shipping address is required' });
 
     // --- The caller must be the real buyer on this transaction --------
     const txns = await lib.sbSelect(
       'transactions?id=eq.' + encodeURIComponent(transactionId) +
-      '&select=id,buyer_id,seller_id,deal_id,price,status'
+      '&select=id,buyer_id,seller_id,deal_id,price,fee,status,fulfillment_mode,shipping_verified_at'
     );
     const txn = txns && txns[0];
     if (!txn) return lib.json(404, { error: 'Transaction not found.' });
@@ -47,20 +47,12 @@ exports.handler = async (event) => {
 
     // Once escrow is funded the destination is frozen. This is the hard
     // stop behind the address lock.
-    if (!['pending_payment', 'created'].includes(txn.status)) {
+    if (txn.status !== 'pending_payment') {
       return lib.json(409, {
         error: 'This order has already moved past checkout, so its delivery address can no longer be changed. Cancel the order and start again if you need a different address.',
       });
     }
 
-    const existing = await lib.sbSelect(
-      'shipments?transaction_id=eq.' + encodeURIComponent(transactionId) + '&select=id'
-    );
-    if (existing && existing.length) {
-      return lib.json(200, { shipmentId: existing[0].id, alreadyExisted: true });
-    }
-
-    // --- The address must genuinely belong to the caller --------------
     const addrs = await lib.sbSelect(
       'shipping_addresses?id=eq.' + encodeURIComponent(addressId) +
       '&user_id=eq.' + encodeURIComponent(user.id) + '&select=*'
@@ -70,6 +62,60 @@ exports.handler = async (event) => {
 
     const screen = lib.screenDestination(addr);
     if (!screen.ok) return lib.json(422, { error: screen.reason });
+
+    // The shipping price comes from a server-signed quote, never from the
+    // browser. The token binds buyer, listing, destination ZIP, carrier,
+    // service and price; a tampered or stale one is refused outright.
+    const quote = lib.verifyQuote(quoteToken);
+    if (!quote) {
+      return lib.json(409, {
+        error: 'Your shipping quote has expired or could not be verified. Please choose your shipping option again.',
+        requote: true,
+      });
+    }
+    if (quote.u !== user.id || quote.d !== txn.deal_id ||
+        quote.z !== lib.normalisePostal(addr.postal_code) || !(Number(quote.a) > 0)) {
+      return lib.json(409, {
+        error: 'That shipping quote does not match this order or address. Please choose your shipping option again.',
+        requote: true,
+      });
+    }
+    const verifiedShipping = Math.round(Number(quote.a) * 100) / 100;
+
+    // Writes the verified shipping charge onto the order. Runs as the
+    // service role, which is the only identity allowed to set
+    // shipping_verified_at; create-escrow-transaction refuses a shipped
+    // order until it is set.
+    async function lockInShipping() {
+      const total = Math.round((Number(txn.price) + Number(txn.fee) + verifiedShipping) * 100) / 100;
+      const patched = await lib.sbPatch(
+        'transactions',
+        'id=eq.' + encodeURIComponent(txn.id) + '&status=eq.pending_payment',
+        {
+          shipping_cost: verifiedShipping,
+          total: total,
+          fulfillment_mode: 'shipped',
+          shipping_verified_at: new Date().toISOString(),
+        },
+        true
+      );
+      if (!patched || !patched.length) {
+        await lib.logAlert('create_shipment', 'Could not record the verified shipping charge on the order', { transactionId });
+        const err = new Error('We could not confirm the shipping charge on your order. Please try again.');
+        err.statusCode = 500;
+        throw err;
+      }
+    }
+
+    // Idempotent: a retried checkout reuses the shipment that already exists,
+    // but still makes sure the order carries the verified charge.
+    const existing = await lib.sbSelect(
+      'shipments?transaction_id=eq.' + encodeURIComponent(transactionId) + '&direction=eq.outbound&select=id'
+    );
+    if (existing && existing.length) {
+      if (!txn.shipping_verified_at) await lockInShipping();
+      return lib.json(200, { shipmentId: existing[0].id, alreadyExisted: true, shippingCost: verifiedShipping });
+    }
 
     const deals = await lib.sbSelect(
       'deals?id=eq.' + encodeURIComponent(txn.deal_id) + '&select=id,ships_from_postal,fulfilment'
@@ -97,7 +143,7 @@ exports.handler = async (event) => {
     const tier = lib.tierForValue(itemValue);
     const rules = lib.tierRules(tier);
 
-    const wantsHold = !!holdAtLocation && rules.allowHoldAtLocation;
+    const wantsHold = !!(holdAtLocation && quote.h) && rules.allowHoldAtLocation;
 
     const created = await lib.sbInsert('shipments', {
       transaction_id: txn.id,
@@ -124,9 +170,9 @@ exports.handler = async (event) => {
       // The buyer paid for a SPECIFIC service level. Persist it so the
       // label is bought as the service they chose, not as whatever happens
       // to be cheapest when the seller gets round to printing it.
-      chosen_carrier: chosenCarrier || null,
-      chosen_service: chosenService || null,
-      quoted_cost: Number(quotedCost) > 0 ? Number(quotedCost) : null,
+      chosen_carrier: quote.c || null,
+      chosen_service: quote.s || null,
+      quoted_cost: verifiedShipping,
       status: 'awaiting_label',
     }, true);
 
@@ -136,8 +182,11 @@ exports.handler = async (event) => {
       return lib.json(500, { error: 'Could not create the shipment record.' });
     }
 
+    await lockInShipping();
+
     return lib.json(200, {
       shipmentId: shipment.id,
+      shippingCost: verifiedShipping,
       tier,
       tierLabel: rules.label,
       shipByHours: rules.shipByHours,

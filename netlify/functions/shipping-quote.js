@@ -148,10 +148,23 @@ exports.handler = async (event) => {
       // presented the way it is. The commercial figure is deliberately
       // NOT returned to the browser.
       const priced = lib.toRetailRate(r);
+      const rateToken = lib.PROVIDER === 'easypost'
+        ? quoted.providerShipmentId + '|' + r.id
+        : r.id;
       return {
-        rateToken: lib.PROVIDER === 'easypost'
-          ? quoted.providerShipmentId + '|' + r.id
-          : r.id,
+        rateToken: rateToken,
+        // Signed, server-issued price. create-shipment charges from this
+        // and nothing else; see the SIGNED SHIPPING QUOTES note in the lib.
+        quoteToken: lib.signQuote({
+          u: user.id,
+          d: dealId,
+          z: lib.normalisePostal(address.postal_code),
+          c: r.carrier,
+          s: r.service,
+          a: priced.retail,
+          r: rateToken,
+          h: !!address.hold_at_location,
+        }),
         carrier: r.carrier,
         service: r.service,
         amount: priced.retail,

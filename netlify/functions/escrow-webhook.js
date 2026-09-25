@@ -172,183 +172,146 @@ exports.handler = async (event) => {
     }
 
     // ---- Step 3: map onto Bastion's own vocabulary ------------------
-    const statusMap = {
-      created: null,      // still awaiting payment - nothing to change yet
-      unfunded: null,
-      funded: 'funded',
-      accepted: 'funded',
-      secured: 'funded',
-      in_transit: 'shipped',
-      shipped: 'shipped',
-      inspection: 'shipped',
-      released: 'released',
-      completed: 'released',
-      cancelled: 'disputed',
-      disputed: 'disputed',
-      rejected: 'disputed',
+    // ------------------------------------------------------------------
+    // FORWARD-ONLY STATE MACHINE
+    //
+    // This used to map Escrow.com's status straight onto the Bastion row and
+    // write it unconditionally. Three real bugs followed from that:
+    //   * Status went BACKWARDS. A late or repeated webhook could knock a
+    //     'delivered' order back to 'shipped' (hiding the buyer's release
+    //     button) or an 'in_transit' order back to 'funded'.
+    //   * A cancelled Escrow.com transaction was recorded as 'disputed'.
+    //   * funded_at / released_at were overwritten on every repeat.
+    // It also force-set the listing back to 'active' on cancellation,
+    // bypassing the database rule that keeps it pending while another buyer
+    // still has a live order. Listing status is now left entirely to the
+    // sync_deal_status_from_transaction trigger.
+    //
+    // Shipping progress (shipped / in_transit / delivered) is owned by the
+    // carrier webhook. This webhook owns money: funded, released, cancelled.
+    // ------------------------------------------------------------------
+    const svc = {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
+      'Content-Type': 'application/json',
     };
-    const bastionStatus = statusMap[verifiedStatus] || null;
-
-    const updateBody = { escrow_status: verifiedStatus };
-    if (bastionStatus) {
-      updateBody.status = bastionStatus;
-      const timestampField = { funded: 'funded_at', shipped: 'shipped_at', released: 'released_at' }[bastionStatus];
-      if (timestampField) updateBody[timestampField] = new Date().toISOString();
-    }
-
-    const patchRes = await fetch(
-      SUPABASE_URL + '/rest/v1/transactions?escrow_transaction_id=eq.' + encodeURIComponent(escrowTransactionId),
-      {
-        method: 'PATCH',
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
-          'Content-Type': 'application/json',
-          Prefer: 'return=representation',
-        },
-        body: JSON.stringify(updateBody),
-      }
+    const curRes = await fetch(
+      SUPABASE_URL + '/rest/v1/transactions?escrow_transaction_id=eq.' + encodeURIComponent(escrowTransactionId) +
+        '&select=id,status,funded_at,released_at,deal_id',
+      { headers: svc }
     );
-
-    if (!patchRes.ok) {
-      const detail = await patchRes.text().catch(() => '');
-      await logAlert('Failed to write the verified status onto the Bastion transaction', {
-        escrowTransactionId,
-        status: patchRes.status,
-        detail: detail.slice(0, 500),
-      });
-      return { statusCode: 200, body: JSON.stringify({ received: true, synced: false }) };
+    const curRows = curRes.ok ? await curRes.json().catch(() => []) : [];
+    const current = curRows && curRows[0];
+    if (!current) {
+      await logAlert('No Bastion transaction matched this Escrow.com transaction id', { escrowTransactionId, verifiedStatus });
+      return { statusCode: 200, body: JSON.stringify({ received: true, matched: false }) };
     }
 
-    // ------------------------------------------------------------------
-    // BUG FIXED HERE: the seller's ship-by deadline used to be calculated
-    // only when the seller clicked "generate my label" — meaning a seller
-    // could delay indefinitely with zero deadline pressure, and the
-    // deadline had nothing to do with when funding actually happened. The
-    // shipping FAQ and Terms of Service both explicitly promise the clock
-    // is "measured from when escrow confirms funding" — this is that exact
-    // moment. Start it here, once, the first time a linked shipment sees
-    // funding confirmed. create-shipping-label.js still computes its own
-    // ship_by as a fallback for any shipment that somehow reaches label
-    // creation without one already set, but this is now the primary path.
-    // ------------------------------------------------------------------
-    // patchRes's body can only be read once — read it here, before the
-    // ship-by block, and reuse the same parsed value below (it used to be
-    // read a second time further down, which throws on an already-consumed
-    // response body; the .catch(() => []) swallowed that silently, so
-    // `updated` was always empty and every single funding event logged a
-    // false "no Bastion transaction matched" alert into system_alerts).
-    const updated = await patchRes.json().catch(() => []);
-
-    if (bastionStatus === 'funded') {
-      try {
-        const txnId = Array.isArray(updated) && updated[0] ? updated[0].id : null;
-        if (txnId) {
-          const shipRes = await fetch(
-            SUPABASE_URL + '/rest/v1/shipments?transaction_id=eq.' + encodeURIComponent(txnId) +
-              '&ship_by=is.null&select=id,tier',
-            {
-              headers: {
-                apikey: SUPABASE_SERVICE_ROLE_KEY,
-                Authorization: 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
-              },
-            }
-          );
-          const shipRows = await shipRes.json().catch(() => []);
-          const shipment = shipRows && shipRows[0];
-          if (shipment) {
-            const rules = tierRules(shipment.tier);
-            const shipBy = new Date(Date.now() + rules.shipByHours * 3600 * 1000).toISOString();
-            await fetch(
-              SUPABASE_URL + '/rest/v1/shipments?id=eq.' + encodeURIComponent(shipment.id),
-              {
-                method: 'PATCH',
-                headers: {
-                  apikey: SUPABASE_SERVICE_ROLE_KEY,
-                  Authorization: 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
-                  'Content-Type': 'application/json',
-                  Prefer: 'return=minimal',
-                },
-                body: JSON.stringify({ ship_by: shipBy }),
-              }
-            );
-          }
-        }
-      } catch (shipByErr) {
-        // Not fatal to the escrow sync itself — but worth knowing about,
-        // since a shipment silently missing its deadline is exactly the
-        // failure mode this fix exists to close.
-        await logAlert('Could not start the ship-by deadline on funding', {
-          escrowTransactionId, error: shipByErr.message,
+    const nowIso = new Date().toISOString();
+    const updateBody = { escrow_status: verifiedStatus };
+    const next = nextTransactionStatus(current.status, verifiedStatus);
+    if (next) {
+      updateBody.status = next;
+      if (next === 'funded' && !current.funded_at) updateBody.funded_at = nowIso;
+      if (next === 'released' && !current.released_at) updateBody.released_at = nowIso;
+      if (next === 'released' && current.status === 'disputed') {
+        await logAlert('Escrow.com disbursed funds on a transaction Bastion had marked disputed; recorded as released', {
+          escrowTransactionId, transactionId: current.id,
+        });
+      }
+      if (next === 'cancelled' && current.status !== 'pending_payment') {
+        await logAlert('Escrow.com cancelled a transaction AFTER it was funded (refund to buyer); recorded as cancelled', {
+          escrowTransactionId, transactionId: current.id, previousStatus: current.status,
         });
       }
     }
 
-    if (!Array.isArray(updated) || updated.length === 0) {
-      await logAlert('No Bastion transaction matched this Escrow.com transaction id', { escrowTransactionId });
+    const patchRes = await fetch(
+      SUPABASE_URL + '/rest/v1/transactions?id=eq.' + encodeURIComponent(current.id),
+      { method: 'PATCH', headers: Object.assign({}, svc, { Prefer: 'return=representation' }), body: JSON.stringify(updateBody) }
+    );
+    if (!patchRes.ok) {
+      const detail = await patchRes.text().catch(() => '');
+      await logAlert('Failed to write the verified status onto the Bastion transaction', {
+        escrowTransactionId, status: patchRes.status, detail: detail.slice(0, 500),
+      });
+      return { statusCode: 200, body: JSON.stringify({ received: true, synced: false }) };
     }
 
-    const dealId = Array.isArray(updated) && updated[0] ? updated[0].deal_id : null;
-
-    if (bastionStatus === 'released' && dealId) {
-      await patchDeal(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, dealId, 'sold', logAlert);
+    // Start the seller's ship-by clock at the moment funding is confirmed.
+    if (next === 'funded') {
+      try {
+        const shipRes = await fetch(
+          SUPABASE_URL + '/rest/v1/shipments?transaction_id=eq.' + encodeURIComponent(current.id) +
+            '&direction=eq.outbound&ship_by=is.null&select=id,tier',
+          { headers: svc }
+        );
+        const shipRows = await shipRes.json().catch(() => []);
+        const shipment = shipRows && shipRows[0];
+        if (shipment) {
+          const rules = tierRules(shipment.tier);
+          const shipBy = new Date(Date.parse(updateBody.funded_at || current.funded_at || nowIso) + rules.shipByHours * 3600 * 1000).toISOString();
+          await fetch(SUPABASE_URL + '/rest/v1/shipments?id=eq.' + encodeURIComponent(shipment.id) + '&ship_by=is.null', {
+            method: 'PATCH', headers: Object.assign({}, svc, { Prefer: 'return=minimal' }), body: JSON.stringify({ ship_by: shipBy }),
+          });
+        }
+      } catch (shipByErr) {
+        await logAlert('Could not start the ship-by deadline on funding', { escrowTransactionId, error: shipByErr.message });
+      }
     }
-    if (verifiedStatus === 'cancelled' && dealId) {
-      await patchDeal(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, dealId, 'active', logAlert);
-    }
 
-    return { statusCode: 200, body: JSON.stringify({ received: true, verified: true, status: verifiedStatus }) };
+    return { statusCode: 200, body: JSON.stringify({ received: true, verified: true, status: verifiedStatus, applied: next || null }) };
   } catch (err) {
     await logAlert('Fatal error in escrow-webhook', { error: err.message, stack: (err.stack || '').slice(0, 1000) });
     return { statusCode: 200, body: JSON.stringify({ received: true, fatalError: true }) };
   }
 };
 
-async function patchDeal(supabaseUrl, serviceKey, dealId, status, logAlert) {
-  try {
-    await fetch(supabaseUrl + '/rest/v1/deals?id=eq.' + encodeURIComponent(dealId), {
-      method: 'PATCH',
-      headers: {
-        apikey: serviceKey,
-        Authorization: 'Bearer ' + serviceKey,
-        'Content-Type': 'application/json',
-        Prefer: 'return=minimal',
-      },
-      body: JSON.stringify({ status: status }),
-    });
-  } catch (e) {
-    await logAlert('Could not set deal status to ' + status, { dealId, error: e.message });
-  }
-}
-
-// Escrow.com has used a few different status shapes (a plain string, an
-// object of booleans on the transaction, and a per-item status). Handle
-// all of them rather than assuming one and silently breaking.
+// Reads Escrow.com's own record into one of:
+// cancelled | disputed | released | rejected | received | shipped | funded | created
+// Item and schedule flags are checked on the MERCHANDISE item (not the
+// broker-fee lines). Keys follow Escrow.com's documented ItemStatus shape;
+// transaction-level flags are honoured too where present.
 function deriveStatus(escrowTxn) {
   if (!escrowTxn) return null;
-
   if (typeof escrowTxn.status === 'string') return escrowTxn.status;
+  const t = (escrowTxn.status && typeof escrowTxn.status === 'object') ? escrowTxn.status : {};
+  const items = Array.isArray(escrowTxn.items) ? escrowTxn.items : [];
+  const goods = items.find((i) => i && i.type !== 'broker_fee' && i.title !== 'Shipping') || items[0] || null;
+  const is = goods && goods.status && typeof goods.status === 'object' ? goods.status : {};
+  const schedules = goods && Array.isArray(goods.schedule) ? goods.schedule : [];
+  const sched = (key) => schedules.some((sc) => sc && sc.status && sc.status[key]);
 
-  const s = escrowTxn.status || {};
-  if (typeof s === 'object') {
-    if (s.disputed) return 'disputed';
-    if (s.cancelled) return 'cancelled';
-    if (s.rejected) return 'rejected';
-    if (s.completed || s.released) return 'released';
-    if (s.in_transit || s.shipped) return 'shipped';
-    if (s.secured || s.funded) return 'funded';
-  }
-
-  const item = Array.isArray(escrowTxn.items) ? escrowTxn.items[0] : null;
-  if (item) {
-    if (typeof item.status === 'string') return item.status;
-    const is = item.status || {};
-    if (is.disputed) return 'disputed';
-    if (is.cancelled) return 'cancelled';
-    if (is.completed || is.released) return 'released';
-    if (is.shipped || is.in_transit) return 'shipped';
-    if (is.secured || is.funded) return 'funded';
-  }
-
-  return null;
+  if (t.cancelled || is.cancelled) return 'cancelled';
+  if (t.disputed || is.disputed) return 'disputed';
+  if (t.completed || t.released || is.accepted || sched('disbursed_to_beneficiary')) return 'released';
+  if (is.rejected) return 'rejected';
+  if (is.received) return 'received';
+  if (is.shipped || t.shipped || t.in_transit) return 'shipped';
+  if (t.secured || t.funded || sched('secured')) return 'funded';
+  return 'created';
 }
+
+// Money-state transitions only, and only forwards.
+const LIVE_AFTER_FUNDING = ['funded', 'shipped', 'in_transit', 'delivered', 'return_approved', 'return_in_transit'];
+function nextTransactionStatus(current, escrowState) {
+  if (!current || current === 'released' || current === 'cancelled') return null;
+  switch (escrowState) {
+    case 'funded':
+    case 'shipped':
+    case 'received':
+      return current === 'pending_payment' ? 'funded' : null;
+    case 'released':
+      return 'released';
+    case 'cancelled':
+      return 'cancelled';
+    case 'disputed':
+    case 'rejected':
+      return LIVE_AFTER_FUNDING.includes(current) ? 'disputed' : null;
+    default:
+      return null;
+  }
+}
+
+module.exports.deriveStatus = deriveStatus;
+module.exports.nextTransactionStatus = nextTransactionStatus;

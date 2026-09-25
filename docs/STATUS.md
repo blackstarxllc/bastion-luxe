@@ -1,49 +1,41 @@
-# Bastion — actual state, 2026-09-20
+# Bastion: actual state, 2026-09-24
 
-The four files beside this one (DO-THIS-NOW, GO-LIVE-CHECKLIST, LAUNCH-DAY,
-ADMIN-GUIDE) contradict each other and several of their claims are out of
-date. Where they disagree with this file, this file is right — it was written
-against the live Supabase database and the live Netlify configuration, not
-from memory.
+Written against the live Supabase database, the live Netlify configuration
+and the deployed code (PR #80, 2026-09-20). Where the other files in this
+folder disagree with this one, this one is right.
 
-## Corrections to those files
+## Verified continuously
+- `node tests/run.js`: 61 checks, run by Netlify before EVERY deploy. A
+  failure blocks the deploy.
+- `sql/tests/security_regression.sql`: 35 live database attack/flow checks.
+  Last run 2026-09-24: 35/35 PASS. Everything rolls back; re-run after any
+  change to RLS, triggers or pricing.
 
-| They say | Actually |
-|---|---|
-| "4 real listings live" | **47** active listings, 7 seller accounts, $2,400–$230,000 |
-| `SHIPPING_PROVIDER` "currently says shippo, must change" | Already `easypost`. Fixed 2026-09-14. |
-| "Live Escrow key installed and verified" | Installed, but **never verified** — the release call used an action that does not exist in the Escrow.com API |
-| "23 tables protected, 9 money-safety triggers active" | True, but the status-transition trigger permitted a buyer to write `released` themselves |
-| Shipping cost missing from the pricing trigger (second audit) | **Wrong.** Live trigger is `total := price + fee + ship_cost` |
+## Money path (how it actually works now)
+1. Buyer picks a shipping rate. The server signs that exact price
+   (`quoteToken`, 45 minutes). The browser can choose a rate but never set one.
+2. Order row is created. The database forces status `pending_payment`, the
+   real seller, the real item name, the listing or accepted-offer price, and
+   an immutable `fulfillment_mode`.
+3. `create-shipment` verifies the signed quote and writes the shipping charge.
+4. `create-escrow-transaction` refuses anything not `pending_payment` or with
+   unverified shipping, then takes an atomic claim so exactly one Escrow.com
+   transaction can ever be created per order.
+5. Escrow.com webhook moves status FORWARD only: funded, released, cancelled.
+6. Carrier webhook (authenticated) drives shipping progress, and on first
+   scan / delivery tells Escrow.com the item was shipped / received. That
+   "received" step starts Escrow.com's inspection clock, which is what makes
+   its automatic payout possible if the buyer never clicks anything.
+7. Release: Bastion attempts `accept`. Escrow.com only lets the buyer accept,
+   so the expected path is a real Escrow.com link for the buyer. Bastion
+   records `released` only when Escrow.com confirms.
 
-## Verified against Escrow.com's live API docs
+## Owner actions still open
+1. Supabase > Authentication > Providers > Email: turn on leaked-password protection.
+2. Change `ESCROW_LIVE_EMAIL` off `blackstarxllc@gmail.com` (that account also owns live listings; Escrow.com rejects a deal where broker and seller are the same person).
+3. Register the webhooks (see CLAUDE-CODE handoff notes / chat for exact URLs).
+4. One real low-value purchase end to end.
 
-Valid PATCH actions: `agree`, `ship`, `receive`, `accept`, `reject`,
-`ship_return`, `receive_return`, `accept_return`, `reject_return`, `cancel`.
-
-`release` is not one of them. It is what this codebase sent on every buyer
-confirm-receipt and every admin dispute release.
-
-A partner may perform only these on another party's behalf (`As-Customer`):
-`agree`, `ship`, `receive`, `reject`, `ship_return`, `receive_return`,
-`reject_return`. **`accept` is excluded** — Escrow.com's Accept Items page
-states a partner cannot accept for the buyer. Bastion is the partner on every
-transaction it creates, so no credential lets it release funds for a buyer.
-
-The release flow therefore: marks the item received on the buyer's behalf
-(allowed, and it arms Escrow.com's automatic accept-on-inspection-lapse),
-attempts `accept`, and on refusal hands the buyer a real Escrow.com link.
-Bastion records `released` only when Escrow.com confirms.
-
-## Still open — owner action required
-
-1. **Rotate both API keys.** `ESCROW_LIVE_API_KEY` and `EASYPOST_API_KEY` are
-   stored in Netlify as plaintext (not marked secret) and have been pasted
-   into at least two AI chat sessions. Treat both as compromised.
-2. **Broker collision.** `ESCROW_LIVE_EMAIL` is `blackstarxllc@gmail.com`,
-   which is also a Bastion account. Any listing sold from it will be rejected
-   by Escrow.com. Use a dedicated broker address no seller account uses.
-3. **`SHIPPO_API_KEY` is dead weight** — provider is EasyPost. Delete it.
-4. **`support@bastionmarket.com` receives no mail.** The Support, Privacy and
-   Terms pages link to it.
-5. **One real low-value end-to-end purchase.** Nothing substitutes for it.
+## Post-deploy step (Claude)
+`sql/2026-09-24_c_POST_DEPLOY_profile_privacy.sql` hides private profile
+columns. It must run AFTER this code is live, never before.

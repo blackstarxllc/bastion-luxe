@@ -25,7 +25,7 @@ const ESCROW_API_BASE = process.env.ESCROW_LIVE_MODE === 'true'
 // 🔴 Same gap as release-escrow-transaction.js — see _escrow-lib.js. This
 // used to act on only the merchandise item, leaving the protection fee and
 // shipping items untouched on both release and cancel/refund.
-const { applyActionToAllItems, ACTION_ACCEPT, ACTION_CANCEL } = require('./_escrow-lib');
+const { applyActionToAllItems, lookupUserEmail, ACTION_ACCEPT, ACTION_CANCEL } = require('./_escrow-lib');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -138,13 +138,33 @@ exports.handler = async (event) => {
     // _escrow-lib.js. Previously only the merchandise item was ever
     // touched here, meaning a dispute resolved through this endpoint never
     // released or cancelled Bastion's own fee/shipping revenue either way.
+    // 'accept' must come from the buyer: Escrow.com does not let a partner
+    // accept on anyone's behalf. It is attempted As-Customer the buyer in case
+    // this account has been granted wider permission; if Escrow.com refuses,
+    // the decision is recorded and the admin is told exactly what remains
+    // to be done on Escrow.com, rather than being shown a bare failure.
+    const buyerEmailForAction = escrowAction === ACTION_ACCEPT ? await lookupUserEmail(txn.buyer_id) : null;
     const actionResult = await applyActionToAllItems({
       escrowTransactionId: txn.escrow_transaction_id,
       action: escrowAction,
       email: ESCROW_EMAIL,
       apiKey: ESCROW_API_KEY,
       primaryItemId: txn.escrow_item_id,
+      asCustomer: buyerEmailForAction || undefined,
     });
+
+    async function auditLog(outcome) {
+      await fetch(`${SUPABASE_URL}/rest/v1/admin_action_log`, {
+        method: 'POST',
+        headers: Object.assign({}, svcHeaders, { Prefer: 'return=minimal' }),
+        body: JSON.stringify({
+          admin_id: callerUser.id,
+          action: 'resolve_dispute_' + action + ':' + outcome,
+          target_type: 'transaction',
+          target_id: transactionId,
+        }),
+      }).catch((e) => console.error('admin-resolve-dispute: audit log write failed', e));
+    }
 
     const secondaryFailures = actionResult.results.filter((r) => r.ok === false);
     if (secondaryFailures.length) {
@@ -159,7 +179,25 @@ exports.handler = async (event) => {
       }).catch(() => {});
     }
 
+    if (!actionResult.ok && actionResult.needsBuyerAction) {
+      await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}`, {
+        method: 'PATCH',
+        headers: Object.assign({}, svcHeaders, { Prefer: 'return=minimal' }),
+        body: JSON.stringify({ escrow_status: 'resolution_release_pending_on_escrow' }),
+      }).catch(() => {});
+      await auditLog('pending_on_escrow');
+      return {
+        statusCode: 202,
+        body: JSON.stringify({
+          resolved: false,
+          pendingOnEscrow: true,
+          message: 'Decision recorded. Escrow.com only lets the buyer (or Escrow.com itself) release funds, so this must be completed through Escrow.com\u2019s dispute team. This order updates automatically the moment Escrow.com releases the funds.',
+        }),
+      };
+    }
+
     if (!actionResult.ok) {
+      await auditLog('escrow_rejected');
       console.error('admin-resolve-dispute: Escrow.com rejected the action on the merchandise item', {
         transactionId, action: escrowAction, error: actionResult.primaryError,
       });
@@ -188,19 +226,36 @@ exports.handler = async (event) => {
     const patch = { status: newTxnStatus, escrow_status: (primaryResult && primaryResult.response && primaryResult.response.status) || newTxnStatus };
     if (action === 'release') patch.released_at = new Date().toISOString();
 
-    await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}`, {
+    // Escrow.com has ALREADY acted at this point, so a failed write here
+    // leaves the two systems disagreeing about real money. That is checked
+    // and alerted, never assumed. The listing's own status follows from the
+    // transaction via the sync_deal_status_from_transaction trigger; it is
+    // no longer forced here, which used to reopen a listing even while
+    // another buyer held a live order on it.
+    const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}`, {
       method: 'PATCH',
-      headers: Object.assign({}, svcHeaders, { Prefer: 'return=minimal' }),
+      headers: Object.assign({}, svcHeaders, { Prefer: 'return=representation' }),
       body: JSON.stringify(patch),
     });
-
-    if (txn.deal_id) {
-      await fetch(`${SUPABASE_URL}/rest/v1/deals?id=eq.${encodeURIComponent(txn.deal_id)}`, {
-        method: 'PATCH',
+    const patchedRows = patchRes.ok ? await patchRes.json().catch(() => []) : [];
+    if (!patchRes.ok || !patchedRows.length) {
+      await fetch(`${SUPABASE_URL}/rest/v1/system_alerts`, {
+        method: 'POST',
         headers: Object.assign({}, svcHeaders, { Prefer: 'return=minimal' }),
-        body: JSON.stringify({ status: action === 'release' ? 'sold' : 'active' }),
-      });
+        body: JSON.stringify({
+          source: 'admin_resolve_dispute',
+          message: 'CRITICAL: Escrow.com completed the ' + escrowAction + ' but Bastion could not record it. The two systems now disagree.',
+          context: { transactionId, action: escrowAction, httpStatus: patchRes.status },
+          transaction_id: transactionId,
+        }),
+      }).catch(() => {});
+      await auditLog('escrow_done_record_failed');
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ error: 'Escrow.com completed the action, but the order record could not be updated. A critical alert was raised; update the order by hand.' }),
+      };
     }
+    await auditLog('completed');
 
     return {
       statusCode: 200,

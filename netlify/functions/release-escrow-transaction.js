@@ -44,7 +44,9 @@ const ESCROW_API_BASE = process.env.ESCROW_LIVE_MODE === 'true'
 // the one whose success actually matters to the buyer/seller relationship.
 const {
   applyActionToAllItems,
-  markItemsReceived,
+  markShipped,
+  markReceived,
+  lookupUserEmail,
   getWebLink,
   ACTION_ACCEPT,
 } = require('./_escrow-lib');
@@ -262,21 +264,35 @@ exports.handler = async (event) => {
       }
     }
 
-    // STEP 1 — mark received on the buyer's behalf. Allowed for partners,
-    // and it arms Escrow.com's automatic accept-on-inspection-lapse, which
-    // is the safety net that guarantees the seller is eventually paid.
+    // STEP 1 — bring Escrow.com's record up to "received" on the parties'
+    // behalf: shipped (as the seller) then received (as the buyer). Both are
+    // on Escrow.com's approved on-behalf list, both are skipped if already
+    // done (the tracking webhook normally does them on a shipped order), and
+    // "received" is what arms the automatic accept-on-inspection-lapse.
+    // An in-person handoff never had a carrier scan, so this is the only
+    // place those two steps happen for it.
     if (buyerEmail) {
-      const received = await markItemsReceived({
+      const sellerEmail = await lookupUserEmail(txn.seller_id);
+      const shipped = await markShipped({
         escrowTransactionId: txn.escrow_transaction_id,
-        email: ESCROW_EMAIL,
-        apiKey: ESCROW_API_KEY,
         primaryItemId: txn.escrow_item_id,
-        asCustomer: buyerEmail,
+        sellerEmail,
       });
-      if (!received.ok) {
-        await alert('Could not mark the item received on Escrow.com — the inspection clock may not have started', {
-          escrowTransactionId: txn.escrow_transaction_id, error: received.error,
+      if (!shipped.ok) {
+        await alert('Could not mark the item shipped on Escrow.com before release', {
+          escrowTransactionId: txn.escrow_transaction_id, error: shipped.primaryError,
         });
+      } else {
+        const received = await markReceived({
+          escrowTransactionId: txn.escrow_transaction_id,
+          primaryItemId: txn.escrow_item_id,
+          buyerEmail,
+        });
+        if (!received.ok) {
+          await alert('Could not mark the item received on Escrow.com; the inspection clock may not have started', {
+            escrowTransactionId: txn.escrow_transaction_id, error: received.primaryError,
+          });
+        }
       }
     }
 

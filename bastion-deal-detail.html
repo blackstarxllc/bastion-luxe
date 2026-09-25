@@ -1128,7 +1128,7 @@
   </div>
 </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1/dist/umd/supabase.js" integrity="sha384-K1nraABOP/zFehpLIUksXebbs7jMpB8gYMlb+uhVKZcWT/9Vkq1+qhv6ndC+1Yuz" crossorigin="anonymous"></script>
 <script src="bastion-account-skirt.js"></script>
 <script>
 const SUPABASE_URL = 'https://xokyqobttfhugdponfpg.supabase.co';
@@ -1182,7 +1182,7 @@ async function runShippingCheckout(deal, chargedPrice, chargedFee){
   } catch(e){ savedAddresses = []; }
 
   return new Promise(function(resolve){
-    var state = { addressId:null, rateToken:null, rate:null, holdAtLocation:false };
+    var state = { addressId:null, rateToken:null, quoteToken:null, rate:null, holdAtLocation:false };
 
     function close(result){
       overlay.classList.remove('visible');
@@ -1247,6 +1247,7 @@ async function runShippingCheckout(deal, chargedPrice, chargedFee){
         formEl.classList.toggle('hidden', r.value !== '__new__');
         ratesEl.innerHTML = '';
         state.rateToken = null;
+        state.quoteToken = null;
         nextBtn.textContent = 'Get shipping rates';
       });
     });
@@ -1358,7 +1359,7 @@ async function runShippingCheckout(deal, chargedPrice, chargedFee){
           + '<div class="ship-co-label" style="margin-top:14px;">Choose a service</div>'
           + q.rates.map(function(r, i){
               return '<label class="ship-co-rate">'
-                + '<input type="radio" name="shipRate" value="' + shipHtmlEscape(r.rateToken) + '" data-amount="' + shipHtmlEscape(r.amount) + '" data-carrier="' + shipHtmlEscape(r.carrier || '') + '" data-service="' + shipHtmlEscape(r.service || '') + '"' + (i === 0 ? ' checked' : '') + '>'
+                + '<input type="radio" name="shipRate" value="' + shipHtmlEscape(r.rateToken) + '" data-amount="' + shipHtmlEscape(r.amount) + '" data-carrier="' + shipHtmlEscape(r.carrier || '') + '" data-service="' + shipHtmlEscape(r.service || '') + '" data-quote-token="' + shipHtmlEscape(r.quoteToken || '') + '"' + (i === 0 ? ' checked' : '') + '>'
                 + '<span><strong>' + shipHtmlEscape(r.carrier) + ' ' + shipHtmlEscape(r.service || '') + '</strong>'
                 + (r.estimatedDays ? '<br><em>about ' + shipHtmlEscape(r.estimatedDays) + ' business days</em>' : '')
                 + '</span>'
@@ -1385,6 +1386,9 @@ async function runShippingCheckout(deal, chargedPrice, chargedFee){
           var sel = overlay.querySelector('input[name="shipRate"]:checked');
           if(!sel) return;
           state.rateToken = sel.value;
+          // The signed quote is what the server charges from. The displayed
+          // amount below is for the buyer's eyes only.
+          state.quoteToken = sel.getAttribute('data-quote-token') || null;
           state.rate = Number(sel.getAttribute('data-amount'));
           // Carry the actual service the buyer picked, not just the price.
           // Without this the seller's label is bought as "cheapest
@@ -2388,9 +2392,7 @@ async function loadDeal(){
                 transactionId: txn.id,
                 addressId: shipChoice.addressId,
                 holdAtLocation: !!shipChoice.holdAtLocation,
-                chosenCarrier: shipChoice.carrier || null,
-                chosenService: shipChoice.service || null,
-                quotedCost: shipChoice.rate || 0
+                quoteToken: shipChoice.quoteToken || null
               })
             });
             if(!shipRes.ok){

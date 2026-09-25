@@ -96,6 +96,23 @@ exports.handler = async (event) => {
       // Already created — don't create a duplicate on Escrow.com
       return { statusCode: 200, body: JSON.stringify({ escrow_transaction_id: txn.escrow_transaction_id, already_existed: true }) };
     }
+    // Only an unpaid, live order can be sent to Escrow.com. A cancelled or
+    // already-funded order must never open a second payment request.
+    if (txn.status !== 'pending_payment') {
+      return { statusCode: 409, body: JSON.stringify({ error: 'This order is no longer awaiting payment.' }) };
+    }
+
+    // A shipped order is only payable once the server has verified its
+    // shipping charge from a signed quote (create-shipment sets this).
+    // Without it the buyer could be billed a shipping figure the browser
+    // made up, and Bastion would pay the difference on the label.
+    if (txn.fulfillment_mode === 'shipped' && !txn.shipping_verified_at) {
+      return {
+        statusCode: 409,
+        body: JSON.stringify({ error: 'Shipping for this order has not been confirmed yet. Please go back and choose your shipping option again.' }),
+      };
+    }
+
     if (!txn.buyer_id || !txn.seller_id) {
       return { statusCode: 400, body: JSON.stringify({ error: 'Transaction is missing buyer_id or seller_id' }) };
     }
@@ -297,18 +314,75 @@ exports.handler = async (event) => {
       items: escrowItems,
     };
 
+    // ------------------------------------------------------------------
+    // ATOMIC CLAIM — exactly one caller may create the Escrow.com transaction.
+    //
+    // The "escrow_transaction_id already set?" check above is a read, and
+    // two requests arriving together both pass it. Each would then open a
+    // real Escrow.com transaction for the same order. This conditional PATCH
+    // is one statement in Postgres, so only one request can win it. A claim
+    // older than five minutes is treated as abandoned (the function holding
+    // it crashed) and may be taken over.
+    // ------------------------------------------------------------------
+    const staleBefore = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const claimRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}` +
+      `&escrow_transaction_id=is.null&status=eq.pending_payment` +
+      `&or=(escrow_claimed_at.is.null,escrow_claimed_at.lt.${encodeURIComponent(staleBefore)})`,
+      {
+        method: 'PATCH',
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=representation',
+        },
+        body: JSON.stringify({ escrow_claimed_at: new Date().toISOString(), escrow_status: 'creating' }),
+      }
+    );
+    const claimedRows = claimRes.ok ? await claimRes.json().catch(() => []) : [];
+    if (!claimRes.ok || !claimedRows.length) {
+      return {
+        statusCode: 409,
+        body: JSON.stringify({ error: 'Payment for this order is already being set up. Refresh the page in a moment.', inProgress: true }),
+      };
+    }
+
+    // Hands the claim back so the buyer can retry, when creation failed
+    // before any Escrow.com transaction existed.
+    async function releaseClaim(reason) {
+      await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}&escrow_transaction_id=is.null`, {
+        method: 'PATCH',
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify({ escrow_claimed_at: null, escrow_status: reason || 'creation_failed' }),
+      }).catch((e) => console.error('create-escrow-transaction: could not release claim', e));
+    }
+
     const authHeader = 'Basic ' + Buffer.from(`${ESCROW_EMAIL}:${ESCROW_API_KEY}`).toString('base64');
 
-    const createRes = await fetch(`${ESCROW_API_BASE}/transaction`, {
-      method: 'POST',
-      headers: {
-        Authorization: authHeader,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(escrowPayload),
-    });
+    let createRes;
+    try {
+      createRes = await fetch(`${ESCROW_API_BASE}/transaction`, {
+        method: 'POST',
+        headers: {
+          Authorization: authHeader,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(escrowPayload),
+      });
+    } catch (netErr) {
+      await releaseClaim('creation_failed');
+      await logAlertToSupabase(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, 'escrow_transaction_creation',
+        'Could not reach Escrow.com to create the transaction', { transactionId, error: String((netErr && netErr.message) || netErr) });
+      return { statusCode: 502, body: JSON.stringify({ error: 'We could not reach Escrow.com. Nothing was charged. Please try again in a moment.' }) };
+    }
 
-    const escrowData = await createRes.json();
+    const escrowData = await createRes.json().catch(() => ({}));
 
     if (createRes.ok) {
       console.log('create-escrow-transaction: Escrow.com accepted the transaction', JSON.stringify(escrowData).slice(0, 1500));
@@ -325,9 +399,10 @@ exports.handler = async (event) => {
         status: createRes.status,
         escrowResponse: JSON.stringify(escrowData).slice(0, 800),
       });
+      await releaseClaim('creation_failed');
       return {
         statusCode: 502,
-        body: JSON.stringify({ error: 'Escrow.com rejected the transaction', details: escrowData }),
+        body: JSON.stringify({ error: 'Escrow.com could not open this transaction. Nothing was charged, and our team has been alerted.', details: escrowData }),
       };
     }
 
@@ -398,6 +473,7 @@ exports.handler = async (event) => {
         escrow_status: escrowData.status || 'created',
         escrow_item_id: escrowItemId,
         escrow_transaction_url: payLink,
+        escrow_claimed_at: null,
       }),
     });
 

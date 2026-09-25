@@ -73,8 +73,14 @@ exports.handler = async (event) => {
         requote: true,
       });
     }
+    // Bound to the EXACT saved address (fingerprint), and to the tier of the
+    // price this order was actually created at.
+    const orderTier = lib.tierForValue(Number(txn.price));
     if (quote.u !== user.id || quote.d !== txn.deal_id ||
-        quote.z !== lib.normalisePostal(addr.postal_code) || !(Number(quote.a) > 0)) {
+        quote.z !== lib.normalisePostal(addr.postal_code) ||
+        quote.f !== lib.addressFingerprint(addr) ||
+        (quote.t && quote.t !== orderTier) ||
+        !(Number(quote.a) > 0)) {
       return lib.json(409, {
         error: 'That shipping quote does not match this order or address. Please choose your shipping option again.',
         requote: true,

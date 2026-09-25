@@ -195,6 +195,25 @@ exports.handler = async (event) => {
       Authorization: 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
       'Content-Type': 'application/json',
     };
+    // Webhook inbox (public.provider_events). Escrow.com payloads carry no
+    // stable event id, so the key is a hash of the exact body: an identical
+    // replay is recognised, while any genuinely new notification is stored.
+    // Processing stays idempotent regardless (state is re-fetched from
+    // Escrow.com and only ever moves forward).
+    try {
+      const rawText = event.isBase64Encoded ? Buffer.from(event.body || '', 'base64').toString('utf8') : (event.body || '');
+      const bodyHash = require('crypto').createHash('sha256').update(rawText).digest('hex');
+      const inboxRes = await fetch(SUPABASE_URL + '/rest/v1/provider_events', {
+        method: 'POST', headers: Object.assign({}, svc, { Prefer: 'return=minimal' }),
+        body: JSON.stringify({ provider: 'escrow', event_key: bodyHash, object_ref: String(escrowTransactionId), payload: (() => { try { return JSON.parse(rawText); } catch (e) { return { raw: rawText.slice(0, 2000) }; } })() }),
+      });
+      if (inboxRes.status === 409) {
+        return { statusCode: 200, body: JSON.stringify({ received: true, duplicate: true }) };
+      }
+    } catch (inboxErr) {
+      console.error('escrow-webhook: inbox write failed (processing anyway)', inboxErr);
+    }
+
     const curRes = await fetch(
       SUPABASE_URL + '/rest/v1/transactions?escrow_transaction_id=eq.' + encodeURIComponent(escrowTransactionId) +
         '&select=id,status,funded_at,released_at,deal_id',
@@ -205,6 +224,16 @@ exports.handler = async (event) => {
     if (!current) {
       await logAlert('No Bastion transaction matched this Escrow.com transaction id', { escrowTransactionId, verifiedStatus });
       return { statusCode: 200, body: JSON.stringify({ received: true, matched: false }) };
+    }
+
+    // A payment arriving on an order Bastion already cancelled (for example
+    // an Escrow.com link the buyer paid after the order lapsed) would
+    // otherwise be ignored by the forward-only rules, leaving real money
+    // sitting in escrow with nobody told. It is recorded and escalated.
+    if (current.status === 'cancelled' && ['funded', 'shipped', 'received'].includes(verifiedStatus)) {
+      await logAlert('CRITICAL: a buyer paid into an order that Bastion had already cancelled. Refund through Escrow.com.', {
+        escrowTransactionId, transactionId: current.id, verifiedStatus,
+      });
     }
 
     const nowIso = new Date().toISOString();
@@ -232,6 +261,19 @@ exports.handler = async (event) => {
     );
     if (!patchRes.ok) {
       const detail = await patchRes.text().catch(() => '');
+      // idx_one_live_funded_txn_per_deal allows ONE funded-or-later order per
+      // listing. If this payment lost that race, another buyer already owns
+      // the item: close this order and escalate the refund.
+      if (next === 'funded' && (patchRes.status === 409 || /23505|duplicate key/i.test(detail))) {
+        await fetch(SUPABASE_URL + '/rest/v1/transactions?id=eq.' + encodeURIComponent(current.id), {
+          method: 'PATCH', headers: Object.assign({}, svc, { Prefer: 'return=minimal' }),
+          body: JSON.stringify({ status: 'cancelled', escrow_status: 'funded_after_item_sold' }),
+        }).catch(() => {});
+        await logAlert('CRITICAL: a second buyer funded a listing that another buyer had already funded. Their order was cancelled; refund them through Escrow.com.', {
+          escrowTransactionId, transactionId: current.id,
+        });
+        return { statusCode: 200, body: JSON.stringify({ received: true, lostRace: true }) };
+      }
       await logAlert('Failed to write the verified status onto the Bastion transaction', {
         escrowTransactionId, status: patchRes.status, detail: detail.slice(0, 500),
       });

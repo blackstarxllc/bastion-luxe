@@ -136,6 +136,41 @@ exports.handler = async (event) => {
     // has expired (carrier rate tokens are short-lived), re-quote and take
     // the cheapest compliant service rather than failing the seller.
     // ------------------------------------------------------------------
+    // RECOVER AN INTERRUPTED PURCHASE BEFORE BUYING ANYTHING.
+    // If an earlier attempt recorded the EasyPost shipment it was buying
+    // from, ask EasyPost whether that purchase actually went through. If it
+    // did, adopt that label. An abandoned attempt is "unknown", never simply
+    // "available again": treating it as available is how a lost response
+    // turns into two paid labels.
+    // ------------------------------------------------------------------
+    if (shipment.pending_provider_shipment_id) {
+      let prior;
+      try {
+        prior = await lib.fetchPurchasedLabel(shipment.pending_provider_shipment_id);
+      } catch (lookupErr) {
+        await lib.logAlert('shipping_label', 'Could not confirm whether an interrupted label purchase went through; refusing to buy another until it can', {
+          shipmentId, pending: shipment.pending_provider_shipment_id, error: lookupErr.message,
+        });
+        return lib.json(503, { error: 'We are confirming an earlier label attempt with the carrier. Please try again in a few minutes \u2014 you will not be charged twice.' });
+      }
+      if (prior) {
+        const adopted = await lib.sbPatch('shipments',
+          'id=eq.' + encodeURIComponent(shipmentId) + '&tracking_number=is.null',
+          {
+            tracking_number: prior.trackingNumber, label_url: prior.labelUrl,
+            carrier: prior.carrier, service: prior.service, shipping_cost: prior.cost,
+            provider_shipment_id: prior.providerShipmentId,
+            status: 'label_created', label_created_at: new Date().toISOString(),
+            label_claimed_at: null, pending_provider_shipment_id: null,
+          }, true);
+        await lib.logAlert('shipping_label', 'Adopted a label from an interrupted purchase instead of buying a second one', {
+          shipmentId, trackingNumber: prior.trackingNumber, recorded: !!(adopted && adopted.length),
+        });
+        return lib.json(200, { trackingNumber: prior.trackingNumber, labelUrl: prior.labelUrl, adopted: true });
+      }
+    }
+
+    // ------------------------------------------------------------------
     // The label is ALWAYS bought from a fresh server-side quote for THIS
     // shipment's stored addresses.
     //
@@ -170,15 +205,18 @@ exports.handler = async (event) => {
       await lib.logAlert('shipping_label', 'Carrier rate lookup failed at label time', { shipmentId, error: rateErr.message });
       return lib.json(502, { error: 'We could not reach the carrier just now. Please try again in a moment \u2014 you have not been charged.' });
     }
-    let candidates = (requote.rates || []).filter((r) => r.amount > 0);
-    if (rules.minCarrierService === 'express') {
-      const expressish = candidates.filter((r) =>
-        /express|priority|overnight|2.?day|next.?day/i.test(r.service || '')
-      );
-      if (expressish.length) candidates = expressish;
-    }
+    // Carrier allowlist + tier policy, failing CLOSED: a Vault item with no
+    // true express service available gets no label, not a slower one.
+    let candidates = lib.filterForTier(requote.rates, rules);
     if (!candidates.length) {
-      return lib.json(422, { error: 'No carrier service is currently available for this shipment.' });
+      await lib.logAlert('shipping_label', 'No compliant carrier service for this shipment; label NOT bought', {
+        shipmentId, tier: shipment.tier, minService: rules.minCarrierService,
+      });
+      return lib.json(422, {
+        error: rules.minCarrierService === 'express'
+          ? 'No express service is available for this shipment right now, and items at this value must travel express. Support has been alerted.'
+          : 'No carrier service is currently available for this shipment. Please try again shortly.',
+      });
     }
 
     // Honour what the buyer paid for: exact carrier and service first, then
@@ -263,10 +301,23 @@ exports.handler = async (event) => {
         { label_claimed_at: null }).catch(() => {});
     }
 
+    // Journal the exact EasyPost shipment BEFORE paying for it.
+    await lib.sbPatch('shipments', 'id=eq.' + encodeURIComponent(shipmentId),
+      { pending_provider_shipment_id: requote.providerShipmentId });
+
     let label;
     try {
       label = await lib.buyLabel(token);
     } catch (labelErr) {
+      if (labelErr.definitive === false) {
+        // Outcome unknown: EasyPost may have bought the label. Keep the claim
+        // and the journal; the next attempt looks it up and adopts it.
+        await lib.logAlert('shipping_label', 'Label purchase outcome UNKNOWN (no/ambiguous response); holding the claim for reconciliation', {
+          shipmentId, pending: requote.providerShipmentId, error: labelErr.message,
+        });
+        return lib.json(502, { error: 'We could not confirm the label with the carrier. Please wait a few minutes before trying again \u2014 you will not be charged twice.' });
+      }
+      await lib.sbPatch('shipments', 'id=eq.' + encodeURIComponent(shipmentId), { pending_provider_shipment_id: null }).catch(() => {});
       await releaseLabelClaim();
       await lib.logAlert('shipping_label', 'Carrier label purchase failed', {
 
@@ -325,6 +376,7 @@ exports.handler = async (event) => {
       label_created_at: new Date().toISOString(),
       ship_by: shipBy,
       label_claimed_at: null,
+      pending_provider_shipment_id: null,
     });
     } catch (recordErr) {
       // A real label was bought and paid for, but Bastion failed to record

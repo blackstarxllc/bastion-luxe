@@ -24,10 +24,12 @@ const escrow = require('./_escrow-lib');
 
 // ------------------------------------------------------------------
 // AUTHENTICATION
-// A request is accepted only if it proves it came from EasyPost: either a
-// valid X-Hmac-Signature over the exact raw body (EasyPost's own signing
-// scheme, keyed with the webhook secret) or the shared secret in the URL or
-// header the webhook was registered with. Anything else gets 401.
+// A request is accepted only if it carries a valid X-Hmac-Signature over
+// the exact raw body: EasyPost's own signing scheme, keyed with the
+// webhook_secret the webhook was registered with. Anything else gets 401.
+// The earlier fallback that also accepted the secret in the URL query
+// string was removed on 2026-09-24, after the EasyPost webhook was
+// re-registered without it: secrets in URLs leak into logs.
 //
 // This used to log a mismatch and carry on. That was not directly
 // exploitable, because every status is re-fetched from EasyPost with
@@ -54,11 +56,9 @@ function isAuthentic(event, secret) {
       .createHmac('sha256', String(secret).normalize('NFKD'))
       .update(rawBody(event))
       .digest('hex');
-    if (safeEqual(sig, expected)) return true;
+    return safeEqual(sig, expected);
   }
-  const params = event.queryStringParameters || {};
-  const provided = params.secret || headers['x-webhook-secret'] || headers['X-Webhook-Secret'];
-  return safeEqual(provided, secret);
+  return false;
 }
 
 // ------------------------------------------------------------------
@@ -110,16 +110,43 @@ exports.handler = async (event) => {
       return lib.json(200, { received: true, parsed: false });
     }
 
-    // Both providers nest this differently, and have changed it before.
+    // EasyPost sends EVERY account event to this URL (invoices, refunds,
+    // batches...). Only tracker and shipment events carry tracking.
+    const eventType = String(payload.description || '');
+    const result = payload.result || {};
+
+    // EasyPost's Tracker and Shipment objects carry the number in
+    // result.tracking_code. That exact field was missing from this list, so
+    // every real tracking update was logged as "no tracking number" and
+    // dropped: delivery could never register.
     const trackingNumber =
-      payload.tracking_number
-      || (payload.data && payload.data.tracking_number)
-      || (payload.result && payload.result.tracking_number)
-      || (payload.data && payload.data.tracking_code)
+      result.tracking_code
+      || result.tracking_number
+      || payload.tracking_number
       || payload.tracking_code
+      || (payload.data && (payload.data.tracking_code || payload.data.tracking_number))
       || null;
 
+    // Webhook inbox: record the event once, keyed by EasyPost's own event
+    // id. A replayed or duplicate delivery is recognised and skipped.
+    const eventId = payload.id ? String(payload.id) : null;
+    if (eventId) {
+      try {
+        await lib.sbInsert('provider_events', {
+          provider: 'easypost', event_key: eventId, object_ref: trackingNumber || result.id || null, payload,
+        }, false);
+      } catch (inboxErr) {
+        if (/409|23505|duplicate/i.test(inboxErr.message)) {
+          return lib.json(200, { received: true, duplicate: true });
+        }
+        await lib.logAlert('shipping_webhook', 'Could not record event in the inbox (processing anyway)', { eventId, error: inboxErr.message });
+      }
+    }
+
     if (!trackingNumber) {
+      if (!/^tracker\.|^shipment\./.test(eventType)) {
+        return lib.json(200, { received: true, ignored: eventType || 'unknown event' });
+      }
       await lib.logAlert('shipping_webhook', 'No tracking number anywhere in payload', {
         payload: JSON.stringify(payload).slice(0, 600),
       });
@@ -221,6 +248,10 @@ exports.handler = async (event) => {
     // --- Mirror onto the transaction -----------------------------------
     await syncTransaction(shipment, newStatus, occurredAt);
 
+    if (eventId) {
+      await lib.sbPatch('provider_events', 'provider=eq.easypost&event_key=eq.' + encodeURIComponent(eventId),
+        { processed_at: new Date().toISOString() }).catch(() => {});
+    }
     return lib.json(200, { received: true, verified: true, status: newStatus });
   } catch (err) {
     await lib.logAlert('shipping_webhook', 'Fatal error in shipping webhook', {
@@ -245,8 +276,12 @@ async function verifyTracking(carrier, trackingNumber) {
       );
       if (!res.ok) return null;
       const data = await res.json();
-      const tracker = (data.trackers && data.trackers[0]) || data;
-      if (!tracker) return null;
+      // The list endpoint returns { trackers: [...] }. An empty list means
+      // "no tracker yet", not "this list is the tracker".
+      const tracker = Array.isArray(data.trackers)
+        ? data.trackers[0]
+        : (data && data.object === 'Tracker' ? data : null);
+      if (!tracker || !tracker.status) return null;
       const latest = (tracker.tracking_details || []).slice(-1)[0] || {};
       return {
         status: tracker.status,

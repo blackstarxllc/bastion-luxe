@@ -16,9 +16,14 @@ const FN = path.join(ROOT, 'netlify', 'functions');
 let passed = 0;
 const failures = [];
 
+const pending = [];
 function test(name, fn) {
-  try { fn(); passed++; }
-  catch (e) { failures.push(name + '\n      ' + (e && e.message || e)); }
+  try {
+    const r = fn();
+    if (r && typeof r.then === 'function') {
+      pending.push(r.then(() => { passed++; }, (e) => { failures.push(name + '\n      ' + (e && e.message || e)); }));
+    } else { passed++; }
+  } catch (e) { failures.push(name + '\n      ' + (e && e.message || e)); }
 }
 function eq(actual, expected, label) {
   if (actual !== expected) throw new Error((label ? label + ': ' : '') + 'expected ' + JSON.stringify(expected) + ', got ' + JSON.stringify(actual));
@@ -136,7 +141,7 @@ test('shipping webhook: authentication', () => {
   const A = shippingWebhook.isAuthentic;
   eq(A({ body, headers: { 'x-hmac-signature': sig } }, secret), true, 'valid HMAC');
   eq(A({ body: body + ' ', headers: { 'x-hmac-signature': sig } }, secret), false, 'body tampered');
-  eq(A({ body, headers: {}, queryStringParameters: { secret } }, secret), true, 'shared secret');
+  eq(A({ body, headers: {}, queryStringParameters: { secret } }, secret), false, 'URL secret no longer accepted (HMAC only)');
   eq(A({ body, headers: {}, queryStringParameters: { secret: 'nope' } }, secret), false, 'wrong secret');
   eq(A({ body, headers: {} }, secret), false, 'no credentials');
   eq(A({ body, headers: { 'x-hmac-signature': sig } }, ''), false, 'fails closed with no secret configured');
@@ -165,6 +170,57 @@ test('escrow creation: atomic claim and shipping verification present', () => {
   ok(/escrow_claimed_at/.test(code), 'no atomic claim');
   ok(/shipping_verified_at/.test(code), 'shipped orders not gated on verified shipping');
   ok(/status !== 'pending_payment'/.test(code), 'does not refuse non-payable orders');
+});
+
+test('shipping: carrier allowlist and Vault express policy fail closed', () => {
+  const vault = shipLib.tierRules('vault');
+  const rates = [
+    { carrier: 'USPS', service: 'Priority', amount: 20 },
+    { carrier: 'USPS', service: 'Express', amount: 60 },
+    { carrier: 'DHLeCommerce', service: 'Expedited', amount: 9 },
+    { carrier: 'UPSDAP', service: 'NextDayAir', amount: 80 },
+    { carrier: 'FedExDefault', service: 'FEDEX_EXPRESS_SAVER', amount: 40 },
+  ];
+  eq(shipLib.filterForTier(rates, vault).map((r) => r.service).join(','), 'Express,NextDayAir', 'vault services');
+  eq(shipLib.filterForTier([rates[0]], vault).length, 0, 'vault with only Priority must return nothing');
+  ok(!shipLib.filterForTier(rates, shipLib.tierRules('standard')).some((r) => /dhl/i.test(r.carrier)), 'DHL offered');
+});
+
+test('shipping: quote bound to the exact address, and high-value ceiling enforced', () => {
+  const a = { line1: '1 Main St', line2: 'Apt 2', city: 'Dallas', state: 'TX', postal_code: '75201' };
+  eq(shipLib.addressFingerprint(a), shipLib.addressFingerprint({ street1: '1 MAIN ST.', street2: 'apt 2', city: 'dallas', state: 'tx', zip: '75201-1234' }), 'formatting');
+  ok(shipLib.addressFingerprint(a) !== shipLib.addressFingerprint(Object.assign({}, a, { line1: '9 Elm St' })), 'same ZIP, different street');
+  eq(shipLib.exceedsAutoShipCeiling(230000), true);
+  eq(shipLib.exceedsAutoShipCeiling(40000), false);
+  const quote = read('netlify/functions/shipping-quote.js');
+  ok(/exceedsAutoShipCeiling\(itemValue\)/.test(quote), 'quote does not enforce the ceiling');
+  ok(/status=eq\.accepted/.test(quote), 'quote does not price from the accepted offer');
+  ok(/quote\.f !== lib\.addressFingerprint\(addr\)/.test(read('netlify/functions/create-shipment.js')), 'address fingerprint not verified');
+});
+
+test('shipping webhook: reads EasyPost result.tracking_code and records events', () => {
+  const code = read('netlify/functions/shipping-webhook.js');
+  ok(/result\.tracking_code/.test(code), 'result.tracking_code not read: every real tracking update would be dropped');
+  ok(/provider_events/.test(code), 'no webhook inbox');
+});
+
+test('labels: interrupted purchases are adopted, never bought twice', () => {
+  const code = read('netlify/functions/create-shipping-label.js');
+  ok(/fetchPurchasedLabel/.test(code) && /pending_provider_shipment_id/.test(code), 'no purchase journal / adopt path');
+  ok(/definitive === false/.test(code), 'unknown outcomes release the claim');
+});
+
+test('escrow creation: stale claims look up Escrow.com before creating', () => {
+  const code = read('netlify/functions/create-escrow-transaction.js');
+  ok(/bastionRef/.test(code) && /adopted: true/.test(code), 'no adopt-before-create');
+});
+
+test('sweep: refuses unauthenticated manual calls', async () => {
+  delete process.env.INTERNAL_WEBHOOK_SECRET;
+  process.env.SUPABASE_URL = 'https://example.invalid';
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'x';
+  const sweep = require(path.join(FN, 'deadline-sweep.js'));
+  return sweep.handler({ headers: {} }).then((r) => eq(r.statusCode, 401, 'manual call without secret'));
 });
 
 // ---------------------------------------------------------------- consistency
@@ -223,9 +279,11 @@ test('deploy: internal folders are blocked from the public site', () => {
 });
 
 // ---------------------------------------------------------------- report
+Promise.all(pending).then(() => {
 const total = passed + failures.length;
 if (failures.length) {
   process.stdout.write('\nBASTION TESTS: ' + failures.length + ' of ' + total + ' FAILED - deploy blocked\n\n  x ' + failures.join('\n  x ') + '\n\n');
   process.exit(1);
 }
 process.stdout.write('BASTION TESTS: all ' + total + ' passed\n');
+});

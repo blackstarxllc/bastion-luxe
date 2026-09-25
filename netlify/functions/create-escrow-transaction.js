@@ -303,6 +303,7 @@ exports.handler = async (event) => {
       });
     }
 
+    const bastionRef = 'Bastion order ' + transactionId;
     const escrowPayload = {
       parties: [
         { role: 'buyer', customer: buyerEmail },
@@ -310,7 +311,10 @@ exports.handler = async (event) => {
         { role: 'broker', customer: ESCROW_EMAIL, agreed: true },
       ],
       currency: 'usd',
-      description: txn.item_name || 'Bastion marketplace item',
+      // The Bastion order reference travels with the Escrow.com transaction,
+      // so an interrupted creation can be found and adopted later instead of
+      // a second transaction being opened.
+      description: (txn.item_name || 'Bastion marketplace item') + ' \u2014 ' + bastionRef,
       items: escrowItems,
     };
 
@@ -324,19 +328,53 @@ exports.handler = async (event) => {
     // older than five minutes is treated as abandoned (the function holding
     // it crashed) and may be taken over.
     // ------------------------------------------------------------------
+    const svcHeaders = {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      'Content-Type': 'application/json',
+    };
     const staleBefore = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+    // A claim older than five minutes means an earlier attempt died part-way.
+    // It may or may not have created the Escrow.com transaction, so "stale"
+    // is treated as UNKNOWN: look the order up on Escrow.com first and adopt
+    // it if it exists. Only a confirmed absence allows a fresh creation.
+    if (txn.escrow_claimed_at && Date.parse(txn.escrow_claimed_at) < Date.parse(staleBefore)) {
+      const authForLookup = 'Basic ' + Buffer.from(`${ESCROW_EMAIL}:${ESCROW_API_KEY}`).toString('base64');
+      let found = null;
+      try {
+        const listRes = await fetch(`${ESCROW_API_BASE}/transaction?limit=50`, { headers: { Authorization: authForLookup } });
+        if (!listRes.ok) throw new Error('list status ' + listRes.status);
+        const listed = await listRes.json().catch(() => ({}));
+        const rows = Array.isArray(listed) ? listed : (listed.transactions || listed.results || []);
+        found = rows.find((t) => String(t.description || '').includes(bastionRef)) || null;
+      } catch (lookupErr) {
+        await logAlertToSupabase(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, 'escrow_transaction_creation',
+          'Stale creation claim, and Escrow.com could not be searched to rule out an existing transaction; refusing to create a second one', { transactionId, error: lookupErr.message });
+        return { statusCode: 503, body: JSON.stringify({ error: 'We are confirming an earlier payment setup with Escrow.com. Please try again in a few minutes.' }) };
+      }
+      if (found) {
+        const items = found.items || [];
+        const goods = items.find((i) => i.type !== 'broker_fee' && i.title !== 'Shipping') || items[0] || {};
+        const payLinkAdopted = await getWebLink({ escrowTransactionId: found.id, action: 'agree', email: ESCROW_EMAIL, apiKey: ESCROW_API_KEY });
+        await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}&escrow_transaction_id=is.null`, {
+          method: 'PATCH', headers: Object.assign({}, svcHeaders, { Prefer: 'return=minimal' }),
+          body: JSON.stringify({ escrow_transaction_id: found.id, escrow_item_id: goods.id || null, escrow_status: 'created',
+                                 escrow_transaction_url: payLinkAdopted, escrow_claimed_at: null }),
+        });
+        await logAlertToSupabase(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, 'escrow_transaction_creation',
+          'Adopted an Escrow.com transaction from an interrupted creation instead of opening a second one', { transactionId, escrowTransactionId: found.id });
+        return { statusCode: 200, body: JSON.stringify({ escrow_transaction_id: found.id, adopted: true, payment_url: payLinkAdopted }) };
+      }
+    }
+
     const claimRes = await fetch(
       `${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}` +
       `&escrow_transaction_id=is.null&status=eq.pending_payment` +
       `&or=(escrow_claimed_at.is.null,escrow_claimed_at.lt.${encodeURIComponent(staleBefore)})`,
       {
         method: 'PATCH',
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': 'application/json',
-          Prefer: 'return=representation',
-        },
+        headers: Object.assign({}, svcHeaders, { Prefer: 'return=representation' }),
         body: JSON.stringify({ escrow_claimed_at: new Date().toISOString(), escrow_status: 'creating' }),
       }
     );
@@ -460,7 +498,11 @@ exports.handler = async (event) => {
     // no record of: an orphaned financial object nobody can release, refund
     // or even find. Silence was the worst possible handling.
     // ------------------------------------------------------------------
-    const linkRes = await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}`, {
+    // Transient database hiccups must not orphan a real Escrow.com
+    // transaction: the link write is retried before it is declared failed.
+    let linkRes;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      linkRes = await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}`, {
       method: 'PATCH',
       headers: {
         apikey: SUPABASE_SERVICE_ROLE_KEY,
@@ -475,7 +517,10 @@ exports.handler = async (event) => {
         escrow_transaction_url: payLink,
         escrow_claimed_at: null,
       }),
-    });
+      });
+      if (linkRes.ok) break;
+      await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+    }
 
     if (!linkRes.ok) {
       const detail = await linkRes.text().catch(() => '');

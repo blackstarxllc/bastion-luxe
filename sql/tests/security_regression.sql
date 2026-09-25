@@ -4,7 +4,7 @@
 -- Nothing is ever committed, and no email is sent (pg_net only processes
 -- committed queue rows). Re-run after ANY change to RLS, triggers or pricing:
 -- every line of the resulting report must start with PASS.
--- Last full run: 2026-09-24, 35/35 PASS against production.
+-- Last full run: 2026-09-24, 38/38 PASS against production.
 do $suite$
 declare
   res text[] := '{}';
@@ -235,6 +235,22 @@ begin
   select count(*) into n from notifications where body ilike '%protected checkout%' and created_at > now() - interval '1 minute';
   res := res || format('%s T35 accepted-offer notice points to protected checkout (found %s)', case when n>=1 then 'PASS' else 'FAIL' end, n);
 
+  -- ===== 2026-09-24 (d) additions =====
+  perform set_config('request.jwt.claims', json_build_object('sub',A,'role','authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin
+    update transactions set status='cancelled' where buyer_id=A and deal_id=meet and status='pending_payment';
+    res := res || 'PASS T36 buyer can withdraw an unpaid order that never reached Escrow.com'::text;
+  exception when others then res := res || ('FAIL T36 '||sqlerrm); end;
+  begin
+    update transactions set dispute_reason='EDITED' where id=t1;
+    select dispute_reason into m from transactions where id=t1;
+    res := res || format('%s T37 dispute evidence cannot be edited after the fact', case when m is distinct from 'EDITED' then 'PASS' else 'FAIL' end);
+  exception when others then res := res || ('FAIL T37 '||sqlerrm); end;
+  begin
+    insert into messages(conversation_id, transaction_id, sender_id, body) values (c1, t1, A, 'cross');
+    res := res || 'FAIL T38 message linked a conversation to an order for a different listing'::text;
+  exception when others then res := res || 'PASS T38 cross-deal message link rejected'::text; end;
   execute 'reset role';
   raise exception E'REGRESSION REPORT (rolled back — nothing saved)\n%', array_to_string(res, E'\n');
 end $suite$;

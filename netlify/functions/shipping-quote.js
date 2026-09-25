@@ -74,9 +74,34 @@ exports.handler = async (event) => {
       });
     }
 
-    const itemValue = Number(deal.price) || 0;
+    // The tier must follow the price this buyer will actually pay. If the
+    // seller accepted this buyer's offer, the order is priced at the offer
+    // (enforce_transaction_pricing does exactly this), so the quote uses it
+    // too. Quoting from the listing price could put a $9,000 accepted offer
+    // on a $12,000 listing into the wrong tier: different signature rule,
+    // different services, different inspection window.
+    let itemValue = Number(deal.price) || 0;
+    const acceptedOffers = await lib.sbSelect(
+      'offers?deal_id=eq.' + encodeURIComponent(dealId) +
+      '&buyer_id=eq.' + encodeURIComponent(user.id) +
+      '&seller_id=eq.' + encodeURIComponent(deal.seller_id) +
+      '&status=eq.accepted&select=amount,responded_at,created_at' +
+      '&order=responded_at.desc.nullslast,created_at.desc&limit=1'
+    );
+    if (acceptedOffers && acceptedOffers[0] && Number(acceptedOffers[0].amount) > 0) {
+      itemValue = Number(acceptedOffers[0].amount);
+    }
     const tier = lib.tierForValue(itemValue);
     const rules = lib.tierRules(tier);
+
+    if (lib.exceedsAutoShipCeiling(itemValue)) {
+      return lib.json(422, {
+        error: 'Items valued above $' + lib.maxShippableValue().toLocaleString('en-US') +
+          ' are not shipped automatically, because carrier coverage cannot protect them. ' +
+          'Arrange an in-person handoff, or contact Bastion support for a concierge shipment.',
+        concierge: true,
+      });
+    }
 
     if (address.hold_at_location && !rules.allowHoldAtLocation) {
       return lib.json(422, {
@@ -131,13 +156,15 @@ exports.handler = async (event) => {
     // A Vault item is not going ground with no signature. Anything that
     // can't carry the required confirmation is removed from the list the
     // buyer ever sees, rather than shown and rejected later.
-    let rates = (quoted.rates || []).filter((r) => r.amount > 0);
-
-    if (rules.minCarrierService === 'express') {
-      const expressish = rates.filter((r) =>
-        /express|priority|overnight|2.?day|next.?day/i.test(r.service || '')
-      );
-      if (expressish.length) rates = expressish;
+    // Fails CLOSED: if no rate meets the tier's requirement, the buyer is
+    // told so, rather than shown services that break the policy.
+    let rates = lib.filterForTier(quoted.rates, rules);
+    if (!rates.length) {
+      return lib.json(422, {
+        error: rules.minCarrierService === 'express'
+          ? 'No overnight or express service is available to this address right now, and items at this value must travel express. Try another address, or arrange an in-person handoff.'
+          : 'No carrier service is available to this address right now. Please check the address or try again shortly.',
+      });
     }
 
     rates.sort((a, b) => a.amount - b.amount);
@@ -159,6 +186,9 @@ exports.handler = async (event) => {
           u: user.id,
           d: dealId,
           z: lib.normalisePostal(address.postal_code),
+          f: lib.addressFingerprint(address),
+          t: tier,
+          v: itemValue,
           c: r.carrier,
           s: r.service,
           a: priced.retail,

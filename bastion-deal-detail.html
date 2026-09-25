@@ -2429,18 +2429,26 @@ async function loadDeal(){
         }
 
         if(setupProblem){
-          // The transaction row exists and is safe \u2014 it just is not ready to
-          // be paid. Say so plainly, and do not pretend the purchase is done.
-          // Support already has a system_alert from the server side.
-          alert(setupProblem +
-            '\n\nYour order has been saved but is NOT ready for payment yet, and you have not been charged. ' +
-            'Our team has been alerted automatically. You can view the order on the next page.');
+          // Checkout could not be completed, so the half-made order is
+          // withdrawn instead of being left 'pending_payment' forever (which
+          // held the listing 'pending' so nobody, including this buyer, could
+          // buy it). The database only allows this while no Escrow.com
+          // transaction exists, so no payment can ever be stranded by it.
+          // The buyer stays on the listing and can simply try again.
+          try {
+            await supabaseClient.from('transactions')
+              .update({ status: 'cancelled' })
+              .eq('id', txn.id)
+              .eq('status', 'pending_payment');
+          } catch(cancelErr){ console.error('Could not withdraw the incomplete order:', cancelErr); }
+          alert(setupProblem + '\n\nNothing was charged. Please try again in a moment.');
+          throw Object.assign(new Error('checkout-setup-failed'), { handled: true });
         }
 
         window.location.href = 'bastion-transaction.html?id=' + encodeURIComponent(txn.id);
 
       } catch(err){
-        alert('Something went wrong: ' + (err.message || String(err)));
+        if(!(err && err.handled)) alert('Something went wrong: ' + (err.message || String(err)));
         btn.disabled = false;
         btn.textContent = originalText;
       }

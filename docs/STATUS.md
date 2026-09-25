@@ -1,14 +1,14 @@
-# Bastion: actual state, 2026-09-24
+# Bastion: actual state, 2026-09-25
 
 Written against the live Supabase database, the live Netlify configuration
 and the deployed code (PR #80, 2026-09-20). Where the other files in this
 folder disagree with this one, this one is right.
 
 ## Verified continuously
-- `node tests/run.js`: 61 checks, run by Netlify before EVERY deploy. A
+- `node tests/run.js`: 67 checks, run by Netlify before EVERY deploy. A
   failure blocks the deploy.
 - `sql/tests/security_regression.sql`: 35 live database attack/flow checks.
-  Last run 2026-09-24: 35/35 PASS. Everything rolls back; re-run after any
+  Last run 2026-09-25: 38/38 PASS. Everything rolls back; re-run after any
   change to RLS, triggers or pricing.
 
 ## Money path (how it actually works now)
@@ -30,10 +30,22 @@ folder disagree with this one, this one is right.
    so the expected path is a real Escrow.com link for the buyer. Bastion
    records `released` only when Escrow.com confirms.
 
+## Self-healing
+The hourly `deadline-sweep` re-reads every open order from Escrow.com and
+every in-flight parcel from EasyPost and moves state forward if a webhook
+was missed; it also withdraws unpaid checkouts that never reached
+Escrow.com after 24 hours. Worst case for a lost webhook: one hour.
+
+## EasyPost (verified 2026-09-25)
+Production webhook `hook_09549c74...` -> /.netlify/functions/shipping-webhook,
+HMAC-signed (X-Hmac-Signature); the old URL-secret webhook was deleted.
+Only USPS, UPS and FedEx rates are offered. Items above
+SHIPPING_MAX_ITEM_VALUE (default $50,000) are in-person / concierge only.
+
 ## Owner actions still open
 1. Supabase > Authentication > Providers > Email: turn on leaked-password protection.
 2. Change `ESCROW_LIVE_EMAIL` off `blackstarxllc@gmail.com` (that account also owns live listings; Escrow.com rejects a deal where broker and seller are the same person).
-3. Register the webhooks (see CLAUDE-CODE handoff notes / chat for exact URLs).
+3. Set SHIP_FROM_PHONE in Netlify (UPS/FedEx labels need a shipper phone).
 4. One real low-value purchase end to end.
 
 ## Post-deploy step (Claude)

@@ -4,85 +4,33 @@
 // carrier provider, the tier rules, and the auth checks can never drift
 // apart between endpoints.
 //
-// PROVIDER ABSTRACTION
-// --------------------
-// Bastion talks to exactly one shipping provider at a time, chosen by the
-// SHIPPING_PROVIDER env var. Today that's Shippo or EasyPost. Both expose
-// the same three things we need — rates, labels, tracking webhooks — so the
-// rest of the codebase never needs to know which one is behind it. Adding a
-// third provider later means adding a case here, not touching any page.
-
-// The default here used to be 'shippo'. That was a live landmine: the only
-// Shippo credential in production is a TEST key, so if SHIPPING_PROVIDER were
-// ever unset, deleted, or dropped by a bad deploy, the code would silently
-// fall back to Shippo, read a test key, and hand sellers test labels that no
-// carrier accepts — while SHIPPING_TEST_MODE=false made every guard believe
-// it was live. Defaulting to the provider that is actually configured for
-// production removes that failure mode entirely.
+// PROVIDER
+// --------
+// EasyPost is the only shipping provider. (A Shippo adapter existed until
+// 2026-09-24; its key had already been removed from production, so it was
+// unreachable code and was deleted.)
+const crypto = require('crypto');
 const PROVIDER = (process.env.SHIPPING_PROVIDER || 'easypost').toLowerCase();
 const SHIPPING_TEST_MODE = process.env.SHIPPING_TEST_MODE === 'true';
 
-// ---------------------------------------------------------------
-// GO-LIVE SAFETY: catch a key/mode mismatch before it costs money.
-//
-// Two failure modes, both silent and both expensive:
-//
-//   LIVE key + test mode ON  -> Shippo returns TEST labels. They look
-//     real, they download as a PDF, and a carrier will not accept them.
-//     A seller ships nothing, the ship-by clock runs out, and the buyer
-//     cancels. Worst case this happens on every order until someone
-//     notices the labels were never scannable.
-//
-//   TEST key + test mode OFF -> label purchase fails outright, so no
-//     seller can ship at all.
-//
-// Shippo test keys are prefixed `shippo_test_` and live keys
-// `shippo_live_`, so the mismatch is detectable. This does not block
-// anything — it writes a loud console error and is surfaced through
-// shippingConfigWarning() so the calling function can alert on it.
-// ---------------------------------------------------------------
+// GO-LIVE SAFETY: a production key with test mode on, or a test key with
+// test mode off, both fail silently and expensively (unscannable labels, or
+// no labels at all). EasyPost keys are prefixed EZAK (production) and EZTK
+// (test), so the mismatch is detectable and is reported by
+// shippingConfigWarning() for the calling function to alert on.
 function shippingConfigWarning() {
-  if (PROVIDER !== 'shippo' && PROVIDER !== 'easypost') {
-    return 'SHIPPING_PROVIDER is set to "' + PROVIDER + '", which is not a provider this code supports. Use "easypost" or "shippo".';
+  if (PROVIDER !== 'easypost') {
+    return 'SHIPPING_PROVIDER is "' + PROVIDER + '". EasyPost is the only supported provider (Shippo support was removed on 2026-09-24).';
   }
-
-  // Check the key belonging to the ACTIVE provider only. Reading whichever
-  // key happened to be set meant a leftover Shippo test key could be
-  // inspected while EasyPost was the live provider.
-  const activeKey = PROVIDER === 'easypost'
-    ? (process.env.EASYPOST_API_KEY || '')
-    : (process.env.SHIPPO_API_KEY || '');
-  if (!activeKey) {
-    return 'SHIPPING_PROVIDER is "' + PROVIDER + '" but its API key is not set. No shipping quote or label can be produced.';
+  const epKey = process.env.EASYPOST_API_KEY || '';
+  if (!epKey) return 'EASYPOST_API_KEY is not set. No shipping quote or label can be produced.';
+  const looksTest = epKey.startsWith('EZTK');
+  const looksLive = epKey.startsWith('EZAK');
+  if (looksLive && SHIPPING_TEST_MODE) {
+    return 'PRODUCTION EasyPost key is set but SHIPPING_TEST_MODE is still true. Set SHIPPING_TEST_MODE=false.';
   }
-
-  if (PROVIDER === 'shippo') {
-    const key = activeKey;
-    const looksTest = key.startsWith('shippo_test_');
-    const looksLive = key.startsWith('shippo_live_');
-    if (looksLive && SHIPPING_TEST_MODE) {
-      return 'LIVE Shippo key is set but SHIPPING_TEST_MODE is still true — labels will be TEST labels that carriers will not accept. Set SHIPPING_TEST_MODE=false.';
-    }
-    if (looksTest && !SHIPPING_TEST_MODE) {
-      return 'TEST Shippo key is set but SHIPPING_TEST_MODE is false — label purchases will fail. Set SHIPPING_TEST_MODE=true, or install the live key.';
-    }
-  }
-
-  // EasyPost has the identical trap, with its own prefixes:
-  //   EZTK... = test key      EZAK... = production key
-  // The guard previously only understood Shippo prefixes, so on EasyPost
-  // it would never fire at all — silently leaving the most expensive
-  // misconfiguration undetected.
-  if (PROVIDER === 'easypost') {
-    const epKey = activeKey;
-    const looksTest = epKey.startsWith('EZTK');
-    const looksLive = epKey.startsWith('EZAK');
-    if (looksLive && SHIPPING_TEST_MODE) {
-      return 'PRODUCTION EasyPost key is set but SHIPPING_TEST_MODE is still true. Set SHIPPING_TEST_MODE=false.';
-    }
-    if (looksTest && !SHIPPING_TEST_MODE) {
-      return 'TEST EasyPost key is set but SHIPPING_TEST_MODE is false — label purchases will fail. Set SHIPPING_TEST_MODE=true, or install the production key.';
-    }
+  if (looksTest && !SHIPPING_TEST_MODE) {
+    return 'TEST EasyPost key is set but SHIPPING_TEST_MODE is false; label purchases will fail. Set SHIPPING_TEST_MODE=true, or install the production key.';
   }
   return null;
 }
@@ -112,7 +60,7 @@ function tierForValue(value) {
 // ---------------------------------------------------------------
 // RETAIL RATE PRESENTATION
 //
-// Shippo and EasyPost return heavily discounted commercial rates (their
+// EasyPost returns heavily discounted commercial rates (its
 // negotiated volume pricing, often far below what the same service costs
 // at a retail counter). Bastion charges the buyer the standard retail
 // rate for that service and keeps the spread as platform revenue.
@@ -147,12 +95,46 @@ const RETAIL_MULTIPLIERS = {
 // genuine retail, which is exactly what we must not do.
 const RETAIL_MAX_MULTIPLIER = 1.6;
 
+// ------------------------------------------------------------------
+// SERVICE SPEED — explicit rules, not loose word matching.
+//
+// The old check treated any service containing "priority" as express, so
+// USPS Priority Mail (2-3 days) counted as express for Vault shipments,
+// while UPS "2ndDayAir" did NOT match its /2.?day/ pattern at all. Names are
+// normalised (lowercase, letters and digits only) and classified by what
+// the service actually promises:
+//   express : overnight / next day / 1-2 day guaranteed (Priority Mail
+//             Express, NextDayAir*, *_OVERNIGHT, 2ndDayAir*, FEDEX_2_DAY*)
+//   priority: 3-day and USPS Priority Mail
+//   ground  : ground / economy
+// ------------------------------------------------------------------
+function normService(name) {
+  return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 function serviceBand(serviceName) {
-  const n = String(serviceName || '').toLowerCase();
-  if (/express|overnight|next.?day|priority mail express/.test(n)) return 'express';
-  if (/priority|2.?day|second.?day|air/.test(n)) return 'priority';
-  if (/ground|surepost|smartpost|parcel select|media mail|home delivery/.test(n)) return 'ground';
+  const n = normService(serviceName);
+  if (!n) return 'default';
+  if (/overnight|nextday|expressmail|prioritymailexpress|^express$|usps?express|2ndday|2day|secondday/.test(n) && !/expresssaver|3day/.test(n)) return 'express';
+  if (/3day|expresssaver|^priority$|prioritymail|fedexexpresssaver/.test(n)) return 'priority';
+  if (/ground|surepost|smartpost|parcelselect|mediamail|homedelivery|economy|groundadvantage/.test(n)) return 'ground';
   return 'default';
+}
+
+function isExpressService(serviceName) {
+  return serviceBand(serviceName) === 'express';
+}
+
+// Items worth more than this are not shipped through the automated flow.
+// Declared value is not insurance, and Bastion does not insure shipments, so
+// past this point a carrier loss would fall on a buyer or seller with no
+// recourse. Above the limit a listing sells for in-person handoff, or
+// support arranges concierge logistics. Set SHIPPING_MAX_ITEM_VALUE in
+// Netlify to change it; 0 disables automated shipping entirely.
+function maxShippableValue() {
+  const raw = process.env.SHIPPING_MAX_ITEM_VALUE;
+  const n = raw === undefined || raw === '' ? 50000 : Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : 50000;
 }
 
 // Returns { retail, commercial, margin } — commercial is what Bastion is
@@ -370,36 +352,10 @@ async function logAlert(source, message, context) {
 // Provider: rate quoting
 // ---------------------------------------------------------------
 function providerAuthHeader() {
-  if (PROVIDER === 'easypost') {
-    const key = process.env.EASYPOST_API_KEY;
-    if (!key) throw new Error('EASYPOST_API_KEY is not configured');
-    return 'Basic ' + Buffer.from(key + ':').toString('base64');
-  }
-  const key = process.env.SHIPPO_API_KEY;
-  if (!key) throw new Error('SHIPPO_API_KEY is not configured');
-  return 'ShippoToken ' + key;
+  const key = process.env.EASYPOST_API_KEY;
+  if (!key) throw new Error('EASYPOST_API_KEY is not configured');
+  return 'Basic ' + Buffer.from(key + ':').toString('base64');
 }
-
-// The label's sender identity.
-//
-// IMPORTANT — this is per-seller, not one fixed business address.
-//
-// Every seller on Bastion ships from their own real location. Using one
-// global address for every label (an earlier version of this function did
-// exactly that) produces an invalid parcel: a carrier requires the street/
-// city/state/ZIP to actually match a real place, and Bastion's registered
-// business address is a registered-agent address that no parcel is ever
-// physically dropped off at. Pairing that street with a seller's real ZIP
-// creates a combination that doesn't exist, which carriers reject or
-// mis-rate.
-//
-// So the PHYSICAL address (street/city/state/zip) always comes from the
-// seller's own real address, stored privately per listing. The only thing
-// Bastion overrides is the NAME on the label — "B.M. LLC" instead of the
-// seller's real name — which is what actually protects their privacy
-// without breaking the label. Phone/email fall back to Bastion's own
-// business contact only if the seller didn't provide one, so a label is
-// never missing a required field.
 function senderIdentity(sellerAddress) {
   const addr = sellerAddress || {};
   return {
@@ -417,155 +373,111 @@ function senderIdentity(sellerAddress) {
 
 async function fetchRates({ from, to, parcel, declaredValue, tier }) {
   const rules = tierRules(tier);
-
-  if (PROVIDER === 'easypost') {
-    const res = await fetch('https://api.easypost.com/v2/shipments', {
-      method: 'POST',
-      headers: { Authorization: providerAuthHeader(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        shipment: {
-          to_address: {
-            name: to.name, street1: to.line1, street2: to.line2 || '',
-            city: to.city, state: to.state, zip: to.postal_code,
-            country: to.country || 'US', phone: to.phone || '',
-          },
-          from_address: {
-            name: from.name, street1: from.street1, city: from.city,
-            state: from.state, zip: from.zip, country: 'US', phone: from.phone,
-          },
-          parcel: {
-            length: parcel.length, width: parcel.width,
-            height: parcel.height, weight: parcel.weight_oz,
-          },
-          options: {
-            delivery_confirmation: rules.adultSignatureRequired
-              ? 'ADULT_SIGNATURE'
-              : 'SIGNATURE',
-          },
-        },
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error('Rate lookup failed: ' + (data.error && data.error.message ? data.error.message : res.status));
-    }
-    return {
-      providerShipmentId: data.id,
-      rates: (data.rates || []).map((r) => ({
-        id: r.id,
-        carrier: r.carrier,
-        service: r.service,
-        amount: Number(r.rate),
-        retailAmount: Number(r.retail_rate) || 0,
-        days: r.delivery_days,
-      })),
-    };
-  }
-
-  // Shippo
-  const res = await fetch('https://api.goshippo.com/shipments/', {
+  const res = await fetch('https://api.easypost.com/v2/shipments', {
     method: 'POST',
     headers: { Authorization: providerAuthHeader(), 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      address_from: {
-        name: from.name, street1: from.street1, city: from.city,
-        state: from.state, zip: from.zip, country: 'US', phone: from.phone,
+      shipment: {
+        to_address: {
+          name: to.name, street1: to.line1, street2: to.line2 || '',
+          city: to.city, state: to.state, zip: to.postal_code,
+          country: to.country || 'US', phone: to.phone || '',
+        },
+        from_address: {
+          name: from.name, street1: from.street1, street2: from.street2 || '', city: from.city,
+          state: from.state, zip: from.zip, country: 'US', phone: from.phone,
+        },
+        parcel: {
+          length: parcel.length, width: parcel.width,
+          height: parcel.height, weight: parcel.weight_oz,
+        },
+        options: {
+          delivery_confirmation: rules.adultSignatureRequired ? 'ADULT_SIGNATURE' : 'SIGNATURE',
+        },
+        carrier_accounts: carrierAccountIds().length ? carrierAccountIds() : undefined,
       },
-      address_to: {
-        name: to.name, street1: to.line1, street2: to.line2 || '',
-        city: to.city, state: to.state, zip: to.postal_code,
-        country: to.country || 'US', phone: to.phone || '',
-      },
-      parcels: [{
-        length: String(parcel.length), width: String(parcel.width),
-        height: String(parcel.height), distance_unit: 'in',
-        weight: String(parcel.weight_oz), mass_unit: 'oz',
-      }],
-      extra: {
-        signature_confirmation: rules.adultSignatureRequired ? 'ADULT' : 'STANDARD',
-        // UNVERIFIED FIELD NAME — this Shippo-specific code path is not
-        // currently active (SHIPPING_PROVIDER=easypost in production) and
-        // goshippo.com's own docs aren't reachable from this environment to
-        // confirm the exact key Shippo expects for a bare declared value
-        // with no insurance product attached. Verify against Shippo's live
-        // API docs before ever switching SHIPPING_PROVIDER to 'shippo' —
-        // do not assume this key is correct just because it's present.
-        optional_declared_value: declaredValue ? String(declaredValue) : undefined,
-      },
-      async: false,
-      test: SHIPPING_TEST_MODE,
     }),
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error('Rate lookup failed: ' + (data.detail || JSON.stringify(data).slice(0, 200)));
+    throw new Error('Rate lookup failed: ' + (data.error && data.error.message ? data.error.message : res.status));
   }
   return {
-    providerShipmentId: data.object_id,
-    rates: (data.rates || []).map((r) => ({
-      id: r.object_id,
-      carrier: r.provider,
-      service: r.servicelevel && r.servicelevel.name,
-      amount: Number(r.amount),
-      // Shippo exposes the undiscounted figure here on carriers that
-      // support it. When present it's a real retail price and beats any
-      // multiplier estimate.
-      retailAmount: Number(r.amount_local) > Number(r.amount) ? Number(r.amount_local) : 0,
-      days: r.estimated_days,
+    providerShipmentId: data.id,
+    rates: (data.rates || []).filter((r) => carrierAllowed(r.carrier)).map((r) => ({
+      id: r.id,
+      carrier: r.carrier,
+      service: r.service,
+      amount: Number(r.rate),
+      retailAmount: Number(r.retail_rate) || 0,
+      days: r.delivery_days,
     })),
   };
 }
 
-async function buyLabel(rateId) {
-  if (PROVIDER === 'easypost') {
-    const parts = String(rateId).split('|');
-    const shipmentId = parts[0];
-    const realRateId = parts[1] || parts[0];
-    const res = await fetch('https://api.easypost.com/v2/shipments/' + shipmentId + '/buy', {
+// Buys the label for "shipmentId|rateId". Errors carry `definitive`:
+//   true  -> EasyPost answered with a 4xx; nothing was bought. Safe to retry.
+//   false -> network failure, timeout or 5xx; a label MAY have been bought.
+//            The caller must treat the outcome as unknown and reconcile,
+//            never simply try again (that is how a second real label gets
+//            paid for).
+// Looks up an EasyPost shipment and, if a label was already purchased on it,
+// returns it in buyLabel()'s shape. Used to ADOPT a label whose purchase
+// response was lost, instead of paying for a second one. Returns null when
+// no label exists yet. Throws only when EasyPost cannot be reached, because
+// "unknown" must never be treated as "not bought".
+async function fetchPurchasedLabel(providerShipmentId) {
+  const res = await fetch('https://api.easypost.com/v2/shipments/' + encodeURIComponent(providerShipmentId), {
+    headers: { Authorization: providerAuthHeader() },
+  });
+  if (res.status === 404) return null;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error('Could not look up EasyPost shipment (' + res.status + ')');
+  if (!data.tracking_code || !data.postage_label || !data.postage_label.label_url) return null;
+  return {
+    trackingNumber: data.tracking_code,
+    labelUrl: data.postage_label.label_url,
+    carrier: data.selected_rate && data.selected_rate.carrier,
+    service: data.selected_rate && data.selected_rate.service,
+    cost: data.selected_rate ? Number(data.selected_rate.rate) : null,
+    providerShipmentId: data.id,
+  };
+}
+
+async function buyLabel(rateToken) {
+  const parts = String(rateToken).split('|');
+  const shipmentId = parts[0];
+  const realRateId = parts[1] || parts[0];
+  let res;
+  try {
+    res = await fetch('https://api.easypost.com/v2/shipments/' + encodeURIComponent(shipmentId) + '/buy', {
       method: 'POST',
       headers: { Authorization: providerAuthHeader(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ rate: { id: realRateId } }),
     });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error('Label purchase failed: ' + (data.error && data.error.message ? data.error.message : res.status));
-    }
-    return {
-      trackingNumber: data.tracking_code,
-      labelUrl: data.postage_label && data.postage_label.label_url,
-      carrier: data.selected_rate && data.selected_rate.carrier,
-      service: data.selected_rate && data.selected_rate.service,
-      cost: data.selected_rate ? Number(data.selected_rate.rate) : null,
-      providerShipmentId: data.id,
-    };
+  } catch (netErr) {
+    const e = new Error('Label purchase: no response from EasyPost (' + netErr.message + ')');
+    e.definitive = false;
+    e.providerShipmentId = shipmentId;
+    throw e;
   }
-
-  const res = await fetch('https://api.goshippo.com/transactions/', {
-    method: 'POST',
-    headers: { Authorization: providerAuthHeader(), 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      rate: rateId,
-      label_file_type: 'PDF_4x6',
-      async: false,
-      test: SHIPPING_TEST_MODE,
-    }),
-  });
-  const data = await res.json();
-  if (!res.ok || data.status === 'ERROR') {
-    const msg = (data.messages && data.messages[0] && data.messages[0].text) || data.detail || res.status;
-    throw new Error('Label purchase failed: ' + msg);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const e = new Error('Label purchase failed: ' + (data.error && data.error.message ? data.error.message : res.status));
+    e.definitive = res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429;
+    e.providerShipmentId = shipmentId;
+    throw e;
   }
   return {
-    trackingNumber: data.tracking_number,
-    labelUrl: data.label_url,
-    carrier: data.rate && data.rate.provider,
-    service: data.rate && data.rate.servicelevel && data.rate.servicelevel.name,
-    cost: data.rate ? Number(data.rate.amount) : null,
-    providerShipmentId: data.object_id,
+    trackingNumber: data.tracking_code,
+    labelUrl: data.postage_label && data.postage_label.label_url,
+    carrier: data.selected_rate && data.selected_rate.carrier,
+    service: data.selected_rate && data.selected_rate.service,
+    cost: data.selected_rate ? Number(data.selected_rate.rate) : null,
+    providerShipmentId: data.id,
   };
 }
 
-// Normalise the many carrier vocabularies into Bastion's own five states.
 function normaliseTrackingStatus(raw) {
   const s = String(raw || '').toUpperCase();
   if (['DELIVERED'].includes(s)) return 'delivered';
@@ -586,6 +498,60 @@ function normaliseTrackingStatus(raw) {
 
 
 // ------------------------------------------------------------------
+// CARRIER ALLOWLIST
+// The EasyPost account has seven carriers linked, including DHL Express,
+// DHL eCommerce, Canada Post and Asendia (international / economy
+// services). Rating used all of them, so a buyer could be offered, and pick,
+// a service that cannot carry the signature requirement the tier demands.
+// Bastion ships domestically with USPS, UPS and FedEx only. The account ids
+// can be pinned with EASYPOST_CARRIER_ACCOUNTS (comma-separated ca_ ids);
+// otherwise rates from any other carrier are discarded.
+// ------------------------------------------------------------------
+const ALLOWED_CARRIER = /^(usps|ups|upsdap|fedex|fedexdefault)$/i;
+function carrierAllowed(carrier) {
+  return ALLOWED_CARRIER.test(String(carrier || '').replace(/\s+/g, ''));
+}
+function carrierAccountIds() {
+  return String(process.env.EASYPOST_CARRIER_ACCOUNTS || '')
+    .split(',').map((s) => s.trim()).filter((s) => /^ca_[a-z0-9]+$/i.test(s));
+}
+
+// Vault items must travel on a genuinely express service. This filters by
+// the explicit serviceBand() classifier and FAILS CLOSED: if nothing
+// qualifies, the result is empty. The old filter matched the word
+// "priority" (so USPS Priority passed as express) and, when nothing
+// matched, silently fell back to every rate.
+function filterForTier(rates, rules) {
+  const usable = (rates || []).filter((r) => r.amount > 0 && carrierAllowed(r.carrier));
+  if (rules && rules.minCarrierService === 'express') {
+    return usable.filter((r) => isExpressService(r.service));
+  }
+  return usable;
+}
+
+// A quote is bound to the EXACT destination, not just its ZIP. Two
+// addresses on the same ZIP can rate differently (residential surcharges,
+// delivery areas), and the label must go where the buyer was quoted.
+function addressFingerprint(a) {
+  const norm = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const parts = [a.line1 || a.street1, a.line2 || a.street2, a.city, a.state,
+                 String(a.postal_code || a.zip || '').slice(0, 5), a.country || 'US'].map(norm);
+  return crypto.createHash('sha256').update(parts.join('|')).digest('hex').slice(0, 32);
+}
+
+// HIGH-VALUE CEILING
+// maxShippableValue() (SHIPPING_MAX_ITEM_VALUE, default $50,000) existed
+// before 2026-09-24 but nothing called it: it looked like a limit and
+// enforced none. Bastion does not insure shipments, and carrier
+// declared-value limits sit around $50,000 even where coverage is bought,
+// so above the ceiling items are in-person / concierge only. The quote
+// function now enforces it. Setting SHIPPING_MAX_ITEM_VALUE=0 disables it.
+function exceedsAutoShipCeiling(value) {
+  const cap = maxShippableValue();
+  return cap > 0 && Number(value) > cap;
+}
+
+// ------------------------------------------------------------------
 // SIGNED SHIPPING QUOTES
 //
 // Before 2026-09-24 the buyer's browser told the server what shipping cost.
@@ -601,7 +567,6 @@ function normaliseTrackingStatus(raw) {
 // itself. A tampered token fails the signature check; an expired one asks
 // the buyer to re-quote. The browser can choose a rate, never set a price.
 // ------------------------------------------------------------------
-const crypto = require('crypto');
 const QUOTE_TTL_MS = 45 * 60 * 1000;
 
 function quoteSecret() {
@@ -656,6 +621,8 @@ module.exports = {
   shippingConfigWarning,
   toRetailRate,
   serviceBand,
+  isExpressService,
+  maxShippableValue,
   tierForValue,
   tierRules,
   screenDestination,
@@ -674,4 +641,9 @@ module.exports = {
   signQuote,
   verifyQuote,
   normalisePostal,
+  carrierAllowed,
+  filterForTier,
+  addressFingerprint,
+  exceedsAutoShipCeiling,
+  fetchPurchasedLabel,
 };
